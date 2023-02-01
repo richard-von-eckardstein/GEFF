@@ -25,7 +25,7 @@ def NCutbyDelta(f, t, yini, vals, prec=10**(-0.5)):
             
     return delta, NCut
 
-outdir = "/home/richard/Documents/Phd Muenster/Axions in the early Universe"
+outdir = "/scratch/tmp/rfreiher/GEF/"
 
 xi = 7
 a = 1
@@ -40,11 +40,11 @@ t = N/HConst
 
 CH = lambda t, x: ConstH.ConstHGEF(x, t, HConst, dVini, I)
 
-delta, NCut = NCutbyDelta(CH, t, yini, 2)
+delta, NCut = NCutbyDelta(CH, t, yini, 100)
 
 DataDic = dict(d = delta, N = NCut)
 
-filename = "NCut_xi_" + str(xi)
+filename = "NCut_xi_" + str(xi) + ".dat"
 path = os.path.join(outdir, filename)
         
 output_df = pd.DataFrame(DataDic)  
