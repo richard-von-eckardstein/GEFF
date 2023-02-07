@@ -4,27 +4,6 @@ import ConstH
 import pandas as pd
 import os
 
-def getNCut(t, xi, xi0, prec=10**(-0.5)):
-    for i in range(len(xi)):
-        diff = abs(xi[i]-xi0)/xi0
-        if (diff > prec):
-            return t[i]
-    return False
-
-def NCutbyDelta(f, t, yini, vals, prec=10**(-0.5)):
-    xi0 = yini[0]
-    xiend = (1+prec)*xi0
-    xis = np.linspace(xi0, xiend, vals+1)
-    NCut = []
-    delta = []
-    for i in range(vals):
-        yini[0] = xis[i]
-        sol = solve_ivp(f, [t[0], t[-1]] , yini)
-        NCut.append(getNCut(sol.t, sol.y[0,:], xi0, prec=10**(-0.5)))
-        delta.append(abs(xis[i]-xi0))
-            
-    return delta, NCut
-
 outdir = "/home/richard/Documents/Phd Muenster/Axions in the early Universe"
 
 xi = 7
@@ -40,12 +19,49 @@ t = N/HConst
 
 CH = lambda t, x: ConstH.ConstHGEF(x, t, HConst, dVini, I)
 
-delta, NCut = NCutbyDelta(CH, t, yini, 2)
+sol = solve_ivp(CH, [t[0], t[-1]] , yini)
 
-DataDic = dict(d = delta, N = NCut)
+data = [sol.t, sol.y[0], sol.y[1]]
 
-filename = "NCut_xi_" + str(xi)
+names = ["t", "xi", "logkh"]
+for i in range(ntr):
+    data.append(sol.y[2+i*3])
+    names.append("E(" + str(i) + ")")
+    data.append(sol.y[3+i*3])
+    names.append("B(" + str(i) + ")")
+    data.append(sol.y[4+i*3])
+    names.append("G(" + str(i) + ")")
+    
+DataDic = dict(zip(names, data))
+
+filename = "Out_xi" + str(xi) + "_base" + "_I" + str(I) + ".dat"
 path = os.path.join(outdir, filename)
         
 output_df = pd.DataFrame(DataDic)  
 output_df.to_csv(path)
+
+dev = np.arange(1, 17)
+delta = 1/10**(dev)
+xis = (delta+1)*xi0
+for j in range(dev.size):
+    yini[0] = xis[j]
+    sol = solve_ivp(CH, [t[0], t[-1]] , yini)
+
+    data = [sol.t, sol.y[0], sol.y[1]]
+
+    names = ["t", "xi", "logkh"]
+    for i in range(ntr):
+        data.append(sol.y[2+i*3])
+        names.append("E(" + str(i) + ")")
+        data.append(sol.y[3+i*3])
+        names.append("B(" + str(i) + ")")
+        data.append(sol.y[4+i*3])
+        names.append("G(" + str(i) + ")")
+
+    DataDic = dict(zip(names, data))
+    
+    filename = "Out_xi" + str(xi) + "_del" + str(dev[j]) + "_I" + str(I) + ".dat"
+    path = os.path.join(outdir, filename)
+
+    output_df = pd.DataFrame(DataDic)  
+    output_df.to_csv(path)
