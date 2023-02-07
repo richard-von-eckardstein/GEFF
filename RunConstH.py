@@ -4,7 +4,7 @@ import ConstH
 import pandas as pd
 import os
 
-outdir = "/home/richard/Documents/Phd Muenster/Axions in the early Universe"
+outdir = "/scratch/tmp/rfreiher/GEF"
 
 xi = 7
 a = 1
@@ -42,7 +42,7 @@ output_df.to_csv(path)
 
 dev = np.arange(1, 17)
 delta = 1/10**(dev)
-xis = (delta+1)*xi0
+xis = (delta+1)*xi
 for j in range(dev.size):
     yini[0] = xis[j]
     sol = solve_ivp(CH, [t[0], t[-1]] , yini)
