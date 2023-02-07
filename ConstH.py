@@ -50,14 +50,14 @@ def ConstHGEF(y, t, HConst, dVdsc, dIdsc):
     
     return dydt
 
-def SetupConstH(xi, HConst, a, ntr, Iterm):
+def SetupConstH(x, HConst, a, ntr, Iterm):
     y = np.zeros(2+3*ntr)
-    
+    xi = float(x)
     y[0] = xi
     y[1] = np.log(2*a*HConst*xi)
     
     pwd = os.getcwd()
-    filename = "ConstH_xi_" + str(xi) + "_Initialiser.dat"
+    filename = "ConstH_xi_" + x + "_Initialiser.dat"
     path = os.path.join(pwd, filename)
     file = os.path.exists(path)
 

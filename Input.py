@@ -7,7 +7,7 @@ def get_cmdline_arguments():
     """
 
     parser = optparse.OptionParser()
-    parser.add_option('x', action="store", default="",
+    parser.add_option('-x', action="store", default="",
             help="Initial xi value for which to run ConstH.")
     parser.add_option('-i', action="store", default="",
             help="Value of beta/Mpl")

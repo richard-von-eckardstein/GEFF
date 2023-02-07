@@ -3,15 +3,32 @@ from scipy.integrate import solve_ivp
 import ConstH
 import pandas as pd
 import os
+import Input as inpt
+import sys
 
+inopt, cmd_ok = inpt.get_cmdline_arguments()
+
+if not cmd_ok:
+    print("ERROR")
+    print("Need to give -x and -i as input")
+    sys.exit()
+    
+print(inopt)
+    
 outdir = "/scratch/tmp/rfreiher/GEF"
-
-xi = 7
+x = inopt.get("x")
+i = inopt.get("i")
+d = inopt.get("d")
+xi = float(x)
 a = 1
 ntr = 190
 HConst = 1
-I = 2.45e-5
-yini, dVini = ConstH.SetupConstH(xi, HConst, a, ntr, I)
+I = float(i)
+d = float(d)
+
+print(xi, I, d)
+
+yini, dVini = ConstH.SetupConstH(x, HConst, a, ntr, I)
 
 steps = int(1e6)
 N = np.linspace(0, 50, steps)
@@ -34,13 +51,14 @@ for i in range(ntr):
     
 DataDic = dict(zip(names, data))
 
-filename = "Out_xi" + str(xi) + "_base" + "_I" + str(I) + ".dat"
+filename = "Out_xi" + x + "_base" + "_I" + i + ".dat"
+print(filename)
 path = os.path.join(outdir, filename)
         
 output_df = pd.DataFrame(DataDic)  
 output_df.to_csv(path)
 
-dev = np.arange(1, 17)
+dev = np.arange(1, d+1)
 delta = 1/10**(dev)
 xis = (delta+1)*xi
 for j in range(dev.size):
@@ -60,7 +78,7 @@ for j in range(dev.size):
 
     DataDic = dict(zip(names, data))
     
-    filename = "Out_xi" + str(xi) + "_del" + str(dev[j]) + "_I" + str(I) + ".dat"
+    filename = "Out_xi" + x + "_del" + str(dev[j]) + "_I" + i + ".dat"
     path = os.path.join(outdir, filename)
 
     output_df = pd.DataFrame(DataDic)  
