@@ -57,7 +57,7 @@ def SetupConstH(x, HConst, a, ntr, Iterm):
     y[1] = np.log(2*a*HConst*xi)
     
     pwd = os.getcwd()
-    filename = "ConstH_xi_" + x + "_Initialiser.dat"
+    filename = "ConstH_Input/ConstH_xi_" + x + "_Initialiser.dat"
     path = os.path.join(pwd, filename)
     file = os.path.exists(path)
 

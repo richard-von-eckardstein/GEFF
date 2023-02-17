@@ -12,7 +12,9 @@ def get_cmdline_arguments():
     parser.add_option('-i', action="store", default="",
             help="Value of beta/Mpl")
     parser.add_option('-d', action="store", default="16",
-            help="Order of magnitude for deviations from xi")  
+            help="Order of magnitude for deviations from xi")
+    parser.add_option('-s', action="store", default="+",
+            help="sign of deviations from xi")  
 
     options_in, args = parser.parse_args()
 

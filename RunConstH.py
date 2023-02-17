@@ -8,25 +8,32 @@ import sys
 
 inopt, cmd_ok = inpt.get_cmdline_arguments()
 
+print(inopt)
 if not cmd_ok:
     print("ERROR")
     print("Need to give -x and -i as input")
     sys.exit()
     
-print(inopt)
-    
 outdir = "/scratch/tmp/rfreiher/GEF"
+
 x = inopt.get("x")
-i = inopt.get("i")
+b = inopt.get("i")
 d = inopt.get("d")
+s = inopt.get("s")
+x = x.replace(",",".")
+b = b.replace(",",".")
+d = d.replace(",",".")
 xi = float(x)
+beta=10**float(b)
 a = 1
 ntr = 190
 HConst = 1
-I = float(i)
+MPl = 0.5e7*(beta/100)**(1/2)*np.exp(2.85*(xi-7))*HConst
+I = beta/MPl
 d = float(d)
+s = float(s + "1")
 
-print(xi, I, d)
+print(xi, I, d, s)
 
 yini, dVini = ConstH.SetupConstH(x, HConst, a, ntr, I)
 
@@ -51,15 +58,21 @@ for i in range(ntr):
     
 DataDic = dict(zip(names, data))
 
-filename = "Out_xi" + x + "_base" + "_I" + i + ".dat"
-print(filename)
-path = os.path.join(outdir, filename)
+DirName = "Out_xi" + x + "_beta" + b + "/"
+DirName = os.path.join(outdir, DirName)
+
+if (not os.path.exists(DirName)):
+        os.mkdir(DirName)
+
+filename = "Out_xi" + x + "_base" + "_beta" + b + ".dat"
+
+path = os.path.join(DirName, filename)
         
 output_df = pd.DataFrame(DataDic)  
 output_df.to_csv(path)
 
 dev = np.arange(1, d+1)
-delta = 1/10**(dev)
+delta = s*1/10**(dev)
 xis = (delta+1)*xi
 for j in range(dev.size):
     yini[0] = xis[j]
@@ -78,8 +91,9 @@ for j in range(dev.size):
 
     DataDic = dict(zip(names, data))
     
-    filename = "Out_xi" + x + "_del" + str(dev[j]) + "_I" + i + ".dat"
-    path = os.path.join(outdir, filename)
+    filename = "Out_xi" + x + "_del" + str(s) + "_" + str(dev[j]) + "_beta" + b + ".dat"
+
+    path = os.path.join(DirName, filename)
 
     output_df = pd.DataFrame(DataDic)  
     output_df.to_csv(path)
