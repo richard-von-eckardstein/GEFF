@@ -26,7 +26,7 @@ d = d.replace(",",".")
 xi = float(x)
 beta=10**float(b)
 a = 1
-ntr = 190
+ntr = 180
 HConst = 1
 MPl = 0.5e7*(beta/100)**(1/2)*np.exp(2.85*(xi-7))*HConst
 I = beta/MPl
@@ -91,7 +91,7 @@ for j in range(dev.size):
 
     DataDic = dict(zip(names, data))
     
-    filename = "Out_xi" + x + "_del" + str(s) + "_" + str(dev[j]) + "_beta" + b + ".dat"
+    filename = "Out_xi" + x + "_del" + str(s) + "_" + str(dev[j]) + "_beta" + b + "180.dat"
 
     path = os.path.join(DirName, filename)
 
