@@ -58,7 +58,7 @@ else:
     yini[0] = (delta+1)*xi 
 
 steps = int(1e6)
-N = np.linspace(0, 50, steps)
+N = np.linspace(0, 60, steps)
 t = N/HConst
 
 CH = lambda t, x: ConstHGEF(x, t, HConst, dVini, I, omega, f, approx=False)

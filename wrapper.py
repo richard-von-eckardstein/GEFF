@@ -75,7 +75,7 @@ def fullGEF(t, y, V, dVdphi, dIdphi, ddIddphi, sigma=0, omega=1, f=1, approx=Fal
     
     return dydt
 
-def ConstHGEF(y, t, HConst, dVdsc, dIdsc, omega=1, f=1, approx=False):
+def ConstHGEF(y, t, HConst, dVdphi, dIdphi, omega=1, f=1, approx=False):
     #y: a 3*ntr + 2 array containing:
         #y[0]: xi
         #y[1]: lnkh
@@ -107,6 +107,10 @@ def ConstHGEF(y, t, HConst, dVdsc, dIdsc, omega=1, f=1, approx=False):
         #F[n,2]:1/2( ErotnB + BrotnE )
     F = y[2:]
     F = F.reshape(ntr, 3)
+    
+    #make dimless
+    dVdsc = dVdphi/(omega**2*f)
+    dIdsc = f*dIdphi
     
     dphidt = 2*y[0]*H/dIdsc
     ddphiddt = EoMphi(dphidt, dVdsc, dIdsc, F[0,2], a, H, ratio)[1]
