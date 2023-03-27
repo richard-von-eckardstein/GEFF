@@ -4,73 +4,67 @@ import math
 
 alpha=0
 
-def potential(phi):
-    #potential energy as function of field amplitude
-    return 0.5*phi**2 * M**2
-
-def dVdphi(phi):
-    #derivative of potential energy as function of field amplitude
-    return phi * M**2 
-
-def dIdphi(phi):
-    #derivative of gauge field coupling term as function of field amplitude
-    return beta/Mpl
-
-def ddIddphi(phi):
-    #second derivative of gauge field coupling term as function of field amplitude
-    return 0
-
 def GetXi(dphidt, Iterm, H):
-    #Compute Xi for a given dIdphi, dphidt and H
     return Iterm * dphidt / (2*H)
 
 def GetS(a, H, sigma):
-    #Compute s for a given a, H and sigma
     return a**(alpha) * sigma / (2*H)
 
-def FriedmannEq(a, dphidt, V, E, B):
+def FriedmannEq(a, dphidt, V, E, B, f, ratio):
     #E: EE
     #B: BB
     #sc[0]: phi
     #sc[1]: dphidt
     
-    dadt = a*np.sqrt( (1/(3*Mpl**2)) * (0.5 * dphidt**2 + a**(2*alpha) * V + 0.5*a**(2*alpha) * (E+B)) )
+    Hsq = (f**2/(3*Mpl**2)) * (0.5 * dphidt**2 + a**(2*alpha) * V + 0.5*a**(2*alpha)* (E+B)*ratio**2)
     
-    return dadt
+    return Hsq
 
-def EoMphi(dphidt, Vterm, Iterm, G, a, H):
+def EoMphi(dphidt, Vterm, Iterm, G, a, H, ratio):
     #G: -1/2(EB + BE)
     #sc[0]: phi
     #sc[1]: dphidt
+    #ratio: omega/f
     
     dscdt = np.zeros(2)
     
     dscdt[0] = dphidt
-    dscdt[1] = (alpha-3)*H*dphidt - a**(2*alpha)*Vterm - a**(2*alpha)*Iterm*G
+    dscdt[1] = (alpha-3)*H*dphidt - a**(2*alpha)*Vterm - a**(2*alpha)*Iterm*G*ratio**2
     
     return dscdt
 
-def BoundaryComputations(kh, dphidt, ddphiddt, Iterm, I2term, a, H, ntr, sigma=0, dsigmadt=0):
+def BoundaryComputations(kh, dphidt, ddphiddt, Iterm, I2term, a, H, ntr, sigma=0, dsigmadt=0, approx=False):
     xi = GetXi(dphidt, Iterm, H)
     s = GetS(a, H, sigma)
+
     r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
     f = a**(1-alpha) * H * (r)
-    """fprime =  a*(1-alpha) * ( (1-alpha) * H**2 * f + 
-                            0.5 * ( (I2term * dphidt**2 + Iterm*ddphiddt) * g(Iterm*dphidt) 
-                                    + 1/np.sqrt(Iterm**2 * dphidt**2 + a**(2*alpha)*(sigma**2 + 2*H*sigma)) *
-                                  (Iterm*I2term*dphidt**3 + Iterm**2*dphidt*ddphiddt 
-                                   + a**(2*alpha) * (sigma * (alpha*H*sigma + dsigmadt) 
-                                                     + a**(-alpha)*H * (2*alpha*sigma + dsigmadt))) ))"""
     
-    fprime = Iterm*g(dphidt)*ddphiddt*a + abs(dphidt)*a*H*Iterm
+    def g(x):
+        if (x < 0):
+            return -1
+        elif (x > 0):
+            return 1
+        else:
+            return 0
     
-    if (fprime > 0):
-        kh = f
-        dlnkhdt = fprime/kh
+    if (sigma==0):
+        fprime = (1-alpha)*H*f + a**(1-alpha)*(I2term*dphidt**2 + Iterm*ddphiddt)*g(xi)
+    else:
+        fprime = ((1-alpha)*H*f 
+                  + a**(1-alpha)*(I2term*dphidt**2/2 + Iterm*ddphiddt/2)*(g(xi) + xi/np.sqrt(xi**2 + s**2 + s))
+                  + a*(alpha*H*sigma + dsigmadt)*(s + 1/2)/(2*np.sqrt(xi**2 + s**2 + s))
+                  + a**(1-alpha)*H**2*alpha*s/(2*np.sqrt(xi**2 + s**2 + s)))  
+    
+    if (fprime >= 0):
+        if ((np.log(kh)-np.log(f))/np.log(kh) <= 1e-3):
+            dlnkhdt = fprime/kh
+        else:
+            dlnkhdt = 0
     else:
         dlnkhdt = 0
     
-    bdrF = ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s)
+    bdrF = ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s, approx)
     
     return kh, dlnkhdt, bdrF
     
@@ -84,32 +78,45 @@ def ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s, approx=False):
         
     prefac = dlnkhdt * delta/ (4*np.pi**2)
     
-    if (approx):
-        EtermPlus = approxPosE(xi)
-        EtermMinus = approxMinE(xi)
+    if approx:
+        if (xi>0):
+            EtermPlus = approxPosE(xi)
+            EtermMinus = approxMinE(xi)
         
-        BtermPlus = approxPosB(xi)
-        BtermMinus = approxMinB(xi)
+            BtermPlus = approxPosB(xi)
+            BtermMinus = approxMinB(xi)
         
-        GtermPlus = approxPosG(xi)
-        GtermMinus = approxMinG(xi)
+            GtermPlus = approxPosG(xi)
+            GtermMinus = approxMinG(xi)
+        elif (xi<0):
+            EtermMinus = approxPosE(xi)
+            EtermPlus = approxMinE(xi)
         
+            BtermMinus = approxPosB(xi)
+            BtermPlus = approxMinB(xi)
+        
+            GtermMinus = approxPosG(xi)
+            GtermPlus = approxMinG(xi)
+        else:
+            print("thats not right")
+            return "error"
+    
     else:
         Whitt1Plus = whitw(-xi*(1j), 1/2 + s, -2j*r)
         Whitt2Plus = whitw(1-xi*(1j), 1/2 + s, -2j*r)
 
         Whitt1Minus = whitw(xi*(1j), 1/2 + s, -2j*r)
         Whitt2Minus = whitw(1+xi*(1j), 1/2 + s, -2j*r)
-
+    
         exptermPlus = np.exp(np.pi*xi)
         exptermMinus = np.exp(-np.pi*xi)
 
         EtermPlus = exptermPlus*abs((1j*r - 1j*xi -s) * Whitt1Plus + Whitt2Plus)**2/r**2
         EtermMinus = exptermMinus*abs((1j*r + 1j*xi -s) * Whitt1Minus + Whitt2Minus)**2/r**2
-        
+
         BtermPlus = exptermPlus*abs(Whitt1Plus)**2
         BtermMinus = exptermMinus*abs(Whitt1Minus)**2
-        
+
         GtermPlus = exptermPlus*((Whitt2Plus*Whitt1Plus.conjugate()).real - s * abs(Whitt1Plus)**2)/r
         GtermMinus = exptermMinus*((Whitt2Minus*Whitt1Minus.conjugate()).real - s * abs(Whitt1Minus)**2)/r
     
@@ -141,6 +148,29 @@ def EoMF(dphidt, Iterm, F, bdrF, a, H, sigma, kh):
         dFdt[n,2] = (bdrF[n, 2] - ((4+n)*H + a**(alpha) * sigma)*F[n,2]
                      + a**(alpha)*(F[n+1,0] - F[n+1,1]) + Iterm*F[n,1]*dphidt)
     
+    dFdt[-1,:] = EoMFtruncate(dphidt, Iterm, F[-1,:], F[-2,:], bdrF[-1,:], a, H, sigma, kh, ntr)
+    
+    return dFdt
+
+def EoMF(dphidt, Iterm, F, bdrF, a, H, sigma, kh):
+    #F[n,0]: ErotnE
+    #F[n,1]: BrotnB
+    #F[n,2]: -1/2(ErotnB + BrotnE)
+    #bdrF: Boundary terms
+    
+    ntr = F.shape[0]
+    
+    dFdt = np.zeros(F.shape)
+    
+    for n in range(ntr-1):
+        dFdt[n,0] = (bdrF[n, 0] - ((4+n)*H + 2*a**(alpha) * sigma)*F[n,0]
+                     - 2*a**(alpha)*F[n+1,2] + 2*Iterm*F[n,2]*dphidt)
+        
+        dFdt[n,1] = bdrF[n, 1] - ((4+n)*H)*F[n,1] + 2*a**(alpha)*F[n+1,2]
+        
+        dFdt[n,2] = (bdrF[n, 2] - ((4+n)*H + a**(alpha) * sigma)*F[n,2]
+                     + a**(alpha)*(F[n+1,0] - F[n+1,1]) + Iterm*F[n,1]*dphidt)
+    
     
     dFdt[-1,:] = EoMFtruncate(dphidt, Iterm, F[-1,:], F[-2,:], bdrF[-1,:], a, H, sigma, kh, ntr)
     
@@ -154,21 +184,13 @@ def EoMFtruncate(dphidt, Iterm, F, Fmin1, bdrF, a, H, sigma, kh, ntr):
     
     dFdt = np.zeros(3)
     
-    dFdt[0] = bdrF[0] - ( ((4+ntr-1)*H + 2*a**(alpha) * sigma)*F[0]
+    dFdt[0] = (bdrF[0] -  ((4+ntr-1)*H + 2*a**(alpha) * sigma)*F[0]
                          - 2*kh**2 * a**(alpha-2)*Fmin1[2] + 2*Iterm*F[2]*dphidt)
     dFdt[1] = bdrF[1] - (4+ntr-1)*H*F[1] + 2*kh**2 * a**(alpha-2)*Fmin1[2]
-    dFdt[2] = bdrF[2] - (((4+ntr-1)*H + a**(alpha) * sigma)*F[2] 
+    dFdt[2] = (bdrF[2] - ((4+ntr-1)*H + a**(alpha) * sigma)*F[2] 
                          + kh**2 * a**(alpha-2)*(Fmin1[0] - Fmin1[1]) + Iterm*F[1]*dphidt)
     
     return dFdt
-
-def g(x):
-    if (x < 0):
-        return -1
-    elif (x > 0):
-        return 1
-    else:
-        return "a miracle"
     
     
 def approxPosE(xi):
@@ -237,7 +259,6 @@ def approxMinG(xi):
     t3 = 21543/(2**(21)*xi**4)
     t4 = -6003491/(2**31*xi**6)
     return -np.sqrt(2)/(32*abs(xi))*(t1 + t2 + t3 + t4)
-
 
 
 
