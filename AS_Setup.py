@@ -15,7 +15,7 @@ def SetupConstH(xi, beta, a, ntr, file=None):
     ratio = (H/Mpl)
     
     pwd = os.getcwd()
-    filename = "ConstH_Input/ConstH_xi_" + x + "_Initialiser.dat"
+    filename = "ConstH_Input/ConstH_xi_" + str(xi) + "_Initialiser.dat"
     path = os.path.join(pwd, filename)
     file = os.path.exists(path)
 
