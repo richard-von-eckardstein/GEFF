@@ -24,7 +24,6 @@ def EoMphi(dphidt, Vterm, Iterm, G, a, H, ratio):
     #G: -1/2(EB + BE)
     #sc[0]: phi
     #sc[1]: dphidt
-    #ratio: omega/f
     
     dscdt = np.zeros(2)
     
@@ -36,9 +35,15 @@ def EoMphi(dphidt, Vterm, Iterm, G, a, H, ratio):
 def BoundaryComputations(kh, dphidt, ddphiddt, Iterm, I2term, a, H, ntr, sigma=0, dsigmadt=0, approx=False):
     xi = GetXi(dphidt, Iterm, H)
     s = GetS(a, H, sigma)
-
+   
     r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
     f = a**(1-alpha) * H * (r)
+    """fprime =  a*(1-alpha) * ( (1-alpha) * H**2 * f + 
+                            0.5 * ( (I2term * dphidt**2 + Iterm*ddphiddt) * g(Iterm*dphidt) 
+                                    + 1/np.sqrt(Iterm**2 * dphidt**2 + a**(2*alpha)*(sigma**2 + 2*H*sigma)) *
+                                  (Iterm*I2term*dphidt**3 + Iterm**2*dphidt*ddphiddt 
+                                   + a**(2*alpha) * (sigma * (alpha*H*sigma + dsigmadt) 
+                                                     + a**(-alpha)*H * (2*alpha*sigma + dsigmadt))) ))"""
     
     def g(x):
         if (x < 0):
@@ -50,24 +55,28 @@ def BoundaryComputations(kh, dphidt, ddphiddt, Iterm, I2term, a, H, ntr, sigma=0
     
     if (sigma==0):
         fprime = (1-alpha)*H*f + a**(1-alpha)*(I2term*dphidt**2 + Iterm*ddphiddt)*g(xi)
+        
+        #fprime = kh*H
     else:
+        #approximation: dHdt = alphaH**2 (slow-roll)
         fprime = ((1-alpha)*H*f 
                   + a**(1-alpha)*(I2term*dphidt**2/2 + Iterm*ddphiddt/2)*(g(xi) + xi/np.sqrt(xi**2 + s**2 + s))
                   + a*(alpha*H*sigma + dsigmadt)*(s + 1/2)/(2*np.sqrt(xi**2 + s**2 + s))
                   + a**(1-alpha)*H**2*alpha*s/(2*np.sqrt(xi**2 + s**2 + s)))  
     
     if (fprime >= 0):
-        if ((np.log(kh)-np.log(f))/np.log(kh) <= 1e-3):
+        if((kh-f)/kh <=1e-3):
             dlnkhdt = fprime/kh
         else:
             dlnkhdt = 0
+            #dlnkhdt = H
     else:
         dlnkhdt = 0
     
     bdrF = ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s, approx)
     
     return kh, dlnkhdt, bdrF
-    
+
 def ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s, approx=False):
     
     if (s==0):
@@ -98,8 +107,14 @@ def ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s, approx=False):
             GtermMinus = approxPosG(xi)
             GtermPlus = approxMinG(xi)
         else:
-            print("thats not right")
-            return "error"
+            EtermPlus = 1
+            EtermMinus = 1
+            
+            GtermPlus = 0
+            GtermMinus = 0
+            
+            BtermPlus = 1
+            BtermMinus = 1
     
     else:
         Whitt1Plus = whitw(-xi*(1j), 1/2 + s, -2j*r)
@@ -119,6 +134,7 @@ def ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s, approx=False):
 
         GtermPlus = exptermPlus*((Whitt2Plus*Whitt1Plus.conjugate()).real - s * abs(Whitt1Plus)**2)/r
         GtermMinus = exptermMinus*((Whitt2Minus*Whitt1Minus.conjugate()).real - s * abs(Whitt1Minus)**2)/r
+
     
     bdrF = np.zeros((ntr, 3))
 
@@ -129,28 +145,6 @@ def ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s, approx=False):
         bdrF[i, 2] = prefac*scale*(GtermPlus - (-1)**i * GtermMinus)
 
     return bdrF
-
-def EoMF(dphidt, Iterm, F, bdrF, a, H, sigma, kh):
-    #F[n,0]: ErotnE
-    #F[n,1]: BrotnB
-    #F[n,2]: -1/2(ErotnB + BrotnE)
-    #bdrF: Boundary terms
-    
-    ntr = F.shape[0]
-    
-    dFdt = np.zeros(F.shape)
-    for n in range(ntr-1):
-        dFdt[n,0] = (bdrF[n, 0] - ((4+n)*H + 2*a**(alpha) * sigma)*F[n,0]
-                     - 2*a**(alpha)*F[n+1,2] + 2*Iterm*F[n,2]*dphidt)
-        
-        dFdt[n,1] = bdrF[n, 1] - ((4+n)*H)*F[n,1] + 2*a**(alpha)*F[n+1,2]
-        
-        dFdt[n,2] = (bdrF[n, 2] - ((4+n)*H + a**(alpha) * sigma)*F[n,2]
-                     + a**(alpha)*(F[n+1,0] - F[n+1,1]) + Iterm*F[n,1]*dphidt)
-    
-    dFdt[-1,:] = EoMFtruncate(dphidt, Iterm, F[-1,:], F[-2,:], bdrF[-1,:], a, H, sigma, kh, ntr)
-    
-    return dFdt
 
 def EoMF(dphidt, Iterm, F, bdrF, a, H, sigma, kh):
     #F[n,0]: ErotnE
@@ -184,10 +178,10 @@ def EoMFtruncate(dphidt, Iterm, F, Fmin1, bdrF, a, H, sigma, kh, ntr):
     
     dFdt = np.zeros(3)
     
-    dFdt[0] = (bdrF[0] -  ((4+ntr-1)*H + 2*a**(alpha) * sigma)*F[0]
+    dFdt[0] = (bdrF[0] -  ((4+ntr)*H + 2*a**(alpha) * sigma)*F[0]
                          - 2*kh**2 * a**(alpha-2)*Fmin1[2] + 2*Iterm*F[2]*dphidt)
-    dFdt[1] = bdrF[1] - (4+ntr-1)*H*F[1] + 2*kh**2 * a**(alpha-2)*Fmin1[2]
-    dFdt[2] = (bdrF[2] - ((4+ntr-1)*H + a**(alpha) * sigma)*F[2] 
+    dFdt[1] = bdrF[1] - (4+ntr)*H*F[1] + 2*kh**2 * a**(alpha-2)*Fmin1[2]
+    dFdt[2] = (bdrF[2] - ((4+ntr)*H + a**(alpha) * sigma)*F[2] 
                          + kh**2 * a**(alpha-2)*(Fmin1[0] - Fmin1[1]) + Iterm*F[1]*dphidt)
     
     return dFdt

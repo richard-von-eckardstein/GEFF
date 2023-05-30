@@ -1,0 +1,9 @@
+Benchmark: beta=25, ntr=115, no SE, t in [0,125]	 WithTol: atol=1e-7, rtol=1e-6
+
+Dimless GEF:
+
+		Exact					Approx
+	NoTol		WithTol			NoTol		WithTol
+RK45	277s		419s			12s		18s
+BDF	23s		297s			11s		15s
+LSODA	1670s		2232s			67s		129s
