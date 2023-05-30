@@ -22,7 +22,7 @@ def SetupConstH(xi, beta, a, ntr, file=None):
     if(not file):
         F = np.zeros((ntr, 3))
         for i in range(ntr):
-            F[i,:] = ComputeEBGn(xi, a, H, i)
+            F[i,:] = ComputeEBGn(xi, a, i)
             print(str(int(3*(i+1))) + " out of " + str(int(3*ntr)) + " bilinear terms computed")
 
         DataDic = dict(E = list(F[:,0]), B = list(F[:,1]), G = list(F[:,2]))
@@ -43,7 +43,7 @@ def SetupConstH(xi, beta, a, ntr, file=None):
             F[:nprog,2] = data[:,3].T
             
             for i in range(nprog, ntr):
-                F[i,:] = ComputeEBGn(xi, a, H, i)
+                F[i,:] = ComputeEBGn(xi, a, i)
                 print(str(int(3*(i+1-nprog))) + " out of " + str(int(3*(ntr-nprog))) + " bilinear terms computed")
 
             DataDic = dict(E = list(F[:,0]), B = list(F[:,1]), G = list(F[:,2]))
