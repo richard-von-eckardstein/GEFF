@@ -39,7 +39,10 @@ HConst = 1
 
 print(xi, beta, d, s)
 
-Fvec, lnkh, _, dVini, I, f, omega = AS.SetupConstH(x, beta, HConst, a, ntr)
+Fvec, lnkh, _, dVini, I, f, omega = AS.SetupConstH(x, beta, a, ntr)
+
+dVini = dVini/(f*omega**2)
+I = I*f
 
 yini = np.zeros((2+3*ntr))
 
@@ -82,13 +85,6 @@ if(d == None):
     filename = "Out_xi" + x + "_base" + "_beta" + b + ".dat"
 else:
     filename = "Out_xi" + x + "_del" + str(s) + "_" + str(d) + "_beta" + b + ".dat"
-    
-"""#DirName = "Out_xi" + x + "_beta" + b + "/"
-DirName = "Del_" + str(s) + "_" + str(d) + "/"
-DirName = os.path.join(outdir, DirName)
-
-if (not os.path.exists(DirName)):
-        os.mkdir(DirName)"""
 
 DirName = ""
 
@@ -96,31 +92,3 @@ path = os.path.join(DirName, filename)
 
 output_df = pd.DataFrame(DataDic)  
 output_df.to_csv(path)
-
-"""dev = np.arange(1, d+1)
-delta = s*1/10**(dev)
-xis = (delta+1)*xi
-for j in range(dev.size):
-    yini[0] = xis[j]
-    sol = solve_ivp(CH, [t[0], t[-1]] , yini)
-
-    data = [sol.t, sol.y[0], sol.y[1]]
-
-    names = ["t", "xi", "logkh"]
-    for i in range(ntr):
-        data.append(sol.y[2+i*3])
-        names.append("E(" + str(i) + ")")
-        data.append(sol.y[3+i*3])
-        names.append("B(" + str(i) + ")")
-        data.append(sol.y[4+i*3])
-        names.append("G(" + str(i) + ")")
-
-    DataDic = dict(zip(names, data))
-    
-    filename = "Out_xi" + x + "_del" + str(s) + "_" + str(dev[j]) + "_beta" + b + "180.dat"
-
-    path = os.path.join(DirName, filename)
-
-    output_df = pd.DataFrame(DataDic)  
-    output_df.to_csv(path)"""
-
