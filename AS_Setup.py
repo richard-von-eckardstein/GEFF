@@ -14,21 +14,25 @@ def SetupConstH(xi, beta, a, ntr, file=None):
     
     ratio = (H/Mpl)
     
-    if(file==None):
+    pwd = os.getcwd()
+    filename = "ConstH_Input/ConstH_xi_" + x + "_Initialiser.dat"
+    path = os.path.join(pwd, filename)
+    file = os.path.exists(path)
+
+    if(not file):
         F = np.zeros((ntr, 3))
         for i in range(ntr):
-            #unitless, powers of H need to be restored
-            F[i,:] = ComputeEBGn(xi, a, i)
+            F[i,:] = ComputeEBGn(xi, a, H, i)
             print(str(int(3*(i+1))) + " out of " + str(int(3*ntr)) + " bilinear terms computed")
 
         DataDic = dict(E = list(F[:,0]), B = list(F[:,1]), G = list(F[:,2]))
         
         output_df = pd.DataFrame(DataDic)  
-        filename = "ConstH_xi" + str(xi) + "_Initialiser.dat"
         output_df.to_csv(filename)
-                
+        
+            
     else:
-        input_df = pd.read_table(file, sep=",")
+        input_df = pd.read_table(filename, sep=",")
         data = input_df.values
         if (np.shape(data)[0]<ntr):
             nprog = np.shape(data)[0]
@@ -39,16 +43,16 @@ def SetupConstH(xi, beta, a, ntr, file=None):
             F[:nprog,2] = data[:,3].T
             
             for i in range(nprog, ntr):
-                F[i,:] = ComputeEBGn(xi, a, i)
+                F[i,:] = ComputeEBGn(xi, a, H, i)
                 print(str(int(3*(i+1-nprog))) + " out of " + str(int(3*(ntr-nprog))) + " bilinear terms computed")
 
             DataDic = dict(E = list(F[:,0]), B = list(F[:,1]), G = list(F[:,2]))
         
             output_df = pd.DataFrame(DataDic)  
-            output_df.to_csv(file)
+            output_df.to_csv(filename)
         else:
             F = np.array([data[:ntr,1], data[:ntr,2], data[:ntr,3]]).T
-        
+    
     Fvec = F.reshape(3*ntr)
     
     lnkh = np.log(2*a*abs(xi))
