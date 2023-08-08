@@ -7,7 +7,7 @@ from EoM import *
 
 alpha = 0
 
-def fullGEF(t, y, sigma=0, omega=1, f=1, approx=False):
+def fullGEF_NoSE(t, y, omega=1, f=1, approx=False):
     #y: a 3*ntr + 3 array containing:
         #y[0]: a
         #y[1]: phi
@@ -25,7 +25,7 @@ def fullGEF(t, y, sigma=0, omega=1, f=1, approx=False):
     
     #Scale Factor
     a = np.exp(y[0])
-
+    
     #Inflaton
         #sc[0]: phi
         #sc[1]: dphidt
@@ -41,26 +41,178 @@ def fullGEF(t, y, sigma=0, omega=1, f=1, approx=False):
     F = y[4:]
     F = F.reshape(ntr, 3)
     
+    #compute H, potential, couplings and derivatives (once per timestep)
     V, dVdsc = potential(f*sc[0])/(f*omega)**2, dVdphi(f*sc[0])/(omega**2*f)
     dIdsc, ddIddsc = f*dIdphi(f*sc[0]), f**2*ddIddphi(f*sc[0])
     
-    Hsq = FriedmannEq(a, sc[1], V, F[0,0], F[0,1], f, ratio)
-
-    dydt[0] = np.sqrt(Hsq)
+    Hsq = FriedmannEq(a, sc[1], V, F[0,0], F[0,1], 0., f, ratio)
+    if(Hsq<0):
+        print("Hsq:", Hsq)
+        print("loga:", y[0])
+        print("t", t)
     
     H = np.sqrt(Hsq)
+    
+    dydt[0] = H
     
     dscdt = EoMphi(sc[1], dVdsc, dIdsc, F[0,2], a, H, ratio)
     dydt[1] = dscdt[0]
     dydt[2] = dscdt[1]
     
-    dsigmadt=0
+    kh, dydt[3], bdrF = BoundaryComputations(np.exp(y[3]), dscdt[0], dscdt[1], dIdsc, ddIddsc, 
+                                             a, H, ntr, 0., 0., 1.0, approx=approx)
+    
+    dFdt = EoMF(sc[1], dIdsc, F, bdrF, a, H, 0., 0., kh)
+    dydt[4:] = dFdt.reshape(ntr*3)
+    
+    return dydt
+
+def fullGEF_WithSE(t, y, omega=1, f=1, approx=False):
+    #y: a 3*ntr + 3 array containing:
+        #y[0]: a
+        #y[1]: phi
+        #y[2]: dphidt
+        #y[3]: lnkh
+        #y[4]: Delta
+        #y[5]: rhoChi
+        #y[6 + 3*k]: ErotnE
+        #y[6 + 3*k+1]: BrotnB
+        #y[6 + 3*k+2]:1/2( ErotnB + BrotnE )
+        
+    #Corresponds to ntr-1 
+    ratio = omega/f
+    ntr = int((y.size - 6)/3)
+    
+    dydt = np.zeros(y.shape)
+
+    #Scale Factor
+    a = np.exp(y[0])
+
+    #Inflaton
+        #sc[0]: phi
+        #sc[1]: dphidt
+    sc = np.array([y[1], y[2]])
+    
+    #Cut Off scale:
+    lnkh = y[3]
+    
+    #Integrated Conductivity
+    delta = y[4]
+    
+    #Fermion Energy Density:
+    rhoChi = y[5]
+    
+    #Gauge Field VeVs
+        #F[n,0]: ErotnE
+        #F[n,1]: BrotnB
+        #F[n,2]:1/2( ErotnB + BrotnE )
+    F = y[6:]
+    F = F.reshape(ntr, 3)
+    
+    #compute H, potential, couplings and derivatives (once per timestep)
+    V, dVdsc = potential(f*sc[0])/(f*omega)**2, dVdphi(f*sc[0])/(omega**2*f)
+    dIdsc, ddIddsc = f*dIdphi(f*sc[0]), f**2*ddIddphi(f*sc[0])
+    
+    Hsq = FriedmannEq(a, sc[1], V, F[0,0], F[0,1], rhoChi, f, ratio)
+    if(Hsq<0):
+        print("Hsq:", Hsq)
+        print("loga:", y[0])
+        print("t", t)
+    
+    H = np.sqrt(Hsq)
+    dydt[0] = H
+    
+    dscdt = EoMphi(sc[1], dVdsc, dIdsc, F[0,2], a, H, ratio)
+    dydt[1] = dscdt[0]
+    dydt[2] = dscdt[1]
+    
+    sigma = ComputeSigma(F[0,0], F[0,1], H*a**(-alpha), f, omega)
     
     kh, dydt[3], bdrF = BoundaryComputations(np.exp(y[3]), dscdt[0], dscdt[1], dIdsc, ddIddsc, 
-                                             a, H, ntr, sigma, dsigmadt, approx=approx)
+                                             a, H, ntr, sigma, 0, delta, approx=approx)
+   
+    dydt[4] = EoMDelta(sigma, a, delta)
     
-    dFdt = EoMF(sc[1], dIdsc, F, bdrF, a, H, sigma, kh)
-    dydt[4:] = dFdt.reshape(ntr*3)
+    dydt[5] = a**(alpha)*sigma*F[0,0]  - 4*H*rhoChi
+    
+    dFdt = EoMF(sc[1], dIdsc, F, bdrF, a, H, sigma, 0., kh)
+    dydt[6:] = dFdt.reshape(ntr*3)
+    
+    return dydt
+
+def fullGEF_WithFullSE(t, y, omega=1, f=1, approx=False):
+    #y: a 3*ntr + 3 array containing:
+        #y[0]: a
+        #y[1]: phi
+        #y[2]: dphidt
+        #y[3]: lnkh
+        #y[4]: Delta
+        #y[5]: rhoChi
+        #y[6 + 3*k]: ErotnE
+        #y[6 + 3*k+1]: BrotnB
+        #y[6 + 3*k+2]:1/2( ErotnB + BrotnE )
+        
+    #Corresponds to ntr-1 
+    ratio = omega/f
+    ntr = int((y.size - 6)/3)
+    
+    dydt = np.zeros(y.shape)
+
+    #Scale Factor
+    a = np.exp(y[0])
+
+    #Inflaton
+        #sc[0]: phi
+        #sc[1]: dphidt
+    sc = np.array([y[1], y[2]])
+
+    #Cut Off scale:
+    lnkh = y[3]
+
+    #Integrated Conductivity
+    delta = y[4]
+    
+    #Fermion Energy Density:
+    rhoChi = y[5]
+    
+    #Gauge Field VeVs
+        #F[n,0]: ErotnE
+        #F[n,1]: BrotnB
+        #F[n,2]:1/2( ErotnB + BrotnE )
+    F = y[6:]
+    F = F.reshape(ntr, 3)
+
+    #compute H, potential, couplings and derivatives (once per timestep)
+    V, dVdsc = potential(f*sc[0])/(f*omega)**2, dVdphi(f*sc[0])/(omega**2*f)
+    dIdsc, ddIddsc = f*dIdphi(f*sc[0]), f**2*ddIddphi(f*sc[0])
+    
+    Hsq = FriedmannEq(a, sc[1], V, F[0,0], F[0,1], rhoChi, f, ratio)
+    if(Hsq<0):
+        print("Hsq:", Hsq)
+        print("loga:", y[0])
+        print("EM:", (F[0,0]+F[0,1])/2)
+        print("rhoChi", rhoChi)
+        print("Inf", 0.5*sc[1]**2+V)
+        print("t", t)
+    
+    H = np.sqrt(Hsq)
+    dydt[0] = H
+    
+    dscdt = EoMphi(sc[1], dVdsc, dIdsc, F[0,2], a, H, ratio)
+    dydt[1] = dscdt[0]
+    dydt[2] = dscdt[1]
+   
+    sigmaE, sigmaB = ComputeImprovedSigma(F[0,0], F[0,1], F[0,2], H*a**(-alpha), f, omega)
+    
+    kh, dydt[3], bdrF = BoundaryComputations(np.exp(y[3]), dscdt[0], dscdt[1], dIdsc, ddIddsc, 
+                                             a, H, ntr, sigmaE, sigmaB, delta, approx=approx)
+    
+    dydt[4] = EoMDelta(sigmaE, a, delta)
+    
+    dydt[5] = a**(alpha)*(sigmaE*F[0,0] - sigmaB*F[0,2])  - 4*H*rhoChi
+    
+    dFdt = EoMF(sc[1], dIdsc, F, bdrF, a, H, sigmaE, sigmaB, kh)
+    dydt[6:] = dFdt.reshape(ntr*3)
     
     return dydt
     

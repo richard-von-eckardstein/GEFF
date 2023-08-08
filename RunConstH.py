@@ -39,10 +39,7 @@ HConst = 1
 
 print(xi, beta, d, s)
 
-Fvec, lnkh, _, dVini, I, f, omega = AS.SetupConstH(x, beta, a, ntr)
-
-dVini = dVini/(f*omega**2)
-I = I*f
+Fvec, lnkh, _, dVini, I, f, omega = AS.SetupConstH(xi, beta, a, ntr)
 
 yini = np.zeros((2+3*ntr))
 

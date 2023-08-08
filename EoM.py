@@ -4,19 +4,20 @@ import math
 
 alpha=0
 
-def GetXi(dphidt, Iterm, H):
-    return Iterm * dphidt / (2*H)
+def GetXi(dphidt, Iterm, a, H, sigmaB):
+    return (Iterm * dphidt + a**alpha*sigmaB)/(2*H)
 
-def GetS(a, H, sigma):
-    return a**(alpha) * sigma / (2*H)
+def GetS(a, H, sigmaE):
+    return a**(alpha) * sigmaE / (2*H)
 
-def FriedmannEq(a, dphidt, V, E, B, f, ratio):
+def FriedmannEq(a, dphidt, V, E, B, rhoChi, f, ratio):
     #E: EE
     #B: BB
     #sc[0]: phi
     #sc[1]: dphidt
     
-    Hsq = (f**2/(3*Mpl**2)) * (0.5 * dphidt**2 + a**(2*alpha) * V + 0.5*a**(2*alpha)* (E+B)*ratio**2)
+    Hsq = (f**2/(3*Mpl**2)) * (0.5 * dphidt**2 + a**(2*alpha) * V + 0.5*a**(2*alpha)* (E+B)*ratio**2 
+                               + ratio**2*rhoChi*a**(2*alpha))
     
     return Hsq
 
@@ -32,18 +33,13 @@ def EoMphi(dphidt, Vterm, Iterm, G, a, H, ratio):
     
     return dscdt
 
-def BoundaryComputations(kh, dphidt, ddphiddt, Iterm, I2term, a, H, ntr, sigma=0, dsigmadt=0, approx=False):
-    xi = GetXi(dphidt, Iterm, H)
-    s = GetS(a, H, sigma)
-   
+def BoundaryComputations(kh, dphidt, ddphiddt,
+                         Iterm, I2term, a, H, ntr, sigmaE=0, sigmaB=0, delta=1, approx=False):
+    xi = GetXi(dphidt, Iterm, a, H, sigmaB)
+    s = GetS(a, H, sigmaE)
+    
     r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
     f = a**(1-alpha) * H * (r)
-    """fprime =  a*(1-alpha) * ( (1-alpha) * H**2 * f + 
-                            0.5 * ( (I2term * dphidt**2 + Iterm*ddphiddt) * g(Iterm*dphidt) 
-                                    + 1/np.sqrt(Iterm**2 * dphidt**2 + a**(2*alpha)*(sigma**2 + 2*H*sigma)) *
-                                  (Iterm*I2term*dphidt**3 + Iterm**2*dphidt*ddphiddt 
-                                   + a**(2*alpha) * (sigma * (alpha*H*sigma + dsigmadt) 
-                                                     + a**(-alpha)*H * (2*alpha*sigma + dsigmadt))) ))"""
     
     def g(x):
         if (x < 0):
@@ -53,37 +49,27 @@ def BoundaryComputations(kh, dphidt, ddphiddt, Iterm, I2term, a, H, ntr, sigma=0
         else:
             return 0
     
-    if (sigma==0):
-        fprime = (1-alpha)*H*f + a**(1-alpha)*(I2term*dphidt**2 + Iterm*ddphiddt)*g(xi)
-        
-        #fprime = kh*H
-    else:
-        #approximation: dHdt = alphaH**2 (slow-roll)
-        fprime = ((1-alpha)*H*f 
+    dsigmadt = 0.
+    #approximation: dHdt = alphaH**2 (slow-roll), dsigmaEdt=0, dsigmaBdt=0 (slow varying conductivity)
+    fprime = ((1-alpha)*H*f 
                   + a**(1-alpha)*(I2term*dphidt**2/2 + Iterm*ddphiddt/2)*(g(xi) + xi/np.sqrt(xi**2 + s**2 + s))
-                  + a*(alpha*H*sigma + dsigmadt)*(s + 1/2)/(2*np.sqrt(xi**2 + s**2 + s))
-                  + a**(1-alpha)*H**2*alpha*s/(2*np.sqrt(xi**2 + s**2 + s)))  
+                  + a*(alpha*H*sigmaE + dsigmadt)*(s + 1/2)/(2*np.sqrt(xi**2 + s**2 + s))
+                  + a**(1-alpha)*H**2*alpha*s/(2*np.sqrt(xi**2 + s**2 + s)))
+    #fprime = f*H
     
     if (fprime >= 0):
         if((kh-f)/kh <=1e-3):
             dlnkhdt = fprime/kh
         else:
             dlnkhdt = 0
-            #dlnkhdt = H
     else:
         dlnkhdt = 0
     
-    bdrF = ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s, approx)
+    bdrF = ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s, delta, approx)
     
     return kh, dlnkhdt, bdrF
 
-def ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s, approx=False):
-    
-    if (s==0):
-        delta = 1
-    else:
-        #left to be implemented
-        delta = 1
+def ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s, delta, approx=False):
         
     prefac = dlnkhdt * delta/ (4*np.pi**2)
     
@@ -146,7 +132,7 @@ def ComputeBoundary(a, kh, dlnkhdt, ntr, r, xi, s, approx=False):
 
     return bdrF
 
-def EoMF(dphidt, Iterm, F, bdrF, a, H, sigma, kh):
+def EoMF(dphidt, Iterm, F, bdrF, a, H, sigmaE, sigmaB, kh):
     #F[n,0]: ErotnE
     #F[n,1]: BrotnB
     #F[n,2]: -1/2(ErotnB + BrotnE)
@@ -157,20 +143,19 @@ def EoMF(dphidt, Iterm, F, bdrF, a, H, sigma, kh):
     dFdt = np.zeros(F.shape)
     
     for n in range(ntr-1):
-        dFdt[n,0] = (bdrF[n, 0] - ((4+n)*H + 2*a**(alpha) * sigma)*F[n,0]
-                     - 2*a**(alpha)*F[n+1,2] + 2*Iterm*F[n,2]*dphidt)
+        dFdt[n,0] = (bdrF[n, 0] - ((4+n)*H + 2*a**(alpha) * sigmaE)*F[n,0]
+                     - 2*a**(alpha)*F[n+1,2] + 2*(Iterm*dphidt+a**alpha*sigmaB)*F[n,2])
         
         dFdt[n,1] = bdrF[n, 1] - ((4+n)*H)*F[n,1] + 2*a**(alpha)*F[n+1,2]
         
-        dFdt[n,2] = (bdrF[n, 2] - ((4+n)*H + a**(alpha) * sigma)*F[n,2]
-                     + a**(alpha)*(F[n+1,0] - F[n+1,1]) + Iterm*F[n,1]*dphidt)
-    
-    
-    dFdt[-1,:] = EoMFtruncate(dphidt, Iterm, F[-1,:], F[-2,:], bdrF[-1,:], a, H, sigma, kh, ntr)
+        dFdt[n,2] = (bdrF[n, 2] - ((4+n)*H + a**(alpha) * sigmaE)*F[n,2]
+                     + a**(alpha)*(F[n+1,0] - F[n+1,1]) + (Iterm*dphidt+a**alpha*sigmaB)*F[n,1])
+        
+    dFdt[-1,:] = EoMFtruncate(dphidt, Iterm, F[-1,:], F[-2,:], bdrF[-1,:], a, H, sigmaE, sigmaB, kh, ntr-1)
     
     return dFdt
 
-def EoMFtruncate(dphidt, Iterm, F, Fmin1, bdrF, a, H, sigma, kh, ntr):
+def EoMFtruncate(dphidt, Iterm, F, Fmin1, bdrF, a, H, sigmaE, sigmaB, kh, ntr):
     #F[n,0]: ErotnE
     #F[n,1]: BrotnB
     #F[n,2]: -1/2(ErotnB + BrotnE)
@@ -178,13 +163,49 @@ def EoMFtruncate(dphidt, Iterm, F, Fmin1, bdrF, a, H, sigma, kh, ntr):
     
     dFdt = np.zeros(3)
     
-    dFdt[0] = (bdrF[0] -  ((4+ntr)*H + 2*a**(alpha) * sigma)*F[0]
-                         - 2*kh**2 * a**(alpha-2)*Fmin1[2] + 2*Iterm*F[2]*dphidt)
+    dFdt[0] = (bdrF[0] -  ((4+ntr)*H + 2*a**(alpha) * sigmaE)*F[0]
+                         - 2*kh**2 * a**(alpha-2)*Fmin1[2] + 2*(Iterm*dphidt+a**alpha*sigmaB)*F[2])
     dFdt[1] = bdrF[1] - (4+ntr)*H*F[1] + 2*kh**2 * a**(alpha-2)*Fmin1[2]
-    dFdt[2] = (bdrF[2] - ((4+ntr)*H + a**(alpha) * sigma)*F[2] 
-                         + kh**2 * a**(alpha-2)*(Fmin1[0] - Fmin1[1]) + Iterm*F[1]*dphidt)
+    dFdt[2] = (bdrF[2] - ((4+ntr)*H + a**(alpha) * sigmaE)*F[2] 
+                         + kh**2 * a**(alpha-2)*(Fmin1[0] - Fmin1[1]) + (Iterm*dphidt+a**alpha*sigmaB)*F[1])
     
     return dFdt
+
+def EoMDelta(sigmaE, a, delta):
+    return -a**(alpha)*sigmaE*delta
+
+def ComputeSigma(E0, B0, H, f, omega):
+    mu = ((E0+B0)/2)**(1/4)*omega
+    gmz = 0.35
+    mz = 91.2*f/(1.220932e19)
+    if mu==0:
+         return 0
+    else:
+        gmu = np.sqrt(gmz**2/(1 + gmz**2*41/(48*np.pi**2)*np.log(mz/mu)))
+        sigma = (41*gmu**3/(72*np.pi**2)
+             * np.sqrt(B0)/(H * np.tanh(np.pi*np.sqrt(B0/E0))))
+        return sigma
+    
+def ComputeImprovedSigma(E0, B0, G0, H, f, omega):
+    mu = ((E0+B0)/2)**(1/4)*omega
+    gmz = 0.35
+    mz = 91.2*f/(1.220932e19)
+    Sigma = np.sqrt((E0 - B0)**2 + 4*G0**2)
+    if mu==0:
+         return 0, 0
+    else:
+        Eprime = np.sqrt(E0-B0+Sigma)
+        Bprime = np.sqrt(B0-E0+Sigma)
+        Sum = E0 + B0 + Sigma
+        gmu = np.sqrt(gmz**2/(1 + gmz**2*41/(48*np.pi**2)*np.log(mz/mu)))
+        sigma = (41*gmu**3/(72*np.pi**2)
+                 /(np.sqrt(Sigma*Sum)*H * np.tanh(np.pi*np.sqrt(Bprime/Eprime))))
+        sigmaE = abs(G0)*Eprime*sigma
+        sigmaB = -G0*Bprime*sigma
+        if (np.isnan(sigmaE) or np.isnan(sigmaB)):
+            print("sigma", sigmaE, sigmaB)
+            print("field", E0, B0, G0)
+        return sigmaE, sigmaB
     
     
 def approxPosE(xi):
