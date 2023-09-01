@@ -4,10 +4,10 @@ import math
 
 alpha=0
 
-def GetXi(dphidt, Iterm, a, H, sigmaB):
-    return (Iterm * dphidt + a**alpha*sigmaB)/(2*H)
+def GetXi(dphidt, Iterm, H):
+    return (Iterm * dphidt)/(2*H)
 
-def GetS(a, H, sigmaE):
+def GetS(sigmaE, H, a):
     return a**(alpha) * sigmaE / (2*H)
 
 def FriedmannEq(a, dphidt, V, E, B, rhoChi, f, ratio):
@@ -35,8 +35,8 @@ def EoMphi(dphidt, Vterm, Iterm, G, a, H, ratio):
 
 def BoundaryComputations(kh, dphidt, ddphiddt,
                          Iterm, I2term, a, H, ntr, sigmaE=0, sigmaB=0, delta=1, approx=False):
-    xi = GetXi(dphidt, Iterm, a, H, sigmaB)
-    s = GetS(a, H, sigmaE)
+    xi = GetXi(dphidt, Iterm, H) + GetS(sigmaB, H, a)
+    s = GetS(sigmaE, H, a)
     
     r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
     f = a**(1-alpha) * H * (r)
@@ -49,13 +49,15 @@ def BoundaryComputations(kh, dphidt, ddphiddt,
         else:
             return 0
     
-    dsigmadt = 0.
-    #approximation: dHdt = alphaH**2 (slow-roll), dsigmaEdt=0, dsigmaBdt=0 (slow varying conductivity)
-    fprime = ((1-alpha)*H*f 
-                  + a**(1-alpha)*(I2term*dphidt**2/2 + Iterm*ddphiddt/2)*(g(xi) + xi/np.sqrt(xi**2 + s**2 + s))
-                  + a*(alpha*H*sigmaE + dsigmadt)*(s + 1/2)/(2*np.sqrt(xi**2 + s**2 + s))
-                  + a**(1-alpha)*H**2*alpha*s/(2*np.sqrt(xi**2 + s**2 + s)))
-    #fprime = f*H
+    dsigmaEdt = 0.
+    dsigmaBdt = 0.
+    #approximation: dHdt = alphaH**2 (slow-roll)
+    fprime = (((1-alpha)*H+a**(1-alpha)*alpha*H)*f 
+                  + g(xi)*(a**(1-alpha)*(I2term*dphidt**2 + Iterm*ddphiddt)/2
+                                       +a*(alpha*H*sigmaB + dsigmaBdt)/2
+                                       - a**(1-alpha)*alpha*H**2*xi)*(1. + xi/np.sqrt(xi**2 + s**2 + s))
+                  + (a*(alpha*H*sigmaE + dsigmaEdt)/2 
+                     - a**(1-alpha)*alpha*H**2*s)*(g(s)*s + 1/2)/np.sqrt(xi**2 + s**2 + s))
     
     if (fprime >= 0):
         if((kh-f)/kh <=1e-3):
@@ -174,37 +176,45 @@ def EoMFtruncate(dphidt, Iterm, F, Fmin1, bdrF, a, H, sigmaE, sigmaB, kh, ntr):
 def EoMDelta(sigmaE, a, delta):
     return -a**(alpha)*sigmaE*delta
 
-def ComputeSigma(E0, B0, H, f, omega):
-    mu = ((E0+B0)/2)**(1/4)*omega
-    gmz = 0.35
-    mz = 91.2*f/(1.220932e19)
+def ComputeSigmaCollinear(E0, B0, sign, H, ratio, frac):
+    mu = ((E0+B0)/2)**(1/4)
     if mu==0:
-         return 0
+         return 0., 0.
     else:
-        gmu = np.sqrt(gmz**2/(1 + gmz**2*41/(48*np.pi**2)*np.log(mz/mu)))
-        sigma = (41*gmu**3/(72*np.pi**2)
+        mz = 91.2/(1.220932e19)
+        gmz = 0.35
+        gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*ratio))))
+        
+        fracE = (min(1., 1.-frac)*E0/(E0+B0) + max(-frac, 0.)*B0/(E0+B0))
+        sigmaE = fracE*(41.*gmu**3/(72.*np.pi**2)
              * np.sqrt(B0)/(H * np.tanh(np.pi*np.sqrt(B0/E0))))
-        return sigma
+        
+        fracB = (min(1., 1.+frac)*B0/(E0+B0) + max(frac,0.)*E0/(E0+B0))
+        sigmaB = fracB * (-sign)*(41.*gmu**3/(72.*np.pi**2)
+             * np.sqrt(E0)/(H * np.tanh(np.pi*np.sqrt(B0/E0))))
+        
+        return sigmaE, sigmaB
     
-def ComputeImprovedSigma(E0, B0, G0, H, f, omega):
-    mu = ((E0+B0)/2)**(1/4)*omega
-    gmz = 0.35
-    mz = 91.2*f/(1.220932e19)
-    Sigma = np.sqrt((E0 - B0)**2 + 4*G0**2)
+def ComputeImprovedSigma(E0, B0, G0, H, ratio):
+    mu = ((E0+B0)/2)**(1/4)
     if mu==0:
-         return 0, 0
+         return 0., 0.
     else:
+        mz = 91.2/(1.220932e19)
+        gmz = 0.35
+        gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*ratio))))
+        
+        Sigma = np.sqrt((E0 - B0)**2 + 4*G0**2)
         Eprime = np.sqrt(E0-B0+Sigma)
         Bprime = np.sqrt(B0-E0+Sigma)
         Sum = E0 + B0 + Sigma
-        gmu = np.sqrt(gmz**2/(1 + gmz**2*41/(48*np.pi**2)*np.log(mz/mu)))
-        sigma = (41*gmu**3/(72*np.pi**2)
-                 /(np.sqrt(Sigma*Sum)*H * np.tanh(np.pi*np.sqrt(Bprime/Eprime))))
+        
+        sigma = (41.*gmu**3/(72.*np.pi**2)
+                 /(np.sqrt(Sigma*Sum)*H * np.tanh(np.pi*Bprime/Eprime)))
+        
         sigmaE = abs(G0)*Eprime*sigma
         sigmaB = -G0*Bprime*sigma
-        if (np.isnan(sigmaE) or np.isnan(sigmaB)):
-            print("sigma", sigmaE, sigmaB)
-            print("field", E0, B0, G0)
+
         return sigmaE, sigmaB
     
     
@@ -274,6 +284,8 @@ def approxMinG(xi):
     t3 = 21543/(2**(21)*xi**4)
     t4 = -6003491/(2**31*xi**6)
     return -np.sqrt(2)/(32*abs(xi))*(t1 + t2 + t3 + t4)
+    
+    
 
 
 
