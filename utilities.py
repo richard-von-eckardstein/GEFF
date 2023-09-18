@@ -1,5 +1,5 @@
 import numpy as np
-from EoM import FriedmannEq, ComputeSigma, ComputeImprovedSigma
+from EoM import FriedmannEq, ComputeSigmaCollinear, ComputeImprovedSigma
 from scipy.interpolate import CubicSpline
 
 def PlotComp(ax1, ax2, N, Y, Nref, Yref, col="k:", label=None, interp="lin"):

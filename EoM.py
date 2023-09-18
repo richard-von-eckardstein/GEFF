@@ -16,7 +16,7 @@ def FriedmannEq(a, dphidt, V, E, B, rhoChi, f, ratio):
     #sc[0]: phi
     #sc[1]: dphidt
     
-    Hsq = (f**2/(3*Mpl**2)) * (0.5 * dphidt**2 + a**(2*alpha) * V + 0.5*a**(2*alpha)* (E+B)*ratio**2 
+    Hsq = (1/3) * (0.5 * dphidt**2 + a**(2*alpha) * V + 0.5*a**(2*alpha)* (E+B)*ratio**2 
                                + ratio**2*rhoChi*a**(2*alpha))
     
     return Hsq
