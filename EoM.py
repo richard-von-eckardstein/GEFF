@@ -10,7 +10,7 @@ def GetXi(dphidt, Iterm, H):
 def GetS(sigmaE, H, a):
     return a**(alpha) * sigmaE / (2*H)
 
-def FriedmannEq(a, dphidt, V, E, B, rhoChi, f, ratio):
+def FriedmannEq(a, dphidt, V, E, B, rhoChi, ratio):
     #E: EE
     #B: BB
     #sc[0]: phi
@@ -37,7 +37,6 @@ def BoundaryComputations(kh, dphidt, ddphiddt,
                          Iterm, I2term, a, H, ntr, sigmaE=0, sigmaB=0, delta=1, approx=False):
     xi = GetXi(dphidt, Iterm, H) + GetS(sigmaB, H, a)
     s = GetS(sigmaE, H, a)
-    
     r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
     f = a**(1-alpha) * H * (r)
     

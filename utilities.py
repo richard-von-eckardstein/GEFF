@@ -17,21 +17,21 @@ def PlotComp(ax1, ax2, N, Y, Nref, Yref, col="k:", label=None, interp="lin"):
     
     return
 
-def GetPhysQuantities(sol, Iterm, omega, f, SE=None, units=True):
+def GetPhysQuantities(sol, Iterm, omega, SE=None, units=True):
     N = sol.y[0,:]
     a = np.exp(N)
     phi = sol.y[1,:]
     dphidt = sol.y[2,:]
     kh = np.exp(sol.y[3,:])
-    V = potential(f*phi)/(f*omega**2)
+    V = potential(f*phi)/(f**2*omega**2)
     print(SE)
     ratio = omega/f
     if SE==None:
         E = sol.y[4,:]
         B = sol.y[5,:]
         G = sol.y[6,:]
-        H = np.sqrt(FriedmannEq(a, dphidt, V, E, B, 0., f, ratio))
-        xi = GetXi(dphidt, Iterm, a, H, 0.)
+        H = np.sqrt(FriedmannEq(a, dphidt, V, E, B, 0., ratio))
+        xi = GetXi(dphidt, Iterm, H)
         if units:
             phi = f*phi
             dphidt = omega*f*phi
@@ -49,7 +49,7 @@ def GetPhysQuantities(sol, Iterm, omega, f, SE=None, units=True):
         E = sol.y[6,:]
         B = sol.y[7,:]
         G = sol.y[8,:]
-        H = np.sqrt(FriedmannEq(a, dphidt, V, E, B, rhoChi, f, ratio))
+        H = np.sqrt(FriedmannEq(a, dphidt, V, E, B, rhoChi, ratio))
         if SE=="mix":
             sigmaE = np.array([ComputeImprovedSigma(E[i], B[i], G[i], H[i], ratio)[0] for i in range(len(E))])
             sigmaB = np.array([ComputeImprovedSigma(E[i], B[i], G[i], H[i], ratio)[1] for i in range(len(E))])

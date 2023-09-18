@@ -11,6 +11,110 @@ from scipy.integrate import solve_ivp
 alpha = 0
 Mpl = 1.
 
+class GEF:
+    def __init__(self, beta, Mpl, phi0, dphidt0, M, ntr, SE, approx=False):
+        self.beta = beta
+        self.f = Mpl
+        self.mass = M
+        self.SE = SE
+        if (SE==None):
+            self.ODE = self.fullGEF_NoSE()
+        else:
+            if (SE=="mix"):
+                self.ODE = self.fullGEF_SE_mixed()
+                self.conductivity = self.ComputeImprovedSigma()
+            elif (-1. <= SE <=1.):
+                self.ODE = self.fullGEF_SE_collinear(SE)
+                self.conductivity = self.ComputeSigmaCollinear()
+            else:
+                print(SE, "is not a valid choice for SE")
+        self.approx = approx
+        self.ntr = ntr
+        V = 0.5*phi0**2*M**2
+        self.omega = FriedmannEq(1.0, dphidt0, V, 0., 0., 0., 1.0)
+        self.ratio = omega/f
+    
+    def potential(self, x):
+        return 0.5*(x.phi)**2 * self.mass**2
+
+    def dIdphi(self, x):
+        return self.beta/self.Mpl
+
+    def ddIddphi(self, x):
+        return 0.
+
+    def dVdphi(self, x):
+        return x.phi * self.mass**2
+    
+    def GetXi(self, x):
+        return (x.dI * x.dphidt)/(2 * x.H)
+    
+    def GetS(self, x):
+        return (a**(self.alpha) * x.sigmaE)/(2* x.H)
+        
+    def EoMphi(self, x):
+        #Scalar Field EoM
+        dscdt = np.zeros(2)
+    
+        dscdt[0] = x.dphidt
+        dscdt[1] = (self.alpha-3)* x.H * x.dphidt - x.a**(2*self.alpha)*x.dV - x.a**(2*self.alpha)*x.dI*x.G[0]*self.ratio**2
+
+        return dscdt
+    
+    def FriedmannEq(self, x):
+        #Friedmann Equation
+        Hsq = (1/3) * (0.5 * x.dphidt**2 + x.a**(2*self.alpha)*(x.V + self.ratio**2*(0.5*(x.E[0]+x.B[0]) + x.rhoChi)))
+        return Hsq
+
+    def BoundaryComputations(self, x):
+        xieff = x.xi + x.sB
+        
+        
+
+class vals:
+    def __init__(vals, t, y, GEF):
+        self.units = False
+        self.t = t
+        self.N = y[0]
+        self.a = np.exp(vals.N)
+        self.phi = y[1]
+        self.dphidt = y[2]
+        self.ddphiddt = GEF.EoMphi(self)[1]
+        self.kh = np.exp(sol.y[3,:])
+        self.V = GEF.potential(GEF.f*self.phi)/(GEF.f*GEF.omega)**2
+        self.dV = GEF.dVdphi(GEF.f*self.phi)/(GEF.f*GEF.omega**2)
+        self.dI = GEF.dIdphi(GEF.f*self.phi)*GEF.f
+        self.ddI = GEF.ddIddphi(GEF.f*self.phi)*GEF.f**2
+        if (GEF.SE == None):
+            F = y[4:]
+            self.rhoChi = 0.
+            self.delta = 1.
+            self.sigmaE = 0.
+            self.sigmaB = 0.
+        else:
+            self.delta = y[4]
+            self.rhoChi = y[5]
+            F = y[6:]
+            F.reshape(GEF.ntr, 3)
+            self.sigmaE = GEF.conductivity()
+            
+        self.E = F[:,0]
+        self.B = F[:,1]
+        self.G = F[:,2]
+        
+        sigmaE = GEF.conductivities()
+            
+        H = np.sqrt(GEF.Friedmann(self))
+        xi = GetXi(
+        
+        
+        
+        
+    
+        
+        
+        
+
 def SetupFullGEF(beta, Mpl, phi0, dphidt0, M, ntr, SE=None, approx=False):
     #all quantities are assumed to be in Planck Units
     
@@ -99,7 +203,9 @@ if (type(SE) is str):
     if ("frac" in SE):
         SE = float(SE.replace("frac", ""))
         
-func, yini, potential, dVdphi, dIdphi, ddIddphi, omega, f = SetupFullGEF(beta, Mpl, phi0, dphidt0, M, ntr, SE=SE, approx=approx)
+o1 = GEF(beta, phi0, dphidt0, M, ntr, SE, False)
+        
+"""func, yini, potential, dVdphi, dIdphi, ddIddphi, omega, f = SetupFullGEF(beta, Mpl, phi0, dphidt0, M, ntr, SE=SE, approx=approx)
 
 sol = solve_ivp(func, [0, 120] , yini, method="RK45")
 
@@ -123,7 +229,7 @@ DirName = os.getcwd() + "/Out/"
 path = os.path.join(DirName, filename)
 
 output_df = pd.DataFrame(DataDic)  
-output_df.to_csv(path)
+output_df.to_csv(path)"""
 
 
 

@@ -44,7 +44,7 @@ def fullGEF_NoSE(t, y, omega=1, f=1, approx=False):
     #compute H, potential, couplings and derivatives (once per timestep)
     V, dVdsc = potential(f*sc[0])/(f*omega)**2, dVdphi(f*sc[0])/(omega**2*f)
     dIdsc, ddIddsc = f*dIdphi(f*sc[0]), f**2*ddIddphi(f*sc[0])
-    Hsq = FriedmannEq(a, sc[1], V, F[0,0], F[0,1], 0., f, ratio)
+    Hsq = FriedmannEq(a, sc[1], V, F[0,0], F[0,1], 0., ratio)
     H = np.sqrt(Hsq)
     dydt[0] = H
     
@@ -111,7 +111,7 @@ def fullGEF_SE_collinear(t, y, omega=1, f=1, frac=0., approx=False):
     #compute H, potential, couplings and derivatives (once per timestep)
     V, dVdsc = potential(f*sc[0])/(f*omega)**2, dVdphi(f*sc[0])/(omega**2*f)
     dIdsc, ddIddsc = f*dIdphi(f*sc[0]), f**2*ddIddphi(f*sc[0])
-    Hsq = FriedmannEq(a, sc[1], V, F[0,0], F[0,1], rhoChi, f, ratio)
+    Hsq = FriedmannEq(a, sc[1], V, F[0,0], F[0,1], rhoChi, ratio)
     H = np.sqrt(Hsq)
     dydt[0] = H
     
@@ -184,7 +184,7 @@ def fullGEF_SE_mixed(t, y, omega=1, f=1, approx=False):
     #compute H, potential, couplings and derivatives (once per timestep)
     V, dVdsc = potential(f*sc[0])/(f*omega)**2, dVdphi(f*sc[0])/(omega**2*f)
     dIdsc, ddIddsc = f*dIdphi(f*sc[0]), f**2*ddIddphi(f*sc[0])
-    Hsq = FriedmannEq(a, sc[1], V, F[0,0], F[0,1], rhoChi, f, ratio)
+    Hsq = FriedmannEq(a, sc[1], V, F[0,0], F[0,1], rhoChi, ratio)
     H = np.sqrt(Hsq)
     dydt[0] = H
     
@@ -281,7 +281,7 @@ def Inflation(y, omega=1, f=1):
     
     V, dVdsc = potential(f*sc[0])/(f*omega)**2, dVdphi(f*sc[0])/(omega**2*f)
 
-    Hsq = FriedmannEq(a, sc[1], V, 0, 0, f, ratio)
+    Hsq = FriedmannEq(a, sc[1], V, 0, 0, ratio)
     
     dydt[0] = np.sqrt(Hsq)
     
