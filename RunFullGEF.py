@@ -17,6 +17,7 @@ class GEF:
         self.f = Mpl
         self.mass = M
         self.SE = SE
+        self.ini = np.array([phi0, dphidt0])
         if (SE==None):
             self.ODE = self.fullGEF_NoSE()
         else:
@@ -34,16 +35,16 @@ class GEF:
         self.omega = FriedmannEq(1.0, dphidt0, V, 0., 0., 0., 1.0)
         self.ratio = omega/f
     
-    def potential(self, x):
+    def potential(self, phi):
         return 0.5*(x.phi)**2 * self.mass**2
 
-    def dIdphi(self, x):
+    def dIdphi(self, phi):
         return self.beta/self.Mpl
 
-    def ddIddphi(self, x):
+    def ddIddphi(self, phi):
         return 0.
 
-    def dVdphi(self, x):
+    def dVdphi(self, phi):
         return x.phi * self.mass**2
     
     def GetXi(self, x):
@@ -66,11 +67,18 @@ class GEF:
         Hsq = (1/3) * (0.5 * x.dphidt**2 + x.a**(2*self.alpha)*(x.V + self.ratio**2*(0.5*(x.E[0]+x.B[0]) + x.rhoChi)))
         return Hsq
 
-    def BoundaryComputations(self, x):
-        xieff = x.xi + x.sB
+    def InitialiseSet(self):
+        yini[0] = 0
+        yini[1] = self.ini[0]/self.f
+        yini[2] = self.ini[1]/(self.f*self.omega)
+        yini[3] = np.log(2*abs(yini[2]*self.beta))
+        if SE == None:
+            yini = yini[:-2]
+        else:
+            yini[4] = Delta0
+            yini[5] = rhoChi0
+        return yini
         
-        
-
 class vals:
     def __init__(vals, t, y, GEF):
         self.units = False
@@ -79,43 +87,41 @@ class vals:
         self.a = np.exp(vals.N)
         self.phi = y[1]
         self.dphidt = y[2]
-        self.ddphiddt = GEF.EoMphi(self)[1]
         self.kh = np.exp(sol.y[3,:])
-        self.V = GEF.potential(GEF.f*self.phi)/(GEF.f*GEF.omega)**2
-        self.dV = GEF.dVdphi(GEF.f*self.phi)/(GEF.f*GEF.omega**2)
-        self.dI = GEF.dIdphi(GEF.f*self.phi)*GEF.f
-        self.ddI = GEF.ddIddphi(GEF.f*self.phi)*GEF.f**2
+        
         if (GEF.SE == None):
             F = y[4:]
             self.rhoChi = 0.
             self.delta = 1.
-            self.sigmaE = 0.
-            self.sigmaB = 0.
         else:
             self.delta = y[4]
             self.rhoChi = y[5]
             F = y[6:]
             F.reshape(GEF.ntr, 3)
-            self.sigmaE = GEF.conductivity()
-            
         self.E = F[:,0]
         self.B = F[:,1]
         self.G = F[:,2]
-        
-        sigmaE = GEF.conductivities()
-            
-        H = np.sqrt(GEF.Friedmann(self))
-        xi = GetXi(
-        
-        
-        
-        
     
+    def DerivedVals(self):
+        f = self.GEF.f
+        omega = self.GEF.omega
+        
+        sigmaE = self.GEF.conductivities()
+        self.H = np.sqrt(self.GEF.Friedmann(self))
+        self.xi = self.GEF.GetXi(self)
+        self.sigmaE = self.GEF.conductivity()
+        self.ddphiddt = self.GEF.EoMphi(self)[1]
+        self.V = self.GEF.potential(f*self.phi)/(omega)**2
+        self.dV = self.GEF.dVdphi(f*self.phi)/(omega**2)
+        self.dI = self.GEF.dIdphi(f*self.phi)*f
+        self.ddI = self.GEF.ddIddphi(f*self.phi)*f**2
+
+   
         
         
         
 
-def SetupFullGEF(beta, Mpl, phi0, dphidt0, M, ntr, SE=None, approx=False):
+"""def SetupFullGEF(beta, Mpl, phi0, dphidt0, M, ntr, SE=None, approx=False):
     #all quantities are assumed to be in Planck Units
     
     rhoChi0 = 0.
@@ -161,12 +167,10 @@ def SetupFullGEF(beta, Mpl, phi0, dphidt0, M, ntr, SE=None, approx=False):
             print(SE, "is not a valid choice for SE")
             return
  
-    return func, yini, potential, dVdphi, dIdphi, ddIddphi, omega, f
+    return func, yini, potential, dVdphi, dIdphi, ddIddphi, omega, f"""
 
 def get_cmdline_arguments():
-    """
-        Returns dictionary of command line arguments supplied to PhonoDark.
-    """
+    #Returns dictionary of command line arguments supplied to PhonoDark.
 
     parser = optparse.OptionParser()
     parser.add_option('-n', action="store", default=1.,
@@ -203,9 +207,10 @@ if (type(SE) is str):
     if ("frac" in SE):
         SE = float(SE.replace("frac", ""))
         
-o1 = GEF(beta, phi0, dphidt0, M, ntr, SE, False)
+o1 = GEF(beta, Mpl, phi0, dphidt0, M, ntr, SE, False)
         
-"""func, yini, potential, dVdphi, dIdphi, ddIddphi, omega, f = SetupFullGEF(beta, Mpl, phi0, dphidt0, M, ntr, SE=SE, approx=approx)
+"""o1 = GEF(beta, phi0, dphidt0, M, ntr, SE, False)
+func, yini, potential, dVdphi, dIdphi, ddIddphi, omega, f = SetupFullGEF(beta, Mpl, phi0, dphidt0, M, ntr, SE=SE, approx=approx)
 
 sol = solve_ivp(func, [0, 120] , yini, method="RK45")
 
