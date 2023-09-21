@@ -434,7 +434,7 @@ class GEF:
     def SaveData(x):
         if (x.completed):
             #x.Unitful()
-            filename = "Out/GEF_Beta"+str(beta)+"_SE"+str(SE)+".dat"
+            filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+".dat"
             DirName = os.getcwd()
             
             """settings = [{"alpha":x.alpha}, {"beta":x.beta}, {"M":x.mass},{ "Mpl":x.Mpl}, 

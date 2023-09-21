@@ -1,5 +1,4 @@
 import numpy as np
-from EoM import FriedmannEq, ComputeSigmaCollinear, ComputeImprovedSigma
 from scipy.interpolate import CubicSpline
 
 def PlotComp(ax1, ax2, N, Y, Nref, Yref, col="k:", label=None, interp="lin"):
@@ -17,76 +16,6 @@ def PlotComp(ax1, ax2, N, Y, Nref, Yref, col="k:", label=None, interp="lin"):
     
     return
 
-def GetPhysQuantities(sol, Iterm, omega, SE=None, units=True):
-    N = sol.y[0,:]
-    a = np.exp(N)
-    phi = sol.y[1,:]
-    dphidt = sol.y[2,:]
-    kh = np.exp(sol.y[3,:])
-    V = potential(f*phi)/(f**2*omega**2)
-    print(SE)
-    ratio = omega/f
-    if SE==None:
-        E = sol.y[4,:]
-        B = sol.y[5,:]
-        G = sol.y[6,:]
-        H = np.sqrt(FriedmannEq(a, dphidt, V, E, B, 0., ratio))
-        xi = GetXi(dphidt, Iterm, H)
-        if units:
-            phi = f*phi
-            dphidt = omega*f*phi
-            kh = kh*omega
-            V = V*f**2*omega**2
-            E = E*omega**4
-            B = B*omega**4
-            G = G*omega**4
-            H = H*omega
-        return N, a, phi, dphidt, kh, E, B, G, V, H, xi
-    
-    else: 
-        delta = sol.y[4,:]
-        rhoChi = sol.y[5,:]
-        E = sol.y[6,:]
-        B = sol.y[7,:]
-        G = sol.y[8,:]
-        H = np.sqrt(FriedmannEq(a, dphidt, V, E, B, rhoChi, ratio))
-        if SE=="mix":
-            sigmaE = np.array([ComputeImprovedSigma(E[i], B[i], G[i], H[i], ratio)[0] for i in range(len(E))])
-            sigmaB = np.array([ComputeImprovedSigma(E[i], B[i], G[i], H[i], ratio)[1] for i in range(len(E))])
-            xi = GetXi(dphidt, Iterm, a, H, 0.)
-            if units:
-                phi = f*phi
-                dphidt = omega*f*dphidt
-                kh = kh*omega
-                V = V*f**2*omega**2
-                rhoChi = rhoChi*omega**4
-                E = E*omega**4
-                B = B*omega**4
-                G = G*omega**4
-                H = H*omega
-                sigmaE = omega*sigmaE
-                sigmaB = omega*sigmaB
-            return N, a, phi, dphidt, kh, delta, rhoChi, E, B, G, V, H, xi, sigmaE, sigmaB
-        elif (-1. <= SE <=1.):
-            sigmaE = np.array([ComputeSigmaCollinear(E[i], B[i], np.sign(G[i]), H[i], ratio, SE)[0] for i in range(len(E))])
-            sigmaB = np.array([ComputeSigmaCollinear(E[i], B[i], np.sign(G[i]), H[i], ratio, SE)[1] for i in range(len(E))])
-            xi = GetXi(dphidt, Iterm, a, H, 0.)
-            if units:
-                phi = f*phi
-                dphidt = omega*f*dphidt
-                kh = kh*omega
-                V = V*f**2*omega**2
-                rhoChi = rhoChi*omega**4
-                E = E*omega**4
-                B = B*omega**4
-                G = G*omega**4
-                H = H*omega
-                sigmaE = omega*sigmaE
-                sigmaB = omega*sigmaB
-            return N, a, phi, dphidt, kh, delta, rhoChi, E, B, G, V, H, xi, sigmaE, sigmaB
-        else:
-            print(SE, "is not a valid choice for SE")
-            return 
         
 def EndOfInflation(t, a, H, tol=1e-6):
     N = np.log(a)
