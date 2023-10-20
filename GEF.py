@@ -2,13 +2,15 @@ import pandas as pd
 import os
 import sys
 import numpy as np
-from scipy.integrate import solve_ivp
+from scipy.integrate import solve_ivp, quad
+from scipy.interpolate import CubicSpline
+from scipy.optimize import fsolve
 from timer import Timer
 import math
 from mpmath import whitw
 
 class GEF:
-    def __init__(x, alpha, beta, Mpl, ini, M, ntr, SE, AltDamp=False, approx=True):
+    def __init__(x, alpha, beta, Mpl, ini, M, ntr, SE, AltDamp=0, approx=True):
         x.units = True
         x.completed = False
         x.alpha = alpha
@@ -23,6 +25,7 @@ class GEF:
             x.vals["rhoChi"] = 0.
             x.vals["delta"] = 1.
             x.vals["sigmaE"] = 0.
+            x.vals["s"] = 0.
             x.vals["sigmaB"] = 0.
             if(approx):
                 x.Whittaker = x.WhittakerApprox_NoSE
@@ -36,16 +39,24 @@ class GEF:
                 x.Whittaker = x.WhittakerExact
                 
             if (SE=="mix"):
-                if (x.AltDamp):
+                if (x.AltDamp == 1):
+                    x.GaugePos = 5
+                    x.conductivity = x.ComputeImprovedSigmaAltDelta
+                elif (x.AltDamp == 1):
                     x.GaugePos = 5
                     x.conductivity = x.ComputeImprovedSigmaAltDelta
                 else:
                     x.GaugePos = 6
                     x.conductivity = x.ComputeImprovedSigma
             elif (-1. <= SE <=1.):
-                if (x.AltDamp):
+                if (x.AltDamp == 1):
                     x.GaugePos = 5
                     x.conductivity = x.ComputeSigmaCollinearAltDelta
+                elif (x.AltDamp == 2):
+                    x.DeltaFunc = False
+                    #x.GaugePos = 7
+                    x.GaugePos = 6
+                    x.conductivity = x.ComputeSigmaCollinearKDep
                 else:
                     x.GaugePos = 6
                     x.conductivity = x.ComputeSigmaCollinear
@@ -100,10 +111,10 @@ class GEF:
         E0 = x.vals["E"][0]
         B0 = x.vals["B"][0]
         mu = ((E0+B0)/2)**(1/4)
-        if mu==0:
+        if mu==0.:
             return 0., 0.
         else:
-            mz = 91.2/(1.220932e19)
+            mz = 91.2/(2.43536e18)
             gmz = 0.35
             gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*x.ratio))))
 
@@ -119,9 +130,9 @@ class GEF:
         B0 = x.vals["B"][0]
         mu = ((E0+B0)/2)**(1/4)
         if mu==0:
-            return 0., 0., 1.
+            return 0., 0., 1., 0.
         else:
-            mz = 91.2/(1.220932e19)
+            mz = 91.2/(2.43536e18)
             gmz = 0.35
             gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*x.ratio))))
             
@@ -132,17 +143,37 @@ class GEF:
             sigmaE =  np.sqrt(B0) * (min(1., 1.- frac)*E0 + max(-frac, 0.)*B0) * sigma / (E0+B0)         
             sigmaB = -np.sign(x.vals["G"][0]) * np.sqrt(E0)*(min(1., 1.+ frac)*B0 + max(frac,0.)*E0)* sigma/(E0+B0)
             
-            #s = x.GetS(sigmaE)
-            #xieff = x.vals["xi"] + x.GetS(sigmaB)
-            #r = abs(xieff) + np.sqrt(xieff**2 + s**2 + s)
             kh = x.vals["kh"]*x.vals["a"]**(x.alpha-1)
             
             kappa = np.log(gmu**(1/2)*E0**(1/4)/kh)
             
             if (kappa > 0.):
-                return sigmaE, sigmaB, np.exp(-sigmaE/H*kappa)
+                return sigmaE*0.27, sigmaB, np.exp(-sigmaE/H*kappa), x.GetS(sigmaE*0.27)
             else:
-                return sigmaE, sigmaB, 1.
+                return 0., sigmaB, 1., 0.
+            
+    def ComputeSigmaCollinearKDep(x):
+        E0 = x.vals["E"][0]
+        B0 = x.vals["B"][0]
+        mu = ((E0+B0)/2)**(1/4)
+        if mu==0:
+            return 0., 0., 1e-2*x.vals["kh"]
+        else:
+            mz = 91.2/(2.43536e18)
+            gmz = 0.35
+            gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*x.ratio))))
+            
+            H = x.vals["H"]
+
+            frac = x.SE
+            sigma = ((x.vals["a"]**x.alpha) * (41.*gmu**3/(72.*np.pi**2 * H * np.tanh(np.pi*np.sqrt(B0/E0)))))
+            sigmaE =  np.sqrt(B0) * (min(1., 1.- frac)*E0 + max(-frac, 0.)*B0) * sigma / (E0+B0)         
+            sigmaB = -np.sign(x.vals["G"][0]) * np.sqrt(E0)*(min(1., 1.+ frac)*B0 + max(frac,0.)*E0)* sigma/(E0+B0)
+            
+            ks = gmu**(1/2)*E0**(1/4)*x.vals["a"]**(1-x.alpha)
+            
+            return sigmaE, sigmaB, ks
+            
             
     def ComputeImprovedSigma(x):
         E0 = x.vals["E"][0]
@@ -155,7 +186,7 @@ class GEF:
             x.vals["sigmaB"] = 0.
             return 0., 0.
         else:
-            mz = 91.2/(1.220932e19)
+            mz = 91.2/(2.43536e18)
             mu = ((Sigma)/2)**(1/4)
             gmz = 0.35
             gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*x.ratio))))
@@ -169,6 +200,7 @@ class GEF:
             
             return abs(G0)*Eprime*sigma, -G0*Bprime*sigma
         
+        
     def ComputeImprovedSigmaAltDelta(x):
         E0 = x.vals["E"][0]
         B0 = x.vals["B"][0]
@@ -178,9 +210,9 @@ class GEF:
         if Sigma==0:
             x.vals["sigmaE"] = 0.
             x.vals["sigmaB"] = 0.
-            return 0., 0., 1.
+            return 0., 0., 1., 0.
         else:
-            mz = 91.2/(1.220932e19)
+            mz = 91.2/(2.43536e18)
             mu = ((Sigma)/2)**(1/4)
             gmz = 0.35
             gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*x.ratio))))
@@ -197,16 +229,18 @@ class GEF:
             sigmaE = abs(G0)*Eprime*sigma
             sigmaB = -G0*Bprime*sigma
             
-            s = x.GetS(sigmaE)
-            xieff = x.vals["xi"] + x.GetS(sigmaB)
-            r = abs(xieff) + np.sqrt(xieff**2 + s**2 + s)
+            #s = x.GetS(sigmaE)
+            #xieff = x.vals["xi"] + x.GetS(sigmaB)
+            #r = abs(xieff) + np.sqrt(xieff**2 + s**2 + s)
+            kh = x.vals["kh"]*x.vals["a"]**(x.alpha-1)
             
-            kappa = np.log( (gmu*Sigma/Sum)**(1/2) * (2*Eprime)**(1/4)/(H*r))
+            kappa = np.log( (gmu*Sigma/Sum)**(1/2) * (2*Eprime)**(1/4)/kh)
             
             if (kappa > 0.):
-                return sigmaE, sigmaB, np.exp(-sigmaE/H*kappa)
+                return sigmaE, sigmaB, np.exp(-sigmaE/H*kappa), x.GetS(sigmaE)*0.15
             else:
-                return sigmaE, sigmaB, 1.
+                return sigmaE, sigmaB, 1., 0.
+            
             
     #Equations of Motions
     def EoMphi(x):
@@ -226,7 +260,7 @@ class GEF:
         kh = x.vals["kh"]
         
         xieff = x.vals["xieff"]
-        s = x.GetS(sigmaE)
+        s = x.vals["s"]
         r = (abs(xieff) + np.sqrt(xieff**2 + s**2 + s))
         
         fc = a**(1-alpha) * H * r
@@ -253,6 +287,64 @@ class GEF:
     
         return dlnkhdt
     
+    
+    def CheckFermionEntry(x, dlnkhdtO, dlnkhdtE):
+        kh = x.vals["kh"]
+        if(not(x.FermionEntry)):
+            khO = x.vals["khO"]
+            kS = x.vals["kS"]
+            kappa = np.log(kS/kh)
+            if (kappa > 0.):
+                #print("Fermions Enter")
+                x.FermionEntry = True
+                khE = x.vals["khE"]
+                jota = np.log(khE/khO)
+                if (jota > 0.):
+                    kh = khE
+                    dlnkhdt = dlnkhdtE
+                else:
+                    dlnkhdt = 0.
+                sigmaE = x.vals["sigmaE"]
+                sigmaB = x.vals["sigmaB"]
+                s = x.vals["s"]
+                xieff = x.vals["xieff"]
+                delta = 1.
+            else:
+                #print("No Fermions")
+                dlnkhdt = dlnkhdtO
+                kh = khO
+                sigmaE = 0.
+                sigmaB = 0.
+                s = 0.
+                xieff = x.vals["xi"]
+                delta = 1.
+        else:
+            #print("Fermions are still there")
+            khO = x.vals["khO"]
+            khE = x.vals["khE"]
+            jota = np.log(khE/khO)
+            if (jota > 0.):
+                kh = khE
+                dlnkhdt = dlnkhdtE
+            else:
+                dlnkhdt = 0.
+            sigmaE = x.vals["sigmaE"]
+            sigmaB = x.vals["sigmaB"]
+            s = x.vals["s"]
+            xieff = x.vals["xieff"]
+            if(x.DeltaFunc):
+                delta = x.deltaf(x.vals["t"])
+            else:
+                kS = x.vals["kS"]
+                kappa = np.log(kS/kh)   
+                if (kappa>0):
+                    delta = np.exp(-sigmaE/x.vals["H"]*kappa)
+                else:
+                    delta = 1.
+
+        return dlnkhdt, kh, sigmaE, sigmaB, s, xieff, delta
+
+    
     def EoMDelta(x):
         return -x.vals["a"]**(x.alpha)*x.vals["sigmaE"]*x.vals["delta"]
                 
@@ -272,7 +364,6 @@ class GEF:
         scale = x.vals["kh"]/x.vals["a"]
         
         ScalarCpl = (x.dIdphi()*x.vals["dphi"]+aAlpha*x.vals["sigmaB"])
-        
         
         Whitt = x.Whittaker()
         
@@ -373,7 +464,7 @@ class GEF:
             Fterm = np.zeros((3, 2))
             sgnsort = int((1-np.sign(xieff))/2)
 
-            s = x.GetS(x.vals["sigmaE"])
+            s = x.vals["s"]
             xi = abs(xieff)
             r = xi + np.sqrt(xi**2 + s**2 + s)
             psi = 2*np.sqrt(xi**2 + s**2 + s)/r
@@ -415,7 +506,7 @@ class GEF:
     
     def WhittakerExact(x):
         xieff = x.vals["xieff"]
-        s = x.GetS(x.vals["sigmaE"])
+        s = x.vals["s"]
         r = (abs(xieff) + np.sqrt(xieff**2 + s**2 + s))
         
         Whitt1Plus = whitw(-xieff*(1j), 1/2 + s, -2j*r)
@@ -443,6 +534,7 @@ class GEF:
     #Run GEF
     def InitialiseGEF(x):
         yini = np.zeros((x.ntr*3+x.GaugePos))
+
         if (x.units):
             x.f = x.Mpl
             x.omega = x.H0
@@ -454,10 +546,18 @@ class GEF:
         yini[0] = 0
         yini[1] = x.vals["phi"]/x.f
         yini[2] = x.vals["dphi"]/(x.f*x.omega)
-        yini[3] = np.log(abs(yini[2]*x.dIdphi()))
+        x.vals["kh"] = np.log(abs(yini[2]*x.dIdphi()))
+        yini[3] = x.vals["kh"]
+        
         if (x.SE != None):
-            if (x.AltDamp):
+            if (x.AltDamp == 1):
                 yini[4] = x.vals["rhoChi"]
+            elif (x.AltDamp == 2):
+                x.FermionEntry = False
+                yini[4] = yini[3]
+                """yini[5] = x.vals["delta"]
+                yini[6] = x.vals["rhoChi"]"""
+                yini[5] = x.vals["rhoChi"]
             else:
                 yini[4] = x.vals["delta"]
                 yini[5] = x.vals["rhoChi"]
@@ -466,6 +566,7 @@ class GEF:
         x.omega = x.H0
         x.ratio = x.omega/x.f
         x.units = False
+        
         return yini
     
     def TimeStep(x, t, y):
@@ -474,16 +575,43 @@ class GEF:
         dydt[0] = x.vals["H"]
         dydt[1] = x.vals["dphi"]
         dydt[2] = x.EoMphi()
-        dydt[3] = x.EoMlnkh(dydt[2])
-        dFdt = x.EoMF(dydt[3])
-        dydt[x.GaugePos:] = dFdt.reshape(x.ntr*3)
+        dlnkhdt = x.EoMlnkh(dydt[2])
+        dydt[3] = dlnkhdt
 
         if (x.SE != None):
-            if (x.AltDamp):
+            if (x.AltDamp == 1):
+                dlnkhdt = x.EoMlnkh(dydt[2])
+                dydt[3] = dlnkhdt
                 dydt[4] = x.EoMrhoChi()
+            elif (x.AltDamp == 2):
+                sigmaEtmp = x.vals["sigmaE"]
+                sigmaBtmp = x.vals["sigmaB"]
+                x.vals["sigmaE"] = 0.
+                x.vals["sigmaB"] = 0.
+                dlnkhdt = x.EoMlnkh(dydt[2])
+                dydt[3] = dlnkhdt
+                x.vals["sigmaE"] = sigmaEtmp
+                x.vals["sigmaB"] = sigmaBtmp 
+                x.vals["s"] = x.GetS(x.vals["sigmaE"])
+                x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
+                dydt[4] = x.EoMlnkh(dydt[2])
+                dlnkhdt, x.vals["kh"], x.vals["sigmaE"], x.vals["sigmaB"], x.vals["s"], x.vals["xieff"], x.vals["delta"] = x.CheckFermionEntry(dydt[3], dydt[4])
+                #x.vals["delta"] = np.exp(-x.vals["sigmaE"]/x.vals["H"]*np.log(x.vals["kS"]/x.vals["kh"]))
+                """dydt[5] = x.EoMDelta()
+                dydt[6] = x.EoMrhoChi()"""
+                dydt[5] = x.EoMrhoChi()
             else:
+                dlnkhdt = x.EoMlnkh(dydt[2])
+                dydt[3] = dlnkhdt
                 dydt[4] = x.EoMDelta()
                 dydt[5] = x.EoMrhoChi()
+        else:
+            dlnkhdt = x.EoMlnkh(dydt[2])
+            dydt[3] = dlnkhdt
+            
+                
+        dFdt = x.EoMF(dlnkhdt)
+        dydt[x.GaugePos:] = dFdt.reshape(x.ntr*3)
         
         return dydt
     
@@ -503,8 +631,16 @@ class GEF:
             y = sol.y
             pars = x.vals.keys()
             res = dict(zip(pars, [[] for par in pars]))
+            if (x.AltDamp == 2):
+                x.FermionEntry = False
+                res["sigmaEkh"] = []
+                res["sigmaBkh"] = []
+                res["skh"] = []
+                res["xieffkh"] = []
             for i in range(len(t)):
                 x.DefineDictionary(t[i], y[:,i])
+                if (x.AltDamp == 2):
+                    _, x.vals["kh"], x.vals["sigmaEkh"], x.vals["sigmaBkh"], x.vals["skh"], x.vals["xieffkh"], x.vals["delta"] = x.CheckFermionEntry(0., 0.)
                 for par in pars:
                     if (par in ["E", "B", "G"]):
                         res[par].append(x.vals[par][0])
@@ -518,11 +654,63 @@ class GEF:
             print("This run is already completed, access data using GEF.vals")
         return
     
+    def CreateDeltaFunction(x):
+        if (x.completed):
+            if(not(x.SE) or x.AltDamp != 2):
+                print("This only works for SE Runs with AltDamp = 2")
+            else:
+                ts = x.vals["t"]
+                kh = x.vals["kh"]
+                kS = x.vals["kS"]
+                sE = x.vals["sigmaE"]
+                
+                sigmaf = CubicSpline(ts, sE)
+                khf = CubicSpline(ts, kh)
+                kSf = CubicSpline(ts, kS)
+                delta = []
+
+                for t in ts:
+                    f = lambda x: np.log(kSf(x)/khf(t))
+                    tferm = fsolve(f, t, xtol=1e-6)[0]
+                    #print(x)
+                    if (tferm<t):
+                        delta.append(np.exp(-quad(sigmaf, tferm, t)[0]))
+                    else:
+                        delta.append(1.)
+
+                x.deltaf = CubicSpline(ts, delta)
+                print("delta function created, access using x.deltaf")
+        else:
+            print("You first need to RunGEF")
+        return
+    
+    def IterateGEF(x, t0=0., t1=120.):
+        if (x.completed):
+            if (x.AltDamp == 2):
+                x.DeltaFunc = True
+                x.CreateDeltaFunction()
+                x.completed = False
+                pars = x.vals.keys()
+                for par in pars:
+                    x.vals[par] = x.vals[par][0]
+                x.RunGEF(t0, t1)
+            else:
+                x.completed = False
+                pars = x.vals.keys()
+                for par in pars:
+                    x.vals[par] = x.vals[par][0]
+                x.RunGEF(t0, t1)         
+        else:
+            print("You first need to RunGEF")
+        return
+    
     def SaveData(x):
         if (x.completed):
             #x.Unitful()
-            if(x.AltDamp):
-                filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+"_AltDamp.dat"
+            if(x.AltDamp == 1):
+                filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+"_AltDamp_v4.dat"
+            elif(x.AltDamp == 2):
+                filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+"_KDep_v3.dat"
             else:
                 filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+".dat"
             DirName = os.getcwd()
@@ -550,7 +738,7 @@ class GEF:
         if (x.units):
             x.vals["phi"] = x.vals["phi"]/f
             x.vals["dphi"] = x.vals["dphi"]/(f*omega)
-            x.vals["H"] = x.vals["dphi"]/(omega)
+            x.vals["H"] = x.vals["H"]/(omega)
             x.vals["E"] = x.vals["E"]/(omega)**4
             x.vals["B"] = x.vals["B"]/(omega)**4
             x.vals["G"] = x.vals["G"]/(omega)**4
@@ -558,6 +746,12 @@ class GEF:
             x.vals["sigmaE"] = x.vals["sigmaE"]/omega
             x.vals["sigmaB"] = x.vals["sigmaB"]/omega
             x.vals["kh"] = x.vals["kh"]/omega
+            if (x.AltDamp == 2):
+                x.vals["khE"] = x.vals["khE"]/omega
+                x.vals["khO"] = x.vals["khO"]/omega
+                x.vals["kS"] = x.vals["kS"]/omega
+                x.vals["sigmaEkh"] = x.vals["sigmaEkh"]/omega
+                x.vals["sigmaBkh"] = x.vals["sigmaBkh"]/omega
             x.omega = omega
             x.f = f
             x.ratio = x.omega/x.f
@@ -575,7 +769,7 @@ class GEF:
         if (not(x.units)):
             x.vals["phi"] = x.vals["phi"]*f
             x.vals["dphi"] = x.vals["dphi"]*(f*omega)
-            x.vals["H"] = x.vals["dphi"]*(omega)
+            x.vals["H"] = x.vals["H"]*(omega)
             x.vals["E"] = x.vals["E"]*(omega)**4
             x.vals["B"] = x.vals["B"]*(omega)**4
             x.vals["G"] = x.vals["G"]*(omega)**4
@@ -583,6 +777,12 @@ class GEF:
             x.vals["sigmaE"] = x.vals["sigmaE"]*omega
             x.vals["sigmaB"] = x.vals["sigmaB"]*omega
             x.vals["kh"] = x.vals["kh"]*omega
+            if (x.AltDamp == 2):
+                x.vals["khE"] = x.vals["khE"]*omega
+                x.vals["khO"] = x.vals["khO"]*omega
+                x.vals["kS"] = x.vals["kS"]*omega
+                x.vals["sigmaEkh"] = x.vals["sigmaEkh"]*omega
+                x.vals["sigmaBkh"] = x.vals["sigmaBkh"]*omega
             x.omega = 1.
             x.f = 1.
             x.units = True
@@ -598,7 +798,6 @@ class GEF:
         
         x.vals["phi"] = y[1]
         x.vals["dphi"] = y[2]
-        x.vals["kh"] = np.exp(y[3])
         
         F = y[x.GaugePos:]
         F = F.reshape(x.ntr, 3)
@@ -607,20 +806,36 @@ class GEF:
         x.vals["G"] = F[:,2]
         
         if (x.SE == None):
+            x.vals["kh"] = np.exp(y[3])
             x.vals["H"] = x.FriedmannEq()
             x.vals["xi"] = x.GetXi()
             x.vals["xieff"] = x.vals["xi"]
         else:
-            if (x.AltDamp):
+            if (x.AltDamp == 1):
+                x.vals["kh"] = np.exp(y[3])
                 x.vals["rhoChi"] = y[4]
                 x.vals["H"] = x.FriedmannEq()
+                x.vals["sigmaE"], x.vals["sigmaB"], x.vals["delta"], x.vals["s"] = x.conductivity()
                 x.vals["xi"] = x.GetXi()
-                x.vals["sigmaE"], x.vals["sigmaB"], x.vals["delta"] = x.conductivity()
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
+            elif (x.AltDamp == 2):
+                x.vals["khO"] = np.exp(y[3])
+                x.vals["khE"] = np.exp(y[4])
+                """x.vals["delta"] = y[5]
+                x.vals["rhoChi"] = y[6]"""
+                x.vals["rhoChi"] = y[5]
+                x.vals["H"] = x.FriedmannEq()
+                x.vals["sigmaE"], x.vals["sigmaB"], x.vals["kS"] = x.conductivity()
+                x.vals["s"] = 0.
+                x.vals["xi"] = x.GetXi()
+                x.vals["xieff"] = x.vals["xi"]
             else:
+                x.vals["kh"] = np.exp(y[3])
                 x.vals["delta"] = y[4]
                 x.vals["rhoChi"] = y[5]
                 x.vals["H"] = x.FriedmannEq()
-                x.vals["xi"] = x.GetXi()
                 x.vals["sigmaE"], x.vals["sigmaB"] = x.conductivity()
+                x.vals["s"] = x.GetS(x.vals["sigmaE"])
+                x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
+            
