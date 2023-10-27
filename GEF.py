@@ -686,6 +686,7 @@ class GEF:
     
     def IterateGEF(x, t0=0., t1=120.):
         if (x.completed):
+            x.Unitless()
             if (x.AltDamp == 2):
                 x.DeltaFunc = True
                 x.CreateDeltaFunction()
@@ -736,6 +737,7 @@ class GEF:
             print("You need to RunGEF or LoadGEF first")
             return
         if (x.units):
+            x.vals["t"] = x.vals["t"]*omega
             x.vals["phi"] = x.vals["phi"]/f
             x.vals["dphi"] = x.vals["dphi"]/(f*omega)
             x.vals["H"] = x.vals["H"]/(omega)
@@ -767,6 +769,7 @@ class GEF:
             print("You need to RunGEF or LoadGEF first")
             return
         if (not(x.units)):
+            x.vals["t"] = x.vals["t"]/omega
             x.vals["phi"] = x.vals["phi"]*f
             x.vals["dphi"] = x.vals["dphi"]*(f*omega)
             x.vals["H"] = x.vals["H"]*(omega)
