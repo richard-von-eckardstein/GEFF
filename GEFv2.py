@@ -57,7 +57,6 @@ class GEF:
                     x.GaugePos = 7
                     #x.GaugePos = 6
                     x.conductivity = x.ComputeSigmaCollinearKDep
-                    x.tdep = [[0.,0.,0., 1.]]
                 else:
                     x.GaugePos = 6
                     x.conductivity = x.ComputeSigmaCollinear
@@ -296,49 +295,63 @@ class GEF:
         khO = x.vals["khO"]
         khE = x.vals["khE"]
         kS = x.vals["kS"]
-        sigmaE = x.vals["sigmaE"]
+        t = x.vals["t"]
         #print(kS)
         kharr = np.array([khO, kh, khE])
         dlnkharr = np.array([dlnkhdtO, 0., dlnkhdtE])
+        
         ind1 = int((1+np.sign(np.log(kS/kh)))/2)
         ind2 = int(1+(1+np.sign(np.log(khE/khO)))/2)*ind1
-        #print(ind1, ind2)
-        xieff = x.vals["xi"]*(1-ind1) + (x.vals["xieff"])*ind1
+        
+        sigmaE = x.vals["sigmaE"]*x.FermionEntry
+        sigmaB = x.vals["sigmaB"]*x.FermionEntry
+        s = x.vals["s"]*x.FermionEntry
+        xieff = x.vals["xieff"]*x.FermionEntry + x.vals["xi"]*(1-x.FermionEntry)
+        
         kh = kharr[ind2]
         dlnkh = dlnkharr[ind2]
-        if(ind1 > 0.):
+        
+        if((ind1 > 0.) and x.FermionEntry==1):
+            if (1e-5 < (t - x.tdep[-1][0])):
+                    x.tdep.append([t, kS, sigmaE, x.vals["a"]*x.vals["H"]])
             #x.Whittaker=x.Whittaker_PostFermionEntry
-            x.FermionEntry=True
-            t = x.tferm
+            tf = x.vals["tferm"]
             arr = np.array(x.tdep)
             
             ts = np.array([*list(arr[:,0]), *list(np.linspace(arr[-1,0]*(1.02), 2*arr[-1,0],100))])
             #print(ts)
-            kS = np.array([*list(arr[:,1]), *list(100*arr[-1,1]*np.ones(100))])
-            
+            kS = np.array([*list(arr[:,1]), *list(1e3*arr[-1,1]*np.ones(100))])
                     
             kSf = CubicSpline(ts, kS)
                     
             f = lambda x: np.log(kSf(x)/kh)
-            tferm = fsolve(f, t, xtol=1e-7)[0]
+            tferm = fsolve(f, tf, xtol=1e-7)[0]
             #print(x.vals["t"], tferm, f(t), f(tferm))
             ts = arr[:,0]
             kS = arr[:,1]
             sE = arr[:,2]
             aH = arr[:,3]
             sigmatferm = CubicSpline(ts, sE)(tferm)
-            dkStferm = CubicSpline(ts[1:], (kS[1:]-kS[:-1])/(ts[1:]-ts[:-1]))(tferm)
+            dkStferm = CubicSpline((ts[1:]+ts[:-1])/2, (kS[1:]-kS[:-1])/(ts[1:]-ts[:-1]))(tferm)
             aHtferm = CubicSpline(ts, aH)(tferm)
                 #etatferm = CubicSpline(ts, eta)(tferm)
                 #print("aH", -1/aHtferm, "etatferm", etatferm)
-            delta = (-sigmaE + sigmatferm*kh*dlnkh/abs(dkStferm))*x.vals["delta"]
+            ddelta = (-sigmaE + sigmatferm*kh*dlnkh/abs(dkStferm))*x.vals["delta"]
             x.zferm = -kh/aHtferm
-            x.tferm = tferm
+            x.vals["tferm"] = tferm
+        elif ((ind1 > 0.) and x.FermionEntry==0):
+            x.FermionEntry=1
+            t = x.vals["t"]
+            x.vals["tferm"] = t
+            if (1e-5 < (t - x.tdep[-1][0])):
+                    x.tdep.append([t, kS, sigmaE, x.vals["a"]*x.vals["H"]])
+            ddelta = 0.
         else:
-            x.tferm = x.vals["t"]
-            delta = 0.
+            if (1e-5 < (t - x.tdep[-1][0])):
+                    x.tdep.append([t, 1e100, sigmaE, x.vals["a"]*x.vals["H"]])
+            ddelta=0.
             
-        return dlnkh, kh, sigmaE*ind1, x.vals["sigmaB"]*ind1, x.vals["s"]*ind1, xieff, delta
+        return dlnkh, kh, sigmaE, sigmaB, s, xieff, ddelta
     
     def EoMDelta(x):
         return -x.vals["a"]**(x.alpha)*x.vals["sigmaE"]*x.vals["delta"]
@@ -597,11 +610,12 @@ class GEF:
             if (x.AltDamp == 1):
                 yini[4] = x.vals["rhoChi"]
             elif (x.AltDamp == 2):
-                x.FermionEntry = False
+                x.FermionEntry = 0
                 yini[4] = yini[3]
                 yini[5] = x.vals["delta"]
                 yini[6] = x.vals["rhoChi"]
                 #yini[5] = x.vals["rhoChi"]
+                x.tdep = [[x.vals["t"], 0., 0., 1.]]
             else:
                 yini[4] = x.vals["delta"]
                 yini[5] = x.vals["rhoChi"]
@@ -661,6 +675,7 @@ class GEF:
     
     def SolveGEF(x, t0=0., t1=120.):
         t = Timer()
+        x.vals["t"] = t0
         yini = x.InitialiseGEF()
         ODE = lambda t, y: x.TimeStep(t, y)
         t.start()
@@ -676,7 +691,7 @@ class GEF:
             pars = x.vals.keys()
             res = dict(zip(pars, [[] for par in pars]))
             if (x.AltDamp == 2):
-                x.FermionEntry = False
+                x.FermionEntry = 0
                 res["sigmaEkh"] = []
                 res["sigmaBkh"] = []
                 res["skh"] = []
@@ -821,8 +836,6 @@ class GEF:
                 #x.vals["rhoChi"] = y[5]
                 x.vals["H"] = x.FriedmannEq()
                 x.vals["sigmaE"], x.vals["sigmaB"], x.vals["kS"] = x.conductivity()
-                if (1e-3 < (x.vals["t"]-x.tdep[-1][0])):
-                    x.tdep.append([x.vals["t"], x.vals["kS"], x.vals["sigmaE"], x.vals["a"]*x.vals["H"]])
                 x.vals["s"] = 0.
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"]
