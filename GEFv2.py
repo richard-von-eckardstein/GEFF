@@ -312,25 +312,30 @@ class GEF:
         dlnkh = dlnkharr[ind2]
         
         if((ind1 > 0.) and x.FermionEntry==1):
-            if (1e-5 < (t - x.tdep[-1][0])):
+            """if (1e-5 < (t - x.tdep[-1][0])):
                     x.tdep.append([t, kS, sigmaE, x.vals["a"]*x.vals["H"]])
-            #x.Whittaker=x.Whittaker_PostFermionEntry
+            #x.Whittaker=x.Whittaker_PostFermionEntry"""
             tf = x.vals["tferm"]
             arr = np.array(x.tdep)
             
-            ts = np.array([*list(arr[:,0]), *list(np.linspace(arr[-1,0]*(1.02), 2*arr[-1,0],100))])
+            """ts = np.array([*list(arr[:,0]), *list(np.linspace(arr[-1,0]*(1.02), 2*arr[-1,0],100))])
             #print(ts)
             kS = np.array([*list(arr[:,1]), *list(1e3*arr[-1,1]*np.ones(100))])
                     
             kSf = CubicSpline(ts, kS)
                     
             f = lambda x: np.log(kSf(x)/kh)
-            tferm = fsolve(f, tf, xtol=1e-7)[0]
+            tferm = max(fsolve(f, tf, xtol=1e-7)[0], x.tentry)"""
+            
             #print(x.vals["t"], tferm, f(t), f(tferm))
             ts = arr[:,0]
             kS = arr[:,1]
+            val = abs(np.log(arr[:,1])-np.log(kh))
+            #print(ts[np.where(val == min(val))])
+            tferm = max(ts[np.where(val == min(val))])#, x.tentry)
             sE = arr[:,2]
             aH = arr[:,3]
+            
             sigmatferm = CubicSpline(ts, sE)(tferm)
             dkStferm = CubicSpline((ts[1:]+ts[:-1])/2, (kS[1:]-kS[:-1])/(ts[1:]-ts[:-1]))(tferm)
             aHtferm = CubicSpline(ts, aH)(tferm)
@@ -341,14 +346,15 @@ class GEF:
             x.vals["tferm"] = tferm
         elif ((ind1 > 0.) and x.FermionEntry==0):
             x.FermionEntry=1
-            t = x.vals["t"]
+            x.tentry = x.vals["t"]
+            #ts = np.linspace(0., t, 100)
+            #ks = np.ones(100)*kS*1e-3
+            #sigmas = np.zeros(100)
+            #aHs = np.ones(100)
+            #x.tdep = list(np.array([ts, ks, sigmas, aHs]).T)
             x.vals["tferm"] = t
-            if (1e-5 < (t - x.tdep[-1][0])):
-                    x.tdep.append([t, kS, sigmaE, x.vals["a"]*x.vals["H"]])
             ddelta = 0.
         else:
-            if (1e-5 < (t - x.tdep[-1][0])):
-                    x.tdep.append([t, 1e100, sigmaE, x.vals["a"]*x.vals["H"]])
             ddelta=0.
             
         return dlnkh, kh, sigmaE, sigmaB, s, xieff, ddelta
@@ -839,6 +845,8 @@ class GEF:
                 x.vals["s"] = 0.
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"]
+                if (1e-3 < (x.vals["t"]-x.tdep[-1][0])):
+                    x.tdep.append([x.vals["t"], x.vals["kS"], x.vals["sigmaE"], x.vals["a"]*x.vals["H"]])
             else:
                 x.vals["kh"] = np.exp(y[3])
                 x.vals["delta"] = y[4]
