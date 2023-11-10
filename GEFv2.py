@@ -310,11 +310,11 @@ class GEF:
         
         kh = kharr[ind2]
         dlnkh = dlnkharr[ind2]
-        
+        x.vals["tferm"] = t
         if((ind1 > 0.) and x.FermionEntry==1):
-            """if (1e-5 < (t - x.tdep[-1][0])):
+            if (t > x.tdep[-1][0]):
                     x.tdep.append([t, kS, sigmaE, x.vals["a"]*x.vals["H"]])
-            #x.Whittaker=x.Whittaker_PostFermionEntry"""
+            x.Whittaker=x.Whittaker_PostFermionEntry
             tf = x.vals["tferm"]
             arr = np.array(x.tdep)
             
@@ -329,15 +329,22 @@ class GEF:
             
             #print(x.vals["t"], tferm, f(t), f(tferm))
             ts = arr[:,0]
+            #print(ts.size)
             kS = arr[:,1]
             val = abs(np.log(arr[:,1])-np.log(kh))
             #print(ts[np.where(val == min(val))])
-            tferm = max(ts[np.where(val == min(val))])#, x.tentry)
+            tferm = max(ts[np.where(val == min(val))], x.tentry)
+            tferm = tferm[0]
             sE = arr[:,2]
             aH = arr[:,3]
             
             sigmatferm = CubicSpline(ts, sE)(tferm)
-            dkStferm = CubicSpline((ts[1:]+ts[:-1])/2, (kS[1:]-kS[:-1])/(ts[1:]-ts[:-1]))(tferm)
+            if (ts.size == 1):
+                dkStferm=0.
+            elif (ts.size == 2):
+                dkStferm = (kS[1:]-kS[:-1])/(ts[1:]-ts[:-1])
+            else:
+                dkStferm = CubicSpline((ts[1:]+ts[:-1])/2, (kS[1:]-kS[:-1])/(ts[1:]-ts[:-1]))(tferm)
             aHtferm = CubicSpline(ts, aH)(tferm)
                 #etatferm = CubicSpline(ts, eta)(tferm)
                 #print("aH", -1/aHtferm, "etatferm", etatferm)
@@ -346,13 +353,12 @@ class GEF:
             x.vals["tferm"] = tferm
         elif ((ind1 > 0.) and x.FermionEntry==0):
             x.FermionEntry=1
-            x.tentry = x.vals["t"]
+            x.tentry = t#x.vals["t"]
             #ts = np.linspace(0., t, 100)
-            #ks = np.ones(100)*kS*1e-3
-            #sigmas = np.zeros(100)
-            #aHs = np.ones(100)
-            #x.tdep = list(np.array([ts, ks, sigmas, aHs]).T)
-            x.vals["tferm"] = t
+            ks = kS#ks = np.ones(100)*kS*1e-3
+            sigmas = sigmaE#sigmas = np.zeros(100)
+            aHs = x.vals["a"]*x.vals["H"]#aHs = np.ones(100)
+            x.tdep = [[t, ks, sigmas, aHs]]#list(np.array([ts, ks, sigmas, aHs]).T)
             ddelta = 0.
         else:
             ddelta=0.
@@ -621,7 +627,7 @@ class GEF:
                 yini[5] = x.vals["delta"]
                 yini[6] = x.vals["rhoChi"]
                 #yini[5] = x.vals["rhoChi"]
-                x.tdep = [[x.vals["t"], 0., 0., 1.]]
+                #x.tdep = [[x.vals["t"], 0., 0., 1.]]
             else:
                 yini[4] = x.vals["delta"]
                 yini[5] = x.vals["rhoChi"]
@@ -712,12 +718,14 @@ class GEF:
                     else:
                         res[par].append(x.vals[par])
             for par in pars:
+                print(par)
                 res[par] = np.array(res[par])
             x.vals = res
             x.completed = True
+            return sol
         else:
             print("This run is already completed, access data using GEF.vals")
-        return
+            return []
     
     def SaveData(x):
         if (x.completed):
@@ -845,8 +853,8 @@ class GEF:
                 x.vals["s"] = 0.
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"]
-                if (1e-3 < (x.vals["t"]-x.tdep[-1][0])):
-                    x.tdep.append([x.vals["t"], x.vals["kS"], x.vals["sigmaE"], x.vals["a"]*x.vals["H"]])
+                """if (1e-3 < (x.vals["t"]-x.tdep[-1][0])):
+                    x.tdep.append([x.vals["t"], x.vals["kS"], x.vals["sigmaE"], x.vals["a"]*x.vals["H"]])"""
             else:
                 x.vals["kh"] = np.exp(y[3])
                 x.vals["delta"] = y[4]
