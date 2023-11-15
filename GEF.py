@@ -7,7 +7,7 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 from timer import Timer
 import math
-from mpmath import whitw, whitm, re, conj
+from mpmath import whitw, whitm, re, conj, gamma
 
 class GEF:
     def __init__(x, alpha, beta, Mpl, ini, M, ntr, SE, AltDamp=0, approx=True):
@@ -53,11 +53,8 @@ class GEF:
                     x.GaugePos = 5
                     x.conductivity = x.ComputeSigmaCollinearAltDelta
                 elif (x.AltDamp == 2):
-                    x.DeltaFunc = False
-                    #x.GaugePos = 7
                     x.GaugePos = 6
                     x.deltaf = x.ApproxDeltaf
-                    x.tferm = lambda t: t
                     x.conductivity = x.ComputeSigmaCollinearKDep
                 else:
                     x.GaugePos = 6
@@ -157,10 +154,11 @@ class GEF:
     def ComputeSigmaCollinearKDep(x):
         E0 = x.vals["E"][0]
         B0 = x.vals["B"][0]
-        mu = ((E0+B0)/2)**(1/4)
-        if mu==0:
+        mu = (E0+B0)
+        if mu<=0:
             return 0., 0., 1e-2*x.vals["kh"]
         else:
+            mu = (mu/2)**(1/4)
             mz = 91.2/(2.43536e18)
             gmz = 0.35
             gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*x.ratio))))
@@ -231,9 +229,6 @@ class GEF:
             sigmaE = abs(G0)*Eprime*sigma
             sigmaB = -G0*Bprime*sigma
             
-            #s = x.GetS(sigmaE)
-            #xieff = x.vals["xi"] + x.GetS(sigmaB)
-            #r = abs(xieff) + np.sqrt(xieff**2 + s**2 + s)
             kh = x.vals["kh"]*x.vals["a"]**(x.alpha-1)
             
             kappa = np.log( (gmu*Sigma/Sum)**(1/2) * (2*Eprime)**(1/4)/kh)
@@ -253,15 +248,16 @@ class GEF:
                 - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"][0]*x.ratio**2)
         return ddphiddt
     
-    def EoMlnkh(x, ddphiddt):
+    def EoMlnkh(x, ddphiddt, kh):
+        kh = x.vals["kh"]
         alpha = x.alpha
         a = x.vals["a"]
         H = x.vals["H"]
         sigmaE = x.vals["sigmaE"]
         sigmaB = x.vals["sigmaB"]
-        kh = x.vals["kh"]
         
         xieff = x.vals["xieff"]
+        
         s = x.vals["s"]
         r = (abs(xieff) + np.sqrt(xieff**2 + s**2 + s))
         
@@ -292,40 +288,13 @@ class GEF:
     def ApproxDeltaf(x, t):
         return np.exp(-x.vals["sigmaE"]/x.vals["H"]*np.log(x.vals["kS"]/x.vals["kh"]))
     
-    def CheckFermionEntry(x, dlnkhdtO, dlnkhdtE):
+    def kh_AfterFermions(x, dlnkhdtO, dlnkhdtE):
         kh = x.vals["kh"]
+        kS = x.vals["kS"]
         t = x.vals["t"]
-        if(not(x.FermionEntry)):
-            khO = x.vals["khO"]
-            kS = x.vals["kS"]
-            kappa = np.log(kS/kh)
-            if (kappa > 0.):
-                #print("Fermions Enter")
-                x.FermionEntry = True
-                khE = x.vals["khE"]
-                jota = np.log(khE/khO)
-                if (jota > 0.):
-                    kh = khE
-                    dlnkhdt = dlnkhdtE
-                else:
-                    dlnkhdt = 0.
-                sigmaE = x.vals["sigmaE"]
-                sigmaB = x.vals["sigmaB"]
-                s = x.vals["s"]
-                xieff = x.vals["xieff"]
-                delta = 1.
-            else:
-                #print("No Fermions")
-                dlnkhdt = dlnkhdtO
-                kh = khO
-                sigmaE = 0.
-                sigmaB = 0.
-                s = 0.
-                xieff = x.vals["xi"]
-                delta = 1.
-        else:
-            #print("Fermions are still there")
-            khO = x.vals["khO"]
+        kappa = np.log(kS/kh)
+        #print(kappa)
+        if(kappa > 0.):
             khE = x.vals["khE"]
             jota = np.log(khE/khO)
             if (jota > 0.):
@@ -337,15 +306,48 @@ class GEF:
             sigmaB = x.vals["sigmaB"]
             s = x.vals["s"]
             xieff = x.vals["xieff"]
-            kS = x.vals["kS"]
-            kappa = np.log(kS/kh)   
-            if (kappa>0):
-                delta = x.deltaf(t)
+            delta = x.deltaf(t)
+        else:
+            delta = 1.
+            jota = np.log(khO/kh)
+            if (jota < 0):
+                dlnkhdt = 0
             else:
-                delta = 1.
-
+                kh = x.vals["khO"]
+                dlnkhdt = dlnkhdtO  
+            sigmaE = 0.
+            sigmaB = 0.
+            s = 0.
+            xieff = x.vals["xi"]
+        
         return dlnkhdt, kh, sigmaE, sigmaB, s, xieff, delta
-
+    
+    def kh_BeforeFermions(x, dlnkhdtO, dlnkhdtE):
+        kh = x.vals["kh"]
+        kS = x.vals["kS"]
+        kappa = np.log(kS/kh)
+        if (kappa > 0):
+            khE = x.vals["khE"]
+            jota = np.log(khE/kh)
+            if (jota > 0.):
+                kh = khE
+                dlnkhdt = dlnkhdtE
+            else:
+                dlnkhdt = 0.
+            sigmaE = x.vals["sigmaE"]
+            sigmaB = x.vals["sigmaB"]
+            s = x.vals["s"]
+            xieff = x.vals["xieff"]
+            khf = x.kh_AfterFermions
+        else:
+            kh = x.vals["khO"]
+            dlnkhdt = dlnkhdtO
+            sigmaE = 0.
+            sigmaB = 0.
+            s = 0.
+            xieff = x.vals["xi"]
+        delta = 1.
+        return dlnkhdt, kh, sigmaE, sigmaB, s, xieff, delta
     
     def EoMDelta(x):
         return -x.vals["a"]**(x.alpha)*x.vals["sigmaE"]*x.vals["delta"]
@@ -557,13 +559,12 @@ class GEF:
             elif (x.AltDamp == 2):
                 x.FermionEntry = False
                 yini[4] = yini[3]
-                """yini[5] = x.vals["delta"]
-                yini[6] = x.vals["rhoChi"]"""
                 yini[5] = x.vals["rhoChi"]
+                x.khf = x.kh_BeforeFermions
             else:
                 yini[4] = x.vals["delta"]
                 yini[5] = x.vals["rhoChi"]
-        #print(yini)
+                
         x.f = x.Mpl
         x.omega = x.H0
         x.ratio = x.omega/x.f
@@ -577,12 +578,10 @@ class GEF:
         dydt[0] = x.vals["H"]
         dydt[1] = x.vals["dphi"]
         dydt[2] = x.EoMphi()
-        dlnkhdt = x.EoMlnkh(dydt[2])
-        dydt[3] = dlnkhdt
 
         if (x.SE != None):
             if (x.AltDamp == 1):
-                dlnkhdt = x.EoMlnkh(dydt[2])
+                dlnkhdt = x.EoMlnkh(dydt[2], x.vals["kh"])
                 dydt[3] = dlnkhdt
                 dydt[4] = x.EoMrhoChi()
             elif (x.AltDamp == 2):
@@ -590,25 +589,22 @@ class GEF:
                 sigmaBtmp = x.vals["sigmaB"]
                 x.vals["sigmaE"] = 0.
                 x.vals["sigmaB"] = 0.
-                dlnkhdt = x.EoMlnkh(dydt[2])
+                dlnkhdt = x.EoMlnkh(dydt[2], x.vals["khO"])
                 dydt[3] = dlnkhdt
                 x.vals["sigmaE"] = sigmaEtmp
-                x.vals["sigmaB"] = sigmaBtmp 
+                x.vals["sigmaB"] = sigmaBtmp
                 x.vals["s"] = x.GetS(x.vals["sigmaE"])
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
-                dydt[4] = x.EoMlnkh(dydt[2])
-                dlnkhdt, x.vals["kh"], x.vals["sigmaE"], x.vals["sigmaB"], x.vals["s"], x.vals["xieff"], x.vals["delta"] = x.CheckFermionEntry(dydt[3], dydt[4])
-                #x.vals["delta"] = np.exp(-x.vals["sigmaE"]/x.vals["H"]*np.log(x.vals["kS"]/x.vals["kh"]))
-                """dydt[5] = x.EoMDelta()
-                dydt[6] = x.EoMrhoChi()"""
+                dydt[4] = x.EoMlnkh(dydt[2], x.vals["khE"])
+                dlnkhdt, x.vals["kh"], x.vals["sigmaE"], x.vals["sigmaB"], x.vals["s"], x.vals["xieff"], x.vals["delta"] = x.khf(dydt[3], dydt[4])
                 dydt[5] = x.EoMrhoChi()
             else:
-                dlnkhdt = x.EoMlnkh(dydt[2])
+                dlnkhdt = x.EoMlnkh(dydt[2], x.vals["kh"])
                 dydt[3] = dlnkhdt
                 dydt[4] = x.EoMDelta()
                 dydt[5] = x.EoMrhoChi()
         else:
-            dlnkhdt = x.EoMlnkh(dydt[2])
+            dlnkhdt = x.EoMlnkh(dydt[2], x.vals["kh"])
             dydt[3] = dlnkhdt
             
                 
@@ -635,14 +631,13 @@ class GEF:
             res = dict(zip(pars, [[] for par in pars]))
             if (x.AltDamp == 2):
                 x.FermionEntry = False
-                res["sigmaEkh"] = []
-                res["sigmaBkh"] = []
-                res["skh"] = []
-                res["xieffkh"] = []
+                x.khf = x.kh_BeforeFermions
             for i in range(len(t)):
                 x.DefineDictionary(t[i], y[:,i])
                 if (x.AltDamp == 2):
-                    _, x.vals["kh"], x.vals["sigmaEkh"], x.vals["sigmaBkh"], x.vals["skh"], x.vals["xieffkh"], x.vals["delta"] = x.CheckFermionEntry(0., 0.)
+                    _, x.vals["kh"], x.vals["sigmaE"], x.vals["sigmaB"], _, _, x.vals["delta"] = x.khf(0., 0.)
+                    x.vals["s"] = x.GetS(x.vals["sigmaE"])
+                    x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
                 for par in pars:
                     if (par in ["E", "B", "G"]):
                         res[par].append(x.vals[par][0])
@@ -662,7 +657,7 @@ class GEF:
         xi = x.vals["xi"]
         sB = xieff-xi
         sE = x.vals["s"]
-        z = 2j*x.zferm
+        z = 2j*x.zferm #-2j*k/aH = 2jkn
         k = x.vals["kh"]
         
         W = np.array([complex(whitw(-1j*xi, 1/2, z)), complex(whitw(1j*xi, 1/2, z))])
@@ -676,11 +671,10 @@ class GEF:
         
         lam = np.array([1., -1.])
         
-        C = np.exp(np.pi*xi*lam)/(2*k)
-        B = (W*(Wf1/Wf-1j*lam*sB-sE)-W1)/((1.+sE-1j*lam*xieff)*Mf1+Wf1/Wf*Mf)
-        A = (W - B*Mf)/Wf
+        Gamma = np.array([complex((gamma(1+sE+1j*lam[i]*xieff)/gamma(2*(1+sE))))/z for i in range(2)])
         
-        #print("A:", A, "B:", B)
+        C = Gamma*(W*(Mf*(sE+1j*lam*sB) + (1+sE-1j*lam*xieff)*Mf1) + W1*Mf)
+        D = -Gamma*(W*(Wf*(sE+1j*lam*sB) - Wf1) + W1*Wf)
         
         r = (abs(xieff) + np.sqrt(xieff**2 + sE**2 + sE))
         
@@ -690,21 +684,22 @@ class GEF:
         Wr = np.array([complex(whitw(-1j*xieff, 1/2+sE, -2j*r)), complex(whitw(1j*xieff, 1/2+sE, -2j*r))])
         Wr1 = np.array([complex(whitw(1-1j*xieff, 1/2+sE, -2j*r)), complex(whitw(1+1j*xieff, 1/2+sE, -2j*r))])
         
-        Akplus = A[0]*Wr[0] + B[0]*Mr[0]
-        Akminus = A[1]*Wr[1] + B[1]*Mr[1]
-        Dkplus = ((1j*(r-xieff) - sE)*Akplus + A[0]*Wr1[0] - B[0]*(1+sE-1j*xieff)*Mr1[0])/r
-        Dkminus = ((1j*(r+xieff) - sE)*Akminus + A[1]*Wr1[1] - B[1]*(1+sE+1j*xieff)*Mr1[1])/r
+        pre = np.exp(np.pi*xi*lam)
+        
+        Ak = (C*Wr + D*Mr)
+        Dk = ((1j*(r-lam*xieff) - sE)*Ak - D*(1+sE-1j*lam*xieff)*Mr1 + C*Wr1)/r
         
         Fterm = np.zeros((3, 2))
-        Fterm[0,0] = C[0]*abs(Dkplus)**2
-        Fterm[1,0] = C[0]*abs(Akplus)**2
-        Fterm[2,0] = C[0]*(Dkplus*Akplus.conjugate()).real
+        Fterm[0,0] = pre[0]*abs(Dk[0])**2
+        Fterm[1,0] = pre[0]*abs(Ak[0])**2
+        Fterm[2,0] = pre[0]*(Dk[0]*Ak[0].conjugate()).real
         
-        Fterm[0,1] = C[1]*abs(Dkminus)**2
-        Fterm[1,1] = C[1]*abs(Akminus)**2
-        Fterm[2,1] = C[1]*(Dkminus*Akminus.conjugate()).real
-        
+        Fterm[0,1] = pre[1]*abs(Dk[1])**2
+        Fterm[1,1] = pre[1]*abs(Ak[1])**2
+        Fterm[2,1] = pre[1]*(Dk[1]*Ak[1].conjugate()).real
+
         return Fterm
+                  
     def Whittaker_Interp(x):
         t = x.vals["t"]
         F = np.zeros((3, 2))
@@ -733,15 +728,21 @@ class GEF:
                 sigmaf = CubicSpline(ts, sE)
                 khf = CubicSpline(ts, kh)
                 kSf = CubicSpline(ts, kS)
-                etaf = CubicSpline(ts, -1/a*H)
+                etaf = CubicSpline(ts, -1/(a*H))
                 delta = []
-                #tferms = []
+                tferms = []
                 Ep = []
                 Em = []
                 Bp = []
                 Bm = []
                 Gp = []
                 Gm = []
+                Ep2 = []
+                Em2 = []
+                Bp2 = []
+                Bm2 = []
+                Gp2 = []
+                Gm2 = []
 
                 for i in range(ts.size):
                     f = lambda x: np.log(kSf(x)/khf(ts[i]))
@@ -753,7 +754,7 @@ class GEF:
                     #print(x)
                     if (tferm<ts[i]):
                         #tferms.append(tferm)
-                        x.zferm = -kh[i]*etaf(tferm)
+                        x.zferm = kh[i]*etaf(tferm)
                         F = x.Whittaker_PostFermionEntry()
                         Ep.append(F[0,0])
                         Em.append(F[0,1])
@@ -761,16 +762,30 @@ class GEF:
                         Bm.append(F[1,1])
                         Gp.append(F[2,0])
                         Gm.append(F[2,1])
+                        F = x.Whittaker()
+                        Ep2.append(F[0,0])
+                        Em2.append(F[0,1])
+                        Bp2.append(F[1,0])
+                        Bm2.append(F[1,1])
+                        Gp2.append(F[2,0])
+                        Gm2.append(F[2,1])
                         delta.append(np.exp(-quad(sigmaf, tferm, ts[i])[0]))
                     else:
-                        F = x.WhittakerExact()
+                        F = x.Whittaker()
                         Ep.append(F[0,0])
                         Em.append(F[0,1])
                         Bp.append(F[1,0])
                         Bm.append(F[1,1])
                         Gp.append(F[2,0])
                         Gm.append(F[2,1])
+                        Ep2.append(F[0,0])
+                        Em2.append(F[0,1])
+                        Bp2.append(F[1,0])
+                        Bm2.append(F[1,1])
+                        Gp2.append(F[2,0])
+                        Gm2.append(F[2,1])
                         delta.append(1.)
+                    tferms.append(tferm)
 
                 x.deltaf = CubicSpline(ts, delta)
                 #x.tferm = CubicSpline(ts, tferms)
@@ -780,10 +795,17 @@ class GEF:
                 x.Bmf = CubicSpline(ts, Bm)
                 x.Gpf = CubicSpline(ts, Gp)
                 x.Gmf = CubicSpline(ts, Gm)
+                x.Epf2 = CubicSpline(ts, Ep2)
+                x.Emf2 = CubicSpline(ts, Em2)
+                x.Bpf2 = CubicSpline(ts, Bp2)
+                x.Bmf2 = CubicSpline(ts, Bm2)
+                x.Gpf2 = CubicSpline(ts, Gp2)
+                x.Gmf2 = CubicSpline(ts, Gm2)
                 x.vals["xieff"] = xieff
                 x.vals["xi"] = xi
                 x.vals["s"] = a**(x.alpha) * sE/(2* H)
                 x.vals["kh"] = kh
+                x.vals["tferm"] = np.array(tferms)
                 print("delta function created, access using x.deltaf")
         else:
             print("You first need to RunGEF")
@@ -800,17 +822,19 @@ class GEF:
                 pars = x.vals.keys()
                 for par in pars:
                     x.vals[par] = x.vals[par][0]
-                x.RunGEF(t0, t1)
+                sol = x.RunGEF(t0, t1)
+                return sol
             else:
                 x.completed = False
                 pars = x.vals.keys()
                 for par in pars:
                     x.vals[par] = x.vals[par][0]
-                x.RunGEF(t0, t1)         
+                sol = x.RunGEF(t0, t1)     
+                return sol
         else:
             print("You first need to RunGEF")
-        return
-    
+            return
+        
     def SaveData(x):
         if (x.completed):
             #x.Unitful()
@@ -858,8 +882,8 @@ class GEF:
                 x.vals["khE"] = x.vals["khE"]/omega
                 x.vals["khO"] = x.vals["khO"]/omega
                 x.vals["kS"] = x.vals["kS"]/omega
-                x.vals["sigmaEkh"] = x.vals["sigmaEkh"]/omega
-                x.vals["sigmaBkh"] = x.vals["sigmaBkh"]/omega
+                #x.vals["sigmaEkh"] = x.vals["sigmaEkh"]/omega
+                #x.vals["sigmaBkh"] = x.vals["sigmaBkh"]/omega
             x.omega = omega
             x.f = f
             x.ratio = x.omega/x.f
@@ -890,8 +914,8 @@ class GEF:
                 x.vals["khE"] = x.vals["khE"]*omega
                 x.vals["khO"] = x.vals["khO"]*omega
                 x.vals["kS"] = x.vals["kS"]*omega
-                x.vals["sigmaEkh"] = x.vals["sigmaEkh"]*omega
-                x.vals["sigmaBkh"] = x.vals["sigmaBkh"]*omega
+                #x.vals["sigmaEkh"] = x.vals["sigmaEkh"]*omega
+                #x.vals["sigmaBkh"] = x.vals["sigmaBkh"]*omega
             x.omega = 1.
             x.f = 1.
             x.units = True
@@ -930,8 +954,6 @@ class GEF:
             elif (x.AltDamp == 2):
                 x.vals["khO"] = np.exp(y[3])
                 x.vals["khE"] = np.exp(y[4])
-                """x.vals["delta"] = y[5]
-                x.vals["rhoChi"] = y[6]"""
                 x.vals["rhoChi"] = y[5]
                 x.vals["H"] = x.FriedmannEq()
                 x.vals["sigmaE"], x.vals["sigmaB"], x.vals["kS"] = x.conductivity()
@@ -944,6 +966,7 @@ class GEF:
                 x.vals["rhoChi"] = y[5]
                 x.vals["H"] = x.FriedmannEq()
                 x.vals["sigmaE"], x.vals["sigmaB"] = x.conductivity()
+                #print(x.vals["t"], x.vals["sigmaE"], x.vals["sigmaB"])
                 x.vals["s"] = x.GetS(x.vals["sigmaE"])
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
