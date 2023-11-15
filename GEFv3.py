@@ -558,8 +558,6 @@ class GEF:
             elif (x.AltDamp == 2):
                 x.FermionEntry = 1
                 yini[4] = yini[3]
-                """yini[5] = x.vals["delta"]
-                yini[6] = x.vals["rhoChi"]"""
                 yini[5] = x.vals["rhoChi"]
             else:
                 yini[4] = x.vals["delta"]
