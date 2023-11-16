@@ -333,13 +333,7 @@ class GEF:
                 kh = khE
                 dlnkhdt = dlnkhdtE
             else:
-                if(np.log(khE/kh)<0):
-                    dlnkhdt = 0.
-                else:
-                    kh = khE
-                    dlnkhdt = dlnkhdtE
-                    
-                    
+                dlnkhdt = 0.
             sigmaE = x.vals["sigmaE"]
             sigmaB = x.vals["sigmaB"]
             s = x.vals["s"]
@@ -370,7 +364,10 @@ class GEF:
         B = x.vals["B"]
         G = x.vals["G"]
         sigmaE = x.vals["sigmaE"]
-        scale = x.vals["kh"]/x.vals["a"]
+        kh = x.vals["kh"]
+        kS = x.vals["kS"]
+        a = x.vals["a"]
+        scale = kh/a
         
         ScalarCpl = (x.dIdphi()*x.vals["dphi"]+aAlpha*x.vals["sigmaB"])
         
@@ -381,23 +378,28 @@ class GEF:
         bdrF = prefac*np.array([[(scale)**(i+4)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
                                 for i in range(x.ntr)])
         
+        dampscale = (kh-kS)/a
+        
+        dampE = sigmaE*np.array([[a*(dampscale)**(i+5)*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+5) for j in range(3)]
+                                for i in range(x.ntr)])/(4*np.pi**2)*x.FermionEntry
+        
         dFdt = np.zeros(bdrF.shape)
     
         for n in range(x.ntr-1):
-            dFdt[n,0] = (bdrF[n, 0] - ((4+n)*H + 2*aAlpha * sigmaE)*E[n]
+            dFdt[n,0] = (bdrF[n, 0] - ((4+n)*H + 2*aAlpha * sigmaE)*E[n] + 2*aAlpha*dampE[n,0]
                          - 2*aAlpha*G[n+1] + 2*ScalarCpl*G[n])
 
             dFdt[n,1] = bdrF[n, 1] - ((4+n)*H)*B[n] + 2*aAlpha*G[n+1]
 
-            dFdt[n,2] = (bdrF[n, 2] - ((4+n)*H + aAlpha * sigmaE)*G[n]
+            dFdt[n,2] = (bdrF[n, 2] - ((4+n)*H + aAlpha * sigmaE)*G[n] + aAlpha*dampE[n,2]
                          + aAlpha*(E[n+1] - B[n+1]) + ScalarCpl*B[n])
 
-        dFdt[-1,0] = (bdrF[-1,0] -  ((4+x.ntr-1)*H + 2*aAlpha * sigmaE)*E[-1]
+        dFdt[-1,0] = (bdrF[-1,0] -  ((4+x.ntr-1)*H + 2*aAlpha * sigmaE)*E[-1] + 2*aAlpha*dampE[-1,0]
                         - 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1])
         
         dFdt[-1,1] = bdrF[-1,1] - (4+x.ntr-1)*H*B[-1] + 2*scale**2 * aAlpha*G[-2]
         
-        dFdt[-1,2] = (bdrF[-1,2] - ((4+x.ntr-1)*H + aAlpha * sigmaE)*G[-1] 
+        dFdt[-1,2] = (bdrF[-1,2] - ((4+x.ntr-1)*H + aAlpha * sigmaE)*G[-1] + aAlpha*dampE[-1,2] 
                          + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1])
 
         return dFdt
@@ -564,6 +566,8 @@ class GEF:
             elif (x.AltDamp == 2):
                 x.FermionEntry = 1
                 yini[4] = yini[3]
+                """yini[5] = x.vals["delta"]
+                yini[6] = x.vals["rhoChi"]"""
                 yini[5] = x.vals["rhoChi"]
             else:
                 yini[4] = x.vals["delta"]
@@ -600,7 +604,7 @@ class GEF:
                 x.vals["s"] = x.GetS(x.vals["sigmaE"])
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
                 dydt[4] = x.EoMlnkh(dydt[2], x.vals["khE"])
-                dlnkhdt, x.vals["kh"], x.vals["sigmaE"], x.vals["sigmaB"], x.vals["s"], x.vals["xieff"], x.vals["delta"] = x.CheckFermionEntry(dydt[3], dydt[4])
+                dlnkhdt, x.vals["kh"], _, _, _, _, x.vals["delta"] = x.CheckFermionEntry(dydt[3], dydt[4])
                 dydt[5] = x.EoMrhoChi()
             else:
                 dlnkhdt = x.EoMlnkh(dydt[2], x.vals["kh"])
@@ -635,18 +639,12 @@ class GEF:
             res = dict(zip(pars, [[] for par in pars]))
             if (x.AltDamp == 2):
                 x.FermionEntry = 1
-                res["sigmaEk"] = []
-                res["sigmaBk"] = []
-                res["sk"] = []
-                res["xieffk"] = []
             for i in range(len(t)):
                 x.DefineDictionary(t[i], y[:,i])
                 if (x.AltDamp == 2):
-                    _, x.vals["kh"], x.vals["sigmaEk"], x.vals["sigmaBk"], _, _, x.vals["delta"] = x.CheckFermionEntry(0., 0.)
+                    _, x.vals["kh"], x.vals["sigmaE"], x.vals["sigmaB"], _, _, x.vals["delta"] = x.CheckFermionEntry(0., 0.)
                     x.vals["s"] = x.GetS(x.vals["sigmaE"])
                     x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
-                    x.vals["sk"] = x.GetS(x.vals["sigmaEk"])
-                    x.vals["xieffk"] = x.vals["xi"] + x.GetS(x.vals["sigmaBk"])
                 for par in pars:
                     if (par in ["E", "B", "G"]):
                         res[par].append(x.vals[par][0])
@@ -755,7 +753,7 @@ class GEF:
 
                 for i in range(ts.size):
                     f = lambda x: np.log(kSf(x)/khf(ts[i]))
-                    tferm = fsolve(f, ts[i], xtol=1e-6)[0]
+                    tferm = fsolve(f, tferms[-1], xtol=1e-6)[0]
                     x.vals["t"] = ts[i]
                     x.vals["xieff"] = xieff[i]
                     x.vals["xi"] = xi[i]
@@ -763,12 +761,9 @@ class GEF:
                     x.vals["kh"] = kh[i]
                     #print(x)
                     if (tferm<ts[i]):
-                        x.vals["xieff"] = xieff[i]
-                        x.vals["xi"] = xi[i]
-                        x.vals["s"] = a[i]**(x.alpha) * sE[i]/(2* H[i])
                         #tferms.append(tferm)
                         x.zferm = kh[i]*etaf(tferm)
-                        """F = x.Whittaker_PostFermionEntry()
+                        F = x.Whittaker_PostFermionEntry()
                         Ep.append(F[0,0])
                         Em.append(F[0,1])
                         Bp.append(F[1,0])
@@ -781,30 +776,29 @@ class GEF:
                         Bp2.append(F[1,0])
                         Bm2.append(F[1,1])
                         Gp2.append(F[2,0])
-                        Gm2.append(F[2,1])"""
+                        Gm2.append(F[2,1])
                         delta.append(np.exp(-quad(sigmaf, tferm, ts[i])[0]))
                     else:
-                        x.vals["xieff"] = xi[i]
-                        x.vals["s"] = 0.
-                        """F = x.WhittakerExact()
+                        F = x.Whittaker()
                         Ep.append(F[0,0])
                         Em.append(F[0,1])
                         Bp.append(F[1,0])
                         Bm.append(F[1,1])
                         Gp.append(F[2,0])
                         Gm.append(F[2,1])
+                        F = x.WhittakerExact()
                         Ep2.append(F[0,0])
                         Em2.append(F[0,1])
                         Bp2.append(F[1,0])
                         Bm2.append(F[1,1])
                         Gp2.append(F[2,0])
-                        Gm2.append(F[2,1])"""
+                        Gm2.append(F[2,1])
                         delta.append(1.)
                     tferms.append(tferm)
 
                 x.deltaf = CubicSpline(ts, delta)
                 #x.tferm = CubicSpline(ts, tferms)
-                """x.Epf = CubicSpline(ts, Ep)
+                x.Epf = CubicSpline(ts, Ep)
                 x.Emf = CubicSpline(ts, Em)
                 x.Bpf = CubicSpline(ts, Bp)
                 x.Bmf = CubicSpline(ts, Bm)
@@ -815,13 +809,13 @@ class GEF:
                 x.Bpf2 = CubicSpline(ts, Bp2)
                 x.Bmf2 = CubicSpline(ts, Bm2)
                 x.Gpf2 = CubicSpline(ts, Gp2)
-                x.Gmf2 = CubicSpline(ts, Gm2)"""
+                x.Gmf2 = CubicSpline(ts, Gm2)
                 x.vals["t"] = ts
                 x.vals["xieff"] = xieff
                 x.vals["xi"] = xi
                 x.vals["s"] = a**(x.alpha) * sE/(2* H)
                 x.vals["kh"] = kh
-                x.vals["tferm"] = np.array(tferms[1:])
+                x.vals["tferm"] = np.array(tferms)
                 print("delta function created, access using x.deltaf")
         else:
             print("You first need to RunGEF")
@@ -833,7 +827,7 @@ class GEF:
             if (x.AltDamp == 2):
                 #x.DeltaFunc = True
                 x.CreateDeltaFunction()
-                #x.Whittaker = x.Whittaker_Interp
+                x.Whittaker = x.Whittaker_Interp
                 x.completed = False
                 pars = x.vals.keys()
                 for par in pars:
@@ -898,8 +892,6 @@ class GEF:
                 x.vals["khE"] = x.vals["khE"]/omega
                 x.vals["khO"] = x.vals["khO"]/omega
                 x.vals["kS"] = x.vals["kS"]/omega
-                x.vals["sigmaEk"] = x.vals["sigmaEk"]/omega
-                x.vals["sigmaBk"] = x.vals["sigmaBk"]/omega
             x.omega = omega
             x.f = f
             x.ratio = x.omega/x.f
@@ -930,8 +922,6 @@ class GEF:
                 x.vals["khE"] = x.vals["khE"]*omega
                 x.vals["khO"] = x.vals["khO"]*omega
                 x.vals["kS"] = x.vals["kS"]*omega
-                x.vals["sigmaEk"] = x.vals["sigmaEk"]*omega
-                x.vals["sigmaBk"] = x.vals["sigmaBk"]*omega
             x.omega = 1.
             x.f = 1.
             x.units = True
