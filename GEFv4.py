@@ -378,10 +378,9 @@ class GEF:
         bdrF = prefac*np.array([[(scale)**(i+4)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
                                 for i in range(x.ntr)])
         
-        dampscale = (kh-kS)/a
+        dampscale = kS/a
         
-        dampE = sigmaE*np.array([[a*(dampscale)**(i+5)*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+5) for j in range(3)]
-                                for i in range(x.ntr)])/(4*np.pi**2)*x.FermionEntry
+        dampE = sigmaE*np.array([[a*((scale)**(i+5)-(dampscale)**(i+5))*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+5) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)*x.FermionEntry
         
         dFdt = np.zeros(bdrF.shape)
     
