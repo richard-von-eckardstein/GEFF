@@ -53,7 +53,7 @@ class GEF:
             elif (-1. <= SE <=1.):
                 if (x.AltDamp == 1):
                     x.GaugePos = 5
-                    x.conductivity = x.ComputeSigmaCollinearAltDelta
+                    x.conductivity = x.ComputeSigmaCollinear
                 elif (x.AltDamp == 2):
                     x.DeltaFunc = False
                     #x.GaugePos = 7
@@ -68,7 +68,8 @@ class GEF:
                     x.conductivity = x.ComputeSigmaCollinear
                 if(SE == 1. and approx):
                     #Only xieff, no s in pure magnetic picture
-                    x.Whittaker = x.WhittakerApprox_NoSE
+                    x.WhittakerWithFerm = x.WhittakerApprox_NoSE
+                    x.deltaf = lambda x: 1.
             else:
                 print(SE, "is not a valid choice for SE")
         x.approx = approx
@@ -262,8 +263,6 @@ class GEF:
         alpha = x.alpha
         a = x.vals["a"]
         H = x.vals["H"]
-        sigmaE = x.vals["sigmaE"]
-        sigmaB = x.vals["sigmaB"]
         #kh = x.vals["kh"]
         
         xieff = x.vals["xieff"]
@@ -299,13 +298,12 @@ class GEF:
         return np.exp(-x.vals["sigmaE"]/x.vals["H"]*np.log(x.vals["kS"]/x.vals["kh"]))
     
     def CheckFermionEntry(x, dlnkhdtO, dlnkhdtE):
-        kh = x.vals["kh"]
-        t = x.vals["t"]
         if(x.Ferm2==1):
             khO = x.vals["khO"]
             kS = x.vals["kS"]
             kappa = np.log(kS/khO)
             if (kappa > 0.):
+                kh = x.vals["kh"]
                 kh = kh
                 dlnkhdt = 0.
             else:
@@ -315,8 +313,8 @@ class GEF:
             s = 0.
             xieff = x.vals["xi"]
             delta = 1.
-            
         else:
+            t = x.vals["t"]
             #print("Fermions are still there")
             kh = x.vals["khE"]
             dlnkhdt = dlnkhdtE
@@ -324,7 +322,6 @@ class GEF:
             xieff = x.vals["xieff"]
             kS = x.vals["kS"]
             delta = x.deltaf(t)
-            
 
         return dlnkhdt, kh, s, xieff, delta
 
@@ -371,7 +368,7 @@ class GEF:
 
         ScalarCpl = (x.dIdphi()*x.vals["dphi"])#+aAlpha*x.vals["sigmaB"])
 
-        Whitt = x.Whitt
+        Whitt = x.Whittaker()
 
         Whitt[2,1] = -Whitt[2,1]
 
@@ -425,7 +422,7 @@ class GEF:
                              + aAlpha*(E[n+1] - B[n+1]) + ScalarCpl*B[n] - aAlpha*damp[n,1]*sigmaB)
 
         dFdt[-1,0] = (bdrF[-1,0] -  ((4+x.ntr-1)*H + 2*aAlpha * sigmaE)*E[-1] + 2*aAlpha*damp[-1,0]*sigmaE
-                            - 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1] - 2*aAlpha*damp[-1,1]*sigmaB)
+                            - 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1] - 2*aAlpha*damp[-1,2]*sigmaB)
 
         dFdt[-1,1] = bdrF[-1,1] - (4+x.ntr-1)*H*B[-1] + 2*scale**2 * aAlpha*G[-2]
 
@@ -619,9 +616,13 @@ class GEF:
 
         if (x.SE != None):
             if (x.AltDamp == 1):
+                s = 0.
+                x.vals["xieff"] = x.vals["xi"]
                 dlnkhdt = x.EoMlnkh(dydt[2], x.vals["kh"])
                 dydt[3] = dlnkhdt
                 dydt[4] = x.EoMrhoChi()
+                s = x.GetS(x.vals["sigmaE"])
+                x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
             elif (x.AltDamp == 2):
                 sigmaEtmp = x.vals["sigmaE"]
                 sigmaBtmp = x.vals["sigmaB"]
@@ -635,10 +636,10 @@ class GEF:
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(sigmaBtmp)
                 dydt[4] = x.EoMlnkh(dydt[2], x.vals["khE"])
                 dlnkhdt, x.vals["kh"], x.vals["s"], x.vals["xieff"], x.vals["delta"] = x.CheckFermionEntry(dydt[3], dydt[4])
-                if (x.Ferm2 == 0):
+                """if (x.Ferm2 == 0):
                     x.Whitt = x.WhittakerWithFerm()
                 else:
-                    x.Whitt = x.WhittakerNoFerm()
+                    x.Whitt = x.WhittakerNoFerm()"""
                 dydt[5] = x.EoMrhoChi()
                 
             else:
@@ -955,15 +956,18 @@ class GEF:
             x.vals["kh"] = np.exp(y[3])
             x.vals["H"] = x.FriedmannEq()
             x.vals["xi"] = x.GetXi()
-            x.vals["xieff"] = x.vals["xi"]
+            s = x.GetS(x.vals["sigmaE"])
+            x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
         else:
             if (x.AltDamp == 1):
                 x.vals["kh"] = np.exp(y[3])
+                x.vals["kS"] = x.vals["kh"]
                 x.vals["rhoChi"] = y[4]
                 x.vals["H"] = x.FriedmannEq()
-                x.vals["sigmaE"], x.vals["sigmaB"], x.vals["delta"], x.vals["s"] = x.conductivity()
+                x.vals["sigmaE"], x.vals["sigmaB"] = x.conductivity()
+                x.vals["s"] = 0.
                 x.vals["xi"] = x.GetXi()
-                x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
+                x.vals["xieff"] = x.vals["xi"]# + x.GetS(x.vals["sigmaB"])
             elif (x.AltDamp == 2):
                 if (np.log(x.vals["kS"]/x.vals["kh"]) > 1e-3):
                     #if(x.FermionEntry==1):
