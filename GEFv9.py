@@ -319,10 +319,10 @@ class GEF:
         bdrF = prefac*np.array([[(scale)**(i+4)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
                                     for i in range(x.ntr)])
 
-        dampscale = kS/a
+        dampscale = kS/kh
         
         if (x.Ferm2 == 1):
-            damp = np.array([[((scale)**(i+4)-(dampscale)**(i+4))*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
+            damp = np.array([[(scale)**(i+4)*(1.-dampscale)*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
             dampE = (E - damp[:,0])*np.sign(E)
             dampB = (B - damp[:,1])*np.sign(B)
             dampG = (G - damp[:,2])*np.sign(G)
@@ -369,7 +369,7 @@ class GEF:
         dFdt[-1,2] = (bdrF[-1,2] - ((4+x.ntr-1)*H)*G[-1] - aAlpha*dampG[-1]*sigmaE
                              + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] + aAlpha*dampB[-1]*sigmaB)
 
-        """damp = np.array([[((scale)**(i+4)-(dampscale)**(i+4))*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
+        """damp = np.array([[(scale)**(i+4)*(1.-dampscale)*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
         
         damp = damp*x.Ferm2
         
@@ -398,9 +398,9 @@ class GEF:
         dFdt[-1,1] = bdrF[-1,1] - (4+x.ntr-1)*H*B[-1] + 2*scale**2 * aAlpha*G[-2]
 
         dFdt[-1,2] = (bdrF[-1,2] - ((4+x.ntr-1)*H + aAlpha * sigmaE)*G[-1] + aAlpha*damp[-1,2]*sigmaE
-                             + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] - aAlpha*damp[-1,1]*sigmaB)"""
+                             + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] - aAlpha*damp[-1,1]*sigmaB)  """
 
-        return dFdt  
+        return dFdt
             
     #Run GEF
     def InitialiseGEF(x):
@@ -456,16 +456,10 @@ class GEF:
                 s = x.GetS(x.vals["sigmaE"])
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
             elif (x.AltDamp == 2):
-                sigmaEtmp = x.vals["sigmaE"]
-                sigmaBtmp = x.vals["sigmaB"]
-                x.vals["sigmaE"] = 0.
-                x.vals["sigmaB"] = 0.
                 dlnkhdt = x.EoMlnkh(dydt[2], x.vals["khO"])
                 dydt[3] = dlnkhdt
-                x.vals["sigmaE"] = sigmaEtmp
-                x.vals["sigmaB"] = sigmaBtmp
-                x.vals["s"] = x.GetS(sigmaEtmp)
-                x.vals["xieff"] = x.vals["xi"] + x.GetS(sigmaBtmp)
+                x.vals["s"] = x.GetS(x.vals["sigmaE"])
+                x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
                 dydt[4] = x.EoMlnkh(dydt[2], x.vals["khE"])
                 dlnkhdt, x.vals["kh"], x.vals["s"], x.vals["xieff"], x.vals["delta"] = x.CheckFermionEntry(dydt[3], dydt[4])
                 if (x.Ferm2 == 0):
