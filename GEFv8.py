@@ -239,7 +239,7 @@ class GEF:
             if (kappa > 0.):
                 kh = x.vals["kh"]
                 kh = kh
-                dlnkhdt = 0.
+                dlnkhdt = dlnkhdtO
             else:
                 #print("No Fermions")
                 dlnkhdt = dlnkhdtO
@@ -259,7 +259,7 @@ class GEF:
             jota = np.log(khE/khO)
             if (kappa < 0 and jota < 0):
                 kh = x.vals["kh"]
-                dlnkhdt = 0.
+                dlnkhdt = dlnkhdtE
             else:
                 kh = x.vals["khE"]
                 dlnkhdt = dlnkhdtE
@@ -309,9 +309,7 @@ class GEF:
         kS = x.vals["kS"]
         a = x.vals["a"]
         scale = kh/a
-
-        ScalarCpl = (x.dIdphi()*x.vals["dphi"])#+aAlpha*x.vals["sigmaB"])
-
+        
         Whitt = x.Whitt
 
         Whitt[2,1] = -Whitt[2,1]
@@ -320,7 +318,8 @@ class GEF:
                                     for i in range(x.ntr)])
 
         dampscale = kS/a
-        
+        """
+        ScalarCpl = (x.dIdphi()*x.vals["dphi"])#+aAlpha*x.vals["sigmaB"])
         if (x.Ferm2 == 1):
             damp = np.array([[((scale)**(i+4)-(dampscale)**(i+4))*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
             dampE = (E - damp[:,0])*np.sign(E)
@@ -368,18 +367,11 @@ class GEF:
 
         dFdt[-1,2] = (bdrF[-1,2] - ((4+x.ntr-1)*H)*G[-1] - aAlpha*dampG[-1]*sigmaE
                              + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] + aAlpha*dampB[-1]*sigmaB)
-
-        """damp = np.array([[((scale)**(i+4)-(dampscale)**(i+4))*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
+        """
+        ScalarCpl = (x.dIdphi()*x.vals["dphi"]+aAlpha*x.vals["sigmaB"])
+        damp = np.array([[((scale)**(i+4)-(dampscale)**(i+4))*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
         
-        damp = damp*x.Ferm2
-        
-        if (x.Ferm2 == 1):
-            print("t:", x.vals["t"], x.vals["N"])
-            print("E:", 1-damp[0,0]/E[0], 1-damp[-1,0]/E[-1])
-            print("B:", 1-damp[0,1]/B[0], 1-damp[-1,1]/B[-1])
-            print("G:", 1-damp[0,2]/G[0], 1-damp[-1,2]/G[-1])
-            print("E-1:", E[-1])
-            
+        damp = damp*x.Ferm2  
 
         dFdt = np.zeros(bdrF.shape)
 
@@ -398,10 +390,10 @@ class GEF:
         dFdt[-1,1] = bdrF[-1,1] - (4+x.ntr-1)*H*B[-1] + 2*scale**2 * aAlpha*G[-2]
 
         dFdt[-1,2] = (bdrF[-1,2] - ((4+x.ntr-1)*H + aAlpha * sigmaE)*G[-1] + aAlpha*damp[-1,2]*sigmaE
-                             + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] - aAlpha*damp[-1,1]*sigmaB)"""
+                             + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] - aAlpha*damp[-1,1]*sigmaB)
 
         return dFdt  
-            
+
     #Run GEF
     def InitialiseGEF(x):
         yini = np.zeros((x.ntr*3+x.GaugePos))

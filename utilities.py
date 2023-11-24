@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.interpolate import CubicSpline
+from scipy.optimize import fsolve
 
 def PlotComp(ax1, ax2, N, Y, Nref, Yref, col="k:", label=None, interp="lin"):
     ax1.plot(N, Y, col, label=label)
