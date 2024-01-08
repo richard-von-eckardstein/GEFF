@@ -663,23 +663,26 @@ class GEF:
             print("You first need to RunGEF")
             return
         
-    def SaveData(x, suffix=None):
+    def SaveData(x, outdir=None):
         if (x.completed):
             #x.Unitful()
             #Data is always stored without units
             x.Unitless()
-            if(x.AltDamp == 1):
-                filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+"_AltDamp_v4.dat"
-            elif(x.AltDamp == 2):
-                filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+"_KDep"+ suffix + ".dat"
-            else:
-                filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+".dat"
-            DirName = os.getcwd()
-            
-            """settings = [{"alpha":x.alpha}, {"beta":x.beta}, {"M":x.mass},{ "Mpl":x.Mpl}, 
-                        {"H0":x.H0}, {"units":x.units}, {"SE":x.SE}, {"approx":x.approx}, {"ntr":x.ntr}]"""
-            
-            path = os.path.join(DirName, filename)
+            if outdir==None:
+                if(x.AltDamp == 1):
+                    filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+"_AltDamp_v4.dat"
+                elif(x.AltDamp == 2):
+                    filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+"_KDep"+ suffix + ".dat"
+                else:
+                    filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+".dat"
+                DirName = os.getcwd()
+
+                """settings = [{"alpha":x.alpha}, {"beta":x.beta}, {"M":x.mass},{ "Mpl":x.Mpl}, 
+                            {"H0":x.H0}, {"units":x.units}, {"SE":x.SE}, {"approx":x.approx}, {"ntr":x.ntr}]"""
+
+                path = os.path.join(DirName, filename)
+            else
+                path = outdir
             
             #dic = dict(x.vals, **{"settings":settings})
 

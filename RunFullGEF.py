@@ -25,10 +25,12 @@ def get_cmdline_arguments():
             help="Initial Field Velocity in M*Mpl")
     parser.add_option('-s', action="store", default=None,
             help="SE Mode")
-    parser.add_option('-l', action="store", default=None,
-            help="option to load existing GEF Run from file")
     parser.add_option('-t', action="store", default=120,
             help="Target end time for GEF") 
+    parser.add_option('--load', action="store", default=None,
+            help="option to load existing GEF Run from file")
+    parser.add_option('--save', action="store", default=None,
+            help="option to load existing GEF Run from file")
 
     options_in, args = parser.parse_args()
 
@@ -45,7 +47,7 @@ phi0 = float(inopt.get("p")*Mpl)
 dphidt0 = float(inopt.get("d")*M*Mpl)
 SE = inopt.get("s")
 file = inopt.get("l")
-t = float(inopt.get("t")
+t = float(inopt.get("t"))
 if (type(SE) is str):
     if ("frac" in SE):
         SE = float(SE.replace("frac", ""))
