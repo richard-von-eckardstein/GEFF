@@ -4,7 +4,7 @@ import sys
 import optparse
 import numpy as np
 from scipy.integrate import solve_ivp
-from GEF import GEF
+from GEFv15 import GEF
 
 alpha = 0
 Mpl = 1.
@@ -25,8 +25,10 @@ def get_cmdline_arguments():
             help="Initial Field Velocity in M*Mpl")
     parser.add_option('-s', action="store", default=None,
             help="SE Mode")
-    parser.add_option('-a', action="store", default=True,
-            help="approximate Whittaker Functions") 
+    parser.add_option('-l', action="store", default=None,
+            help="option to load existing GEF Run from file")
+    parser.add_option('-t', action="store", default=120,
+            help="Target end time for GEF") 
 
     options_in, args = parser.parse_args()
 
@@ -42,13 +44,21 @@ M = float(inopt.get("m"))
 phi0 = float(inopt.get("p")*Mpl)
 dphidt0 = float(inopt.get("d")*M*Mpl)
 SE = inopt.get("s")
-approx = bool(inopt.get("a"))
+file = inopt.get("l")
+t = float(inopt.get("t")
 if (type(SE) is str):
     if ("frac" in SE):
         SE = float(SE.replace("frac", ""))
         
+        
 dic = {"phi":phi0, "dphi":dphidt0, "delta":1., "rhoChi":0.}
-G = GEF(alpha, beta, Mpl, dic, M, ntr, SE, approx=approx)
-G.RunGEF()
+G = GEF(alpha, beta, Mpl, dic, M, ntr, SE, AltDamp=2, approx=True)
+
+if file==None:
+    G.RunGEF(t1=t)
+else:
+    G.LoadData(file)
+    t = min(G.vals["t"][-1], t)
+    G.IterateGEF(t1=t)
 G.SaveData()
 
