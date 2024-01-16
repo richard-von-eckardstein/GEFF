@@ -280,35 +280,42 @@ class GEF:
     def EoMDelta(x):
         return -x.vals["a"]**(x.alpha)*x.vals["sigmaE"]*x.vals["delta"]
                 
-    """def EoMrhoChi(x):
-        a = x.vals["a"]
-        
-        Whitt = x.Whitt
-
-        Whitt[2,1] = -Whitt[2,1]
-        E = x.vals["E"][0]
-        G = x.vals["G"][0]
-        
-        scale = x.vals["kh"]/a
-
-        dampscale = x.vals["kS"]/a
-
-        damp = np.array([((scale)**(4)-(dampscale)**(4))*(Whitt[j,0] + Whitt[j,1])/(4) for j in range(3)])/(4*np.pi**2)
-        #damp = np.array([(scale)**(4)*(1.-dampscale)*(Whitt[j,0] + Whitt[j,1])/(4) for j in range(3)])/(4*np.pi**2)
-        
-        
-        damp = damp*x.Ferm2
-        
-        #if(np.log(a)>12.):
-         #   print("N", np.log(a), "damp", damp[0]/E)
-
-        drhoChi = (a**(x.alpha)*(x.vals["sigmaE"]*(E - damp[0])
-                                        - x.vals["sigmaB"]*(G - damp[2]))- 4*x.vals["H"]*x.vals["rhoChi"])
-        return drhoChi"""
-    
     def EoMrhoChi(x):
+        sigmaE = x.vals["sigmaE"]
+        sigmaB = x.vals["sigmaB"]
+
+        a = x.vals["a"]
+        if sigmaE==0. and sigmaB ==0.:
+            drhoChi=0.
+        else:
+            Whitt = x.Whitt
+
+            Whitt[2,1] = -Whitt[2,1]
+            E = x.vals["E"][0]
+            G = x.vals["G"][0]
+            xi = x.vals["xi"]
+
+            scale = x.vals["kh"]/a
+
+            dampscale = x.vals["kS"]/a
+
+            #damp = np.array([((scale)**(4)-(dampscale)**(4))*(Whitt[j,0] + Whitt[j,1])/(4) for j in range(3)])/(4*np.pi**2)
+            damp = np.array([E, 0., G])*x.Ferm2#np.array([(scale)**(4)*(1.-dampscale)*(Whitt[j,0] + Whitt[j,1]) for j in range(3)])/(4*np.pi**2)*x.Ferm2
+            print("before:", damp[0]/E)
+            #damp[0] = damp[0]*(1 - (1- dampscale)/2*(3)) - (scale)**(4)*(1-dampscale)**2/(4*np.pi**2)*2*abs(xi)*((1-np.sign(xi))*Whitt[2,0] - Whitt[2,1]*(1+np.sign(xi)))*x.Ferm2
+            #print("after:",damp[0]/E)
+
+            #if(np.log(a)>12.):
+             #   print("N", np.log(a), "damp", damp[0]/E)
+
+            drhoChi = (a**(x.alpha)*(x.vals["sigmaE"]*(E - damp[0])
+                                            - x.vals["sigmaB"]*(G - damp[2]))- 4*x.vals["H"]*x.vals["rhoChi"])
+        
+        return drhoChi
+    
+    """def EoMrhoChi(x):
         return (x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["E"][0]
-                                        - x.vals["sigmaB"]*x.vals["G"][0])- 4*x.vals["H"]*x.vals["rhoChi"])
+                                        - x.vals["sigmaB"]*x.vals["G"][0])- 4*x.vals["H"]*x.vals["rhoChi"])"""
     
     def EoMF(x, dlnkhdt):
         prefac = dlnkhdt * x.vals["delta"] / (4*np.pi**2)
@@ -325,69 +332,18 @@ class GEF:
         a = x.vals["a"]
         scale = kh/a
 
-
         Whitt = x.Whitt
 
         Whitt[2,1] = -Whitt[2,1]
 
         bdrF = prefac*np.array([[(scale)**(i+4)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
                                     for i in range(x.ntr)])
-        """
-        dampscale = kS/kh
-        
-        if (x.Ferm2 == 1):
-            damp = np.array([[(scale)**(i+4)*(1.-dampscale)*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
-            dampE = (E - damp[:,0])*np.sign(E)
-            dampB = (B - damp[:,1])*np.sign(B)
-            dampG = (G - damp[:,2])*np.sign(G)
-            for i in range(x.ntr):
-                dampE[i] = max(dampE[i], 0) * max(np.sign(1.1*E[i]-dampE[i]),0.)*np.sign(E[i])
 
-
-                dampB[i] = max(dampB[i], 0) * max(np.sign(1.1*B[i]-dampB[i]),0.)*np.sign(B[i])
-
-                dampG[i] = max(dampG[i], 0) * max(np.sign(1.1*G[i]-dampG[i]),0.)*np.sign(G[i])
-        else:
-            dampE = E
-            dampG = G
-            dampB = B
-        
-        #print("Epre:", dampE[0]/E[0], dampE[-1]/E[-1])
-        print("t:", x.vals["t"], x.vals["N"], x.Ferm2)
-        
-            
-        print("Epost:", dampE[0]/E[0], dampE[-1]/E[-1])
-        print("E:", E[-1])
-            
-            
-            #print("B:", dampB[0]/B[0], 1-damp[-1,1]/B[-1])
-            #print("G:", dampG[0]/G[0], 1-damp[-1,2]/G[-1])
-        
-    
-        dFdt = np.zeros(bdrF.shape)
-
-        for n in range(x.ntr-1):
-            dFdt[n,0] = (bdrF[n, 0] - ((4+n)*H)*E[n] - 2*aAlpha*dampE[n]*sigmaE
-                             - 2*aAlpha*G[n+1] + 2*ScalarCpl*G[n] + 2*aAlpha*dampG[n]*sigmaB)
-
-            dFdt[n,1] = bdrF[n, 1] - ((4+n)*H)*B[n] + 2*aAlpha*G[n+1]
-
-            dFdt[n,2] = (bdrF[n, 2] - ((4+n)*H)*G[n] - aAlpha*dampG[n]*sigmaE
-                             + aAlpha*(E[n+1] - B[n+1]) + ScalarCpl*B[n] + aAlpha*dampB[n]*sigmaB)
-
-        dFdt[-1,0] = (bdrF[-1,0] -  ((4+x.ntr-1)*H)*E[-1] - 2*aAlpha*dampE[-1]*sigmaE
-                            - 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1] + 2*aAlpha*dampG[-1]*sigmaB)
-
-        dFdt[-1,1] = bdrF[-1,1] - (4+x.ntr-1)*H*B[-1] + 2*scale**2 * aAlpha*G[-2]
-
-        dFdt[-1,2] = (bdrF[-1,2] - ((4+x.ntr-1)*H)*G[-1] - aAlpha*dampG[-1]*sigmaE
-                             + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] + aAlpha*dampB[-1]*sigmaB)
-        """    
         dampscale = kS/a
-        ScalarCpl = (x.dIdphi()*x.vals["dphi"]+aAlpha*sigmaB)#*(1-x.Ferm2))
+        ScalarCpl = (x.dIdphi()*x.vals["dphi"]+aAlpha*sigmaB)
         
-        damp = np.array([[((scale)**(i+4)-(dampscale)**(i+4))*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
-        #damp = np.array([[(scale)**(i+4)*(1.-dampscale)*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
+        #damp = np.array([[((scale)**(i+4)-(dampscale)**(i+4))*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
+        damp = np.array([E, B, G]).T*x.Ferm2#np.array([[(scale)**(i+4)*(1.-dampscale)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
         
         damp = damp*x.Ferm2
         
@@ -681,7 +637,7 @@ class GEF:
                             {"H0":x.H0}, {"units":x.units}, {"SE":x.SE}, {"approx":x.approx}, {"ntr":x.ntr}]"""
 
                 path = os.path.join(DirName, filename)
-            else
+            else:
                 path = outdir
             
             #dic = dict(x.vals, **{"settings":settings})
