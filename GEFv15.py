@@ -279,6 +279,34 @@ class GEF:
     
     def EoMDelta(x):
         return -x.vals["a"]**(x.alpha)*x.vals["sigmaE"]*x.vals["delta"]
+
+    def ScaleDepDamping(x):
+        xi = x.vals["xi"]
+
+        Whitt = x.Whitt
+        
+        ys = xs-1
+        pol = np.array([1, -1])
+        kappa = pol[i]*np.sign(xi)
+        
+        E = Whitt[0,:]
+        B = Whitt[1,:]
+        G = Whitt[2,:]
+        
+        Ep = G*(1-kappa)/abs(xi)
+        Bp = -G/abs(xi)
+        Gp = (-E + B*(1-kappa))/(2*abs(xi))
+
+        Ep2 = E * (-1 + kappa)/(2*abs(xi)**2) + G*(-1+kappa)/abs(xi) + B*(-1+kappa)**2/(2*abs(xi)**2)
+        Bp2 = E / (2*abs(xi)**2) + B*(-1+kappa)/(2*abs(xi)**2)
+        Gp2 = -G*(1-kappa)/abs(xi)**2 + B*kappa/(2*abs(xi))
+
+        Es = [E, Ep, Ep2]
+        Bs = [B, Bp, Bp2]
+        Gs = [G, Gp, Gp2]
+        G[:,1] = -G[:,1]
+        
+        return np.array([Es, Bs, Gs])
                 
     def EoMrhoChi(x):
         sigmaE = x.vals["sigmaE"]
@@ -301,7 +329,7 @@ class GEF:
 
             #damp = np.array([((scale)**(4)-(dampscale)**(4))*(Whitt[j,0] + Whitt[j,1])/(4) for j in range(3)])/(4*np.pi**2)
             damp = np.array([E, 0., G])*x.Ferm2#np.array([(scale)**(4)*(1.-dampscale)*(Whitt[j,0] + Whitt[j,1]) for j in range(3)])/(4*np.pi**2)*x.Ferm2
-            print("before:", damp[0]/E)
+            #print("before:", damp[0]/E)
             #damp[0] = damp[0]*(1 - (1- dampscale)/2*(3)) - (scale)**(4)*(1-dampscale)**2/(4*np.pi**2)*2*abs(xi)*((1-np.sign(xi))*Whitt[2,0] - Whitt[2,1]*(1+np.sign(xi)))*x.Ferm2
             #print("after:",damp[0]/E)
 
@@ -341,9 +369,15 @@ class GEF:
 
         dampscale = kS/a
         ScalarCpl = (x.dIdphi()*x.vals["dphi"]+aAlpha*sigmaB)
+
+        WhittTaylor = x.ScaleDepDamping
+        ys = 1-ks/kh
+
+        damp = 1/(4*np.pi**2)*np.array([[scale**(n+4)*(WhittTaylor[0, j, 0] + (-1)**n*WhittTaylor[0, j, 1]) for j in range(3)] for n in range(x.ntr)])
         
         #damp = np.array([[((scale)**(i+4)-(dampscale)**(i+4))*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
-        damp = np.array([E, B, G]).T*x.Ferm2#np.array([[(scale)**(i+4)*(1.-dampscale)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
+        #damp = np.array([E, B, G]).T*x.Ferm2#np.array([[(scale)**(i+4)*(1.-dampscale)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
+        
         
         damp = damp*x.Ferm2
         
