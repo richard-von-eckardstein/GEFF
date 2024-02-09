@@ -243,7 +243,6 @@ class GEF:
         alpha = x.alpha
         a = x.vals["a"]
         H = x.vals["H"]
-        #kh = x.vals["kh"]
         
         xieff = x.vals["xieff"]
         s = x.vals["s"]
@@ -282,69 +281,62 @@ class GEF:
 
     def ScaleDepDamping(x):
         xi = x.vals["xi"]
+        kh = x.vals["kh"]
+        a = x.vals["a"]
+        H = x.vals["H"]
 
-        Whitt = x.Whitt
-        
-        ys = xs-1
         pol = np.array([1, -1])
-        kappa = pol[i]*np.sign(xi)
-        
+        r = kh/(a*H)
+        p = (r - 2*pol*xi)
+        #p = (2*abs(xi) - 2*pol*xi)
+        Whitt = x.Whitt
         E = Whitt[0,:]
         B = Whitt[1,:]
         G = Whitt[2,:]
         
-        Ep = G*(1-kappa)/abs(xi)
-        Bp = -G/abs(xi)
-        Gp = (-E + B*(1-kappa))/(2*abs(xi))
+        Ep = 2*p*G
+        Bp = -2*r*G
+        Gp = p*B - r*E
 
-        Ep2 = E * (-1 + kappa)/(2*abs(xi)**2) + G*(-1+kappa)/abs(xi) + B*(-1+kappa)**2/(2*abs(xi)**2)
-        Bp2 = E / (2*abs(xi)**2) + B*(-1+kappa)/(2*abs(xi)**2)
-        Gp2 = -G*(1-kappa)/abs(xi)**2 + B*kappa/(2*abs(xi))
+        Ep2 = -2*r*p*E + 2*p**2*B + 4*pol*xi*G
+        Bp2 = -2*r*p*B + 2*r**2*E
+        Gp2 = 2*pol*xi*B - 4*r*p*G
 
-        Es = [E, Ep, Ep2]
-        Bs = [B, Bp, Bp2]
-        Gs = [G, Gp, Gp2]
-        G[:,1] = -G[:,1]
+        Es = np.array([E, Ep, 1/2*Ep2])
+        Bs = np.array([B, Bp, 1/2*Bp2])
+        Gs = np.array([G, Gp, 1/2*Gp2])
+
+        Gs[:,1] = -Gs[:,1]
+
+        dic = {"E":Es, "B":Bs, "G":Gs}
         
-        return np.array([Es, Bs, Gs])
+        return dic
                 
     def EoMrhoChi(x):
         sigmaE = x.vals["sigmaE"]
         sigmaB = x.vals["sigmaB"]
+        E = x.vals["E"][0]
+        G = x.vals["G"][0]
 
+        kh = x.vals["kh"]
+        kS = x.vals["kS"]
         a = x.vals["a"]
-        if sigmaE==0. and sigmaB ==0.:
-            drhoChi=0.
-        else:
-            Whitt = x.Whitt
-
-            Whitt[2,1] = -Whitt[2,1]
-            E = x.vals["E"][0]
-            G = x.vals["G"][0]
-            xi = x.vals["xi"]
-
-            scale = x.vals["kh"]/a
-
-            dampscale = x.vals["kS"]/a
-
-            #damp = np.array([((scale)**(4)-(dampscale)**(4))*(Whitt[j,0] + Whitt[j,1])/(4) for j in range(3)])/(4*np.pi**2)
-            damp = np.array([E, 0., G])*x.Ferm2#np.array([(scale)**(4)*(1.-dampscale)*(Whitt[j,0] + Whitt[j,1]) for j in range(3)])/(4*np.pi**2)*x.Ferm2
-            #print("before:", damp[0]/E)
-            #damp[0] = damp[0]*(1 - (1- dampscale)/2*(3)) - (scale)**(4)*(1-dampscale)**2/(4*np.pi**2)*2*abs(xi)*((1-np.sign(xi))*Whitt[2,0] - Whitt[2,1]*(1+np.sign(xi)))*x.Ferm2
-            #print("after:",damp[0]/E)
-
-            #if(np.log(a)>12.):
-             #   print("N", np.log(a), "damp", damp[0]/E)
-
-            drhoChi = (a**(x.alpha)*(x.vals["sigmaE"]*(E - damp[0])
-                                            - x.vals["sigmaB"]*(G - damp[2]))- 4*x.vals["H"]*x.vals["rhoChi"])
         
+        scale = kh/a
+
+        dic = x.ScaleDepDamping()
+        damp = {"E":0., "B":0., "G":0.}
+        ys = 1-kS/kh
+        for name in dic.keys():
+            for i in range(3):
+                for j in range(i):
+                    damp[name] += 1/(4*np.pi**2)*scale**(4)*(dic[name][i-j,0] + dic[name][i-j,1])*(-1)**j*(ys)**(i+1)/(i+1)*math.comb(3, j)*x.Ferm2
+        #print(damp["E"]/E, damp["G"]/G)        
+        drhoChi = (a**(x.alpha)*(x.vals["sigmaE"]*(E - damp["E"])
+                                        - x.vals["sigmaB"]*(G - damp["G"]))- 4*x.vals["H"]*x.vals["rhoChi"])
+    
         return drhoChi
-    
-    """def EoMrhoChi(x):
-        return (x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["E"][0]
-                                        - x.vals["sigmaB"]*x.vals["G"][0])- 4*x.vals["H"]*x.vals["rhoChi"])"""
-    
+
     def EoMF(x, dlnkhdt):
         prefac = dlnkhdt * x.vals["delta"] / (4*np.pi**2)
 
@@ -367,38 +359,41 @@ class GEF:
         bdrF = prefac*np.array([[(scale)**(i+4)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
                                     for i in range(x.ntr)])
 
-        dampscale = kS/a
         ScalarCpl = (x.dIdphi()*x.vals["dphi"]+aAlpha*sigmaB)
 
-        WhittTaylor = x.ScaleDepDamping
-        ys = 1-ks/kh
+        poly = np.array([np.array([1, -(n+3), (n+3)*(n+2)/2]) for n in range(x.ntr)])
 
-        damp = 1/(4*np.pi**2)*np.array([[scale**(n+4)*(WhittTaylor[0, j, 0] + (-1)**n*WhittTaylor[0, j, 1]) for j in range(3)] for n in range(x.ntr)])
+        dic = x.ScaleDepDamping()
+        damp = {"E":np.zeros((x.ntr)), "B":np.zeros((x.ntr)), "G":np.zeros((x.ntr))}
+        ys = kS/kh -1.
+        for name in dic.keys():
+            for i in range(3):
+                for j in range(i):
+                    damp[name] += 1/(4*np.pi**2)*np.array([scale**(n+4)*(dic[name][i-j,0] + (-1)**n*dic[name][i-j,1])
+                                            *(-1)**j*(ys)**(i+1)/(i+1)*math.comb(n+3, j) for n in range(x.ntr)])*x.Ferm2
+
         
         #damp = np.array([[((scale)**(i+4)-(dampscale)**(i+4))*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
         #damp = np.array([E, B, G]).T*x.Ferm2#np.array([[(scale)**(i+4)*(1.-dampscale)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
         
-        
-        damp = damp*x.Ferm2
-        
         dFdt = np.zeros(bdrF.shape)
 
         for n in range(x.ntr-1):
-            dFdt[n,0] = (bdrF[n, 0] - ((4+n)*H + 2*aAlpha * sigmaE)*E[n] + 2*aAlpha*damp[n,0]*sigmaE
-                             - 2*aAlpha*G[n+1] + 2*ScalarCpl*G[n] - 2*aAlpha*damp[n,2]*sigmaB)
+            dFdt[n,0] = (bdrF[n, 0] - ((4+n)*H + 2*aAlpha * sigmaE)*E[n] + 2*aAlpha*damp["E"][n]*sigmaE
+                             - 2*aAlpha*G[n+1] + 2*ScalarCpl*G[n] - 2*aAlpha*damp["G"][n]*sigmaB)
 
             dFdt[n,1] = bdrF[n, 1] - ((4+n)*H)*B[n] + 2*aAlpha*G[n+1]
 
-            dFdt[n,2] = (bdrF[n, 2] - ((4+n)*H + aAlpha * sigmaE)*G[n] + aAlpha*damp[n,2]*sigmaE
-                             + aAlpha*(E[n+1] - B[n+1]) + ScalarCpl*B[n] - aAlpha*damp[n,1]*sigmaB)
+            dFdt[n,2] = (bdrF[n, 2] - ((4+n)*H + aAlpha * sigmaE)*G[n] + aAlpha*damp["G"][n]*sigmaE
+                             + aAlpha*(E[n+1] - B[n+1]) + ScalarCpl*B[n] - aAlpha*damp["B"][n]*sigmaB)
 
-        dFdt[-1,0] = (bdrF[-1,0] -  ((4+x.ntr-1)*H + 2*aAlpha * sigmaE)*E[-1] + 2*aAlpha*damp[-1,0]*sigmaE
-                            - 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1] - 2*aAlpha*damp[-1,2]*sigmaB)
+        dFdt[-1,0] = (bdrF[-1,0] -  ((4+x.ntr-1)*H + 2*aAlpha * sigmaE)*E[-1] + 2*aAlpha*damp["E"][-1]*sigmaE
+                            - 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1] - 2*aAlpha*damp["G"][-1]*sigmaB)
 
         dFdt[-1,1] = bdrF[-1,1] - (4+x.ntr-1)*H*B[-1] + 2*scale**2 * aAlpha*G[-2]
 
-        dFdt[-1,2] = (bdrF[-1,2] - ((4+x.ntr-1)*H + aAlpha * sigmaE)*G[-1] + aAlpha*damp[-1,2]*sigmaE
-                             + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] - aAlpha*damp[-1,1]*sigmaB)
+        dFdt[-1,2] = (bdrF[-1,2] - ((4+x.ntr-1)*H + aAlpha * sigmaE)*G[-1] + aAlpha*damp["G"][-1]*sigmaE
+                             + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] - aAlpha*damp["B"][-1]*sigmaB)
 
         return dFdt
             
@@ -689,7 +684,8 @@ class GEF:
         #Check if data file is in order:
         for name in names:
             if name not in data.keys():
-                print("The file you provided does not contain information on the parameter " + name + ". Please provide a different data file")
+                print("The file you provided does not contain information on the parameter " + name + ". Please provide a complete data file")
+                print("A complete file contains information on the parameters:" + names)
                 return
             
         #Since GEF data is always stored untiless, it is assumed to be untiless when loaded
@@ -901,7 +897,7 @@ class GEF:
         Fterm[1,1] = exptermMinus*abs(Whitt1Minus)**2
 
         Fterm[2,0] = exptermPlus*((Whitt2Plus*Whitt1Plus.conjugate()).real - s * abs(Whitt1Plus)**2)/r
-        Fterm[2,1]= exptermMinus*((Whitt2Minus*Whitt1Minus.conjugate()).real - s * abs(Whitt1Minus)**2)/r
+        Fterm[2,1] = exptermMinus*((Whitt2Minus*Whitt1Minus.conjugate()).real - s * abs(Whitt1Minus)**2)/r
 
         return Fterm
     

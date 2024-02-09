@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
+import matplotlib.pyplot as plt
 
 def PlotComp(ax1, ax2, N, Y, Nref, Yref, col="k:", label=None, interp="lin"):
     ax1.plot(N, Y, col, label=label)
@@ -17,6 +18,17 @@ def PlotComp(ax1, ax2, N, Y, Nref, Yref, col="k:", label=None, interp="lin"):
     
     return
 
+def EndOfInflation2(N, dphi, V, E, B, rhoChi, omega, tol=1e-4):
+    f = CubicSpline(N, (dphi**2 - V + 0.5*(E+B) + rhoChi)/omega**2)
+    res = fsolve(f, 60, 1e-4)[0]
+    plt.plot(N, f(N))
+    plt.plot(N, np.zeros(N.size))
+    plt.xlim(60, max(N))
+    plt.ylim(-0.01,0.01)
+    plt.vlines(res, -1e-2, 1e-2, "k")
+    plt.show()
+    print(res)       
+    return res
         
 def EndOfInflation(t, a, H, tol=1e-6):
     N = np.log(a)
