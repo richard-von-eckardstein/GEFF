@@ -41,7 +41,7 @@ class GEF:
             else:
                 x.Whittaker = x.WhittakerExact
             #x.ODE = x.fullGEF_NoSE()
-            x.coeff = np.zeros((x.order, min(x.order, x.ntr)))
+            x.coeff = np.zeros(x.order)
         else:
             if(approx):
                 x.Whittaker = x.WhittakerApprox_WithSE
@@ -59,14 +59,13 @@ class GEF:
                     x.WhittakerNoFerm = x.WhittakerApprox_NoSE
                     x.WhittakerWithFerm = x.WhittakerApprox_WithSE
                     x.conductivity = x.ComputeImprovedSigmaKDep
-                    x.coeff = np.zeros((x.order, min(x.order, x.ntr)))
-                    for n in range(x.coeff.shape[1]):
-                        for k in range(min(n+4, x.coeff.shape[1])):
-                            x.coeff[k,n] = binom(n+3, i)
+                    x.coeff = np.zeros(x.order)
+                    for k in range(min(4, x.order)):
+                        x.coeff[k] = binom(3, k)
                 else:
                     x.GaugePos = 6
                     x.conductivity = x.ComputeImprovedSigma
-                    x.coeff = np.zeros((10, min(x.order, x.ntr)))
+                    x.coeff = np.zeros(x.order)
             elif (-1. <= SE <=1.):
                 if (x.AltDamp == 1):
                     x.GaugePos = 5
@@ -81,14 +80,13 @@ class GEF:
                     x.WhittakerNoFerm = x.WhittakerApprox_NoSE
                     x.WhittakerWithFerm = x.WhittakerApprox_WithSE
                     x.conductivity = x.ComputeSigmaCollinearKDep
-                    x.coeff = np.zeros((x.order, min(x.order, x.ntr)))
-                    for n in range(x.coeff.shape[1]):
-                        for k in range(min(n+4, x.coeff.shape[1])):
-                            x.coeff[k,n] = binom(n+3, k)
+                    x.coeff = np.zeros(x.order)
+                    for k in range(min(4, x.order)):
+                        x.coeff[k] = binom(3, k)
                 else:
                     x.GaugePos = 6
                     x.conductivity = x.ComputeSigmaCollinear
-                    x.coeff = np.zeros((x.order, min(x.order, x.ntr)))
+                    x.coeff = np.zeros(x.order)
                 if(SE == 1. and approx):
                     #Only xieff, no s in pure magnetic picture
                     x.Whittaker = x.WhittakerApprox_NoSE
@@ -350,7 +348,7 @@ class GEF:
         taylor = x.TaylorWhitt()
         damp = {"E":0., "B":0., "G":0.}
         ys = kS/kh - 1
-        coeff = x.coeff[:,0]
+        coeff = x.coeff
         for name in taylor.keys():
             for i in range(x.order):
                 for j in range(i+1):
@@ -389,18 +387,11 @@ class GEF:
         taylor = x.TaylorWhitt()
         damp = {"E":np.zeros((x.ntr)), "B":np.zeros((x.ntr)), "G":np.zeros((x.ntr))}
         ys = kS/kh - 1
+        coeff = x.coeff
         for name in taylor.keys():
-            for n in range(min(x.order, x.ntr)):
-                coeff = x.coeff[:,n]
-                for i in range(x.order):
-                    for j in range(i+1):
-                        damp[name][n] += (-1)*(ys)**(i+1)/(i+1)*scale**(n+4)*(taylor[name][j,0] + (-1)**n*taylor[name][j,1])*coeff[i-j]/(4*np.pi**2)*x.Ferm2
-                        """if n>1:
-                            damp[name][n] = (damp[name][n] + (-1)*(ys)*scale**(n+4)*(taylor[name][j,0] + (-1)**n*taylor[name][j,1])/(4*np.pi**2)*x.Ferm2)/2"""
-            
-        
-        #damp = np.array([[((scale)**(i+4)-(dampscale)**(i+4))*(Whitt[j,0] + (-1)**i*Whitt[j,1])/(i+4) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
-        #damp = np.array([E, B, G]).T*x.Ferm2#np.array([[(scale)**(i+4)*(1.-dampscale)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)] for i in range(x.ntr)])/(4*np.pi**2)
+            for i in range(x.order):
+                for j in range(i+1):
+                    damp[name][0] += (-1)*(ys)**(i+1)/(i+1)*scale**(4)*(taylor[name][j,0] + taylor[name][j,1])*coeff[i-j]/(4*np.pi**2)*x.Ferm2
         
         dFdt = np.zeros(bdrF.shape)
 
