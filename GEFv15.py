@@ -715,16 +715,71 @@ class GEF:
                 return
             
         #Since GEF data is always stored untiless, it is assumed to be untiless when loaded
+        x.omega = x.H0
+        x.f = x.Mpl
+        x.ratio = x.omega/x.f
         x.units = False
         
         for key in data.keys():
             x.vals[key] = data[key]
-            
+        print(x.vals["E"])
         if len(x.vals["t"]) == 1:
             print("It seems your table only contains one data point. This indicates a GEF run which is not yet executed. We suggest you initialise your run anew and use RunGEF")
             print("the completed-Flag is set to False")
             x.completed = False
         else:
+            pars = list(x.vals.keys())
+            for par in ["s", "xi", "xieff", "delta"]:
+                if par not in pars:
+                    pars.append(par)
+            res = dict(zip(pars, [[] for par in pars]))
+            print(res)
+            t = x.vals["t"]
+            ntr = x.ntr
+            x.ntr = 1
+            y = np.zeros((3+x.GaugePos, len(t)))
+            y[0,:] = x.vals["N"]
+            y[1,:] = x.vals["phi"]
+            y[2,:] = x.vals["dphi"]
+            y[3,:] = np.log(x.vals["kh"])
+
+            if (x.SE != None):
+                if (x.AltDamp == 1):
+                    x.Ferm2=0.
+                    y[4,:] = x.vals["rhoChi"]
+                elif (x.AltDamp == 2):
+                    x.Ferm2=1
+                    y[4,:] = x.vals["rhoChi"]
+                    res["sigmaEk"] = []
+                    res["sigmaBk"] = []
+                    res["sk"] = []
+                    res["xieffk"] = []
+                    x.vals["kS"] = x.vals["kh"]*1e-3 
+                else:
+                    y[4,:] = x.vals["delta"]
+                    y[5,:] = x.vals["rhoChi"]
+            y[x.GaugePos,:] = x.vals["E"]
+            y[x.GaugePos+1,:] = x.vals["B"]
+            y[x.GaugePos+2,:] = x.vals["G"]
+            for i in range(len(t)):
+                x.DefineDictionary(t[i], y[:,i])
+                if (x.AltDamp == 2):
+                    x.vals["delta"] = 1*x.Ferm2 + (1-x.Ferm2)*x.deltaf(x.vals["t"])
+                    x.vals["sigmaEk"] = (1.-x.Ferm2)*x.vals["sigmaE"]
+                    x.vals["sigmaBk"] = (1.-x.Ferm2)*x.vals["sigmaB"]
+                    x.vals["s"] = x.GetS(x.vals["sigmaE"])
+                    x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
+                    x.vals["sk"] = x.GetS(x.vals["sigmaEk"])
+                    x.vals["xieffk"] = x.vals["xi"] + x.GetS(x.vals["sigmaBk"])
+                for par in pars:
+                    if par not in ["E", "B", "G"]:
+                        res[par].append(x.vals[par])
+                    else:
+                        res[par].append(x.vals[par][0])
+            for par in pars:
+                res[par] = np.array(res[par])
+            x.vals = res
+            x.ntr = ntr
             x.completed = True
         return
             
