@@ -1050,4 +1050,30 @@ class GEF:
         F[2,0] = x.Gpf(t)
         F[2,1] = x.Gmf(t)
         return F
+
+    def EndOfInflation(x, tol=1e-4, plot=False):
+        if x.units == True:
+            unitswereon = True
+            x.Unitless()
+        else:
+            unitswereon = False
+        N = x.vals["N"]
+        dphi = x.vals["dphi"]
+        V = x.potential()
+        E = x.vals["E"]
+        B = x.vals["B"]
+        rhoChi = x.vals["rhoChi"]
+        f = CubicSpline(N, (dphi**2 - V + (0.5*(E+B) - rhoChi)*x.omega**2/x.f**2))
+        res = fsolve(f, 60, 1e-4)
+        print(res)
+        if unitswereon:
+            x.Unitful()
+        if plot:
+            plt.plot(N, f(N))
+            plt.plot(N, np.zeros(N.size))
+            plt.xlim(60, max(N))
+            plt.ylim(-0.01,0.01)
+            plt.vlines(res, -1e-2, 1e-2, "k")
+            plt.show()       
+        return res
             
