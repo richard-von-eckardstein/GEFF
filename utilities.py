@@ -17,51 +17,8 @@ def PlotComp(ax1, ax2, N, Y, Nref, Yref, col="k:", label=None, interp="lin"):
     ax2.set_xlabel(r"$N_e$")
     
     return
-
-def EndOfInflation2(N, dphi, V, E, B, rhoChi, omega, tol=1e-4):
-    f = CubicSpline(N, (dphi**2 - V + 0.5*(E+B) + rhoChi)/omega**2)
-    res = fsolve(f, 60, 1e-4)[0]
-    plt.plot(N, f(N))
-    plt.plot(N, np.zeros(N.size))
-    plt.xlim(60, max(N))
-    plt.ylim(-0.01,0.01)
-    plt.vlines(res, -1e-2, 1e-2, "k")
-    plt.show()
-    print(res)       
-    return res
         
-def EndOfInflation(t, a, H, tol=1e-6):
-    N = np.log(a)
-    n = int(len(t)/10)
-    
-    dHdt = (H[1:] - H[:-1])/(t[1:]-t[:-1])
-    
-    f = CubicSpline(N[n:-1], dHdt[n:]/H[n:-1]**2 + 1)
-    
-    delN = 1.
-    RefineGrid = True
-    r0 = 40.
-    while RefineGrid:
-        print(delN)
-        x0 = np.arange(50, max(N[:-2]), delN)
-        res = fsolve(f, x0, xtol=tol)
-        N0 = res[0]
-        print(res[0])
-        fN0 = abs(f(N0))
-        for r in res:
-            fN1 = abs(f(r))
-            if fN1 < fN0:
-                fN0 = fN1
-                N0 = r
-        r1 = np.round(N0, 2)
-        print(r1)
-        if r1 == r0:
-            RefineGrid=False
-        else:
-            r0 = r1
-            delN = delN*0.5
-            
-    return N0, delN
+
 
 def SaveMode(t, k, Ap, dAp, Am, dAm, af, name=None):
     logk = np.log10(k)

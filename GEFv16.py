@@ -267,7 +267,7 @@ class GEF:
         dsigmaEdt = 0.
         dsigmaBdt = 0.
         #approximation: dHdt = alphaH**2 (slow-roll)
-        fcprime = (((1-alpha)*H+a**(1-alpha)*alpha*H)*fc
+        fcprime = ((H*fc
                       + np.sign(xieff)*(a**(1-alpha)*(x.ddIddphi()*x.vals["dphi"]**2
                                                       + x.dIdphi()*ddphiddt)/2
                                            +a*(2*alpha*H**2*sb + dsigmaBdt)/2
