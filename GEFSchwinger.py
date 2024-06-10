@@ -379,21 +379,21 @@ class GEF:
         dFdt = np.zeros(bdrF.shape)
 
         for n in range(x.ntr-1):
-            dFdt[n,0] = (bdrF[n, 0] - (4+n)*H*E[n] - 2*aAlpha * sigmaE*EBar[n] 
-                             - 2*aAlpha*G[n+1] + 2*ScalarCpl*G[n] + 2*aAlpha*GBar[n]*sigmaB)
+            dFdt[n,0] = (bdrF[n, 0] - (4+n)*H*E[n] - 2*aAlpha * sigmaE*min(EBar[n],E[n]) 
+                             - 2*aAlpha*G[n+1] + 2*ScalarCpl*G[n] + 2*aAlpha*min(GBar[n],G[n])*sigmaB)
 
             dFdt[n,1] = bdrF[n, 1] - (4+n)*H*B[n] + 2*aAlpha*G[n+1]
 
-            dFdt[n,2] = (bdrF[n, 2] - (4+n)*H*G[n] - aAlpha*GBar[n]*sigmaE
-                             + aAlpha*(E[n+1] - B[n+1]) + ScalarCpl*B[n] + aAlpha*BBar[n]*sigmaB)
+            dFdt[n,2] = (bdrF[n, 2] - (4+n)*H*G[n] - aAlpha*min(GBar[n],G[n])*sigmaE
+                             + aAlpha*(E[n+1] - B[n+1]) + ScalarCpl*B[n] + aAlpha*min(BBar[n],B[n])*sigmaB)
 
-        dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*H*E[-1] - 2*aAlpha*EBar[n]*sigmaE
-                            - 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1] + 2*aAlpha*GBar[-1]*sigmaB)
+        dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*H*E[-1] - 2*aAlpha*min(EBar[-1],E[-1])*sigmaE
+                            - 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1] + 2*aAlpha*min(GBar[-1],G[-1])*sigmaB)
 
         dFdt[-1,1] = bdrF[-1,1] - (4+x.ntr-1)*H*B[-1] + 2*scale**2 * aAlpha*G[-2]
 
-        dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*H *G[-1] - aAlpha*GBar[-1]*sigmaE
-                             + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] + aAlpha*BBar[-1]*sigmaB)
+        dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*H *G[-1] - aAlpha*min(GBar[-1],G[-1])*sigmaE
+                             + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] + aAlpha*min(BBar[-1],B[-1])*sigmaB)
 
         scaleS = x.vals["kS"]/a
         WhittBar = x.WhittakerExactkS()
@@ -413,7 +413,7 @@ class GEF:
             dFBardt[n,2] = (bdrFBar[n, 2] - (4+n)*H*GBar[n] - aAlpha*GBar[n]*sigmaE
                              + aAlpha*(EBar[n+1] - BBar[n+1]) + ScalarCpl*BBar[n] + aAlpha*BBar[n]*sigmaB)
 
-        dFBardt[-1,0] = (bdrFBar[-1,0] -  (4+x.ntr-1)*H*EBar[-1] - 2*aAlpha*EBar[n]*sigmaE
+        dFBardt[-1,0] = (bdrFBar[-1,0] -  (4+x.ntr-1)*H*EBar[-1] - 2*aAlpha*EBar[-1]*sigmaE
                             - 2*scaleS**2 * aAlpha*GBar[-2] + 2*ScalarCpl*GBar[-1] + 2*aAlpha*GBar[-1]*sigmaB)
 
         dFBardt[-1,1] = bdrFBar[-1,1] - (4+x.ntr-1)*H*BBar[-1] + 2*scaleS**2 * aAlpha*GBar[-2]
