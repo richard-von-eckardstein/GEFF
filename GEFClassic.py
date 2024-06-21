@@ -185,6 +185,11 @@ class GEF:
         dV = phi*x.mass**2
         return dV/(x.f*x.omega**2)
 
+    def ddVddphi(x):
+        phi = x.f*x.vals["phi"]
+        ddV = x.mass**2
+        return ddV/(x.omega**2)
+
     def dIdphi(x):
         phi = x.f*x.vals["phi"]
         dI = x.beta/x.f
@@ -200,6 +205,11 @@ class GEF:
         Hsq = (1/3) * (0.5 * x.vals["dphi"]**2 + x.vals["a"]**(2*x.alpha)*
                        (x.potential() + x.ratio**2*( 0.5*(x.vals["E"][0]+x.vals["B"][0]) ) ) )
         return np.sqrt(Hsq)
+
+    def FriedmannEq2(x):
+        Hprime = (-1/2)*(x.vals["dphi"]**2/2 - x.vals["a"]**(2*x.alpha)*
+                       (x.potential() + x.ratio**2*(x.vals["E"][0]+x.vals["B"][0])/6) ) - 3/2*x.vals["H"]**2
+        return Hprime
     
     def GetXi(x):
         return (x.dIdphi() * x.vals["dphi"])/(2 * x.vals["H"])
@@ -213,7 +223,8 @@ class GEF:
                 - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"][0]*x.ratio**2)
         return ddphiddt
     
-    def EoMlnkh(x, ddphiddt, kh):
+    def EoMlnkh(x, ddphiddt):
+        kh = x.vals["kh"]
         alpha = x.alpha
         a = x.vals["a"]
         H = x.vals["H"]
@@ -223,8 +234,10 @@ class GEF:
         
         fc = a**(1-alpha) * H * r
         
-        #approximation: dHdt = alphaH**2 (slow-roll)
-        fcprime = (H*fc + np.sign(xi)*a**(1-alpha)*(x.ddIddphi()*x.vals["dphi"]**2 + x.dIdphi()*ddphiddt- 2*alpha*H**2*xi) )
+        dHdt = x.vals["Hprime"]# #approximation  dHdt = alphaH**2  (slow-roll)
+        xiprime = (-dHdt * xi + (x.ddIddphi()*x.vals["dphi"]**2 + x.dIdphi()*ddphiddt)/2)/H
+        rprime = 2*np.sign(xi)*xiprime
+        fcprime = (1-alpha)*H*fc + dHdt*a**(1-alpha)*r + a**(1-alpha)*H*rprime
                    
         if (fcprime >= 0):
             if((kh-fc)/kh <=1e-3):
@@ -306,7 +319,7 @@ class GEF:
         dydt[1] = x.vals["dphi"]
         dydt[2] = x.EoMphi()
         
-        dlnkhdt = x.EoMlnkh(dydt[2], x.vals["kh"])
+        dlnkhdt = x.EoMlnkh(dydt[2])
         dydt[3] = dlnkhdt
                 
         dFdt = x.EoMF(dlnkhdt)
@@ -331,6 +344,7 @@ class GEF:
         
         x.vals["kh"] = np.exp(y[3])
         x.vals["H"] = x.FriedmannEq()
+        x.vals["Hprime"] = x.FriedmannEq2()
         x.vals["xi"] = x.GetXi()
         
         return
@@ -350,13 +364,24 @@ class GEF:
             t = sol.t
             y = sol.y
             print("success:", sol.success)
-            pars = x.vals.keys()
+            parsold = list(x.vals.keys())
+            newpars = ["E1", "B1", "G1", "Edot", "Bdot", "Gdot", "ddphi", "dlnkh"]
+            pars = parsold + newpars
             res = dict(zip(pars, [[] for par in pars]))
             for i in range(len(t)):
                 x.DefineDictionary(t[i], y[:,i])
-                for par in pars:
+                ddphi = x.EoMphi()
+                res["ddphi"].append(ddphi)
+                dlnkhdt = x.EoMlnkh(ddphi)
+                res["dlnkh"].append(dlnkhdt)
+                dFdt = x.EoMF(dlnkhdt)
+                res["Edot"].append(dFdt[0,0])
+                res["Bdot"].append(dFdt[1,0])
+                res["Gdot"].append(dFdt[2,0])
+                for par in parsold:
                     if (par in ["E", "B", "G"]):
                         res[par].append(x.vals[par][0])
+                        res[par+"1"].append(x.vals[par][1])
                     else:
                         res[par].append(x.vals[par])
             for par in pars:
@@ -385,7 +410,7 @@ class GEF:
         input_df = pd.read_table(file, sep=",")
         data = dict(zip(input_df.columns[1:],input_df.values[1:,1:].T))
         
-        names = ["t", "phi", "dphi", "H", "a", "E", "B", "G", "kh"]
+        names = ["t", "phi", "dphi", "ddphi", "a", "H", "E", "B", "G", "E1", "B1", "G1", "Edot", "Bdot", "Gdot", "kh", "dlnkh"]
         #Check if data file is in order:
         for name in names:
             if name not in data.keys():
@@ -399,15 +424,15 @@ class GEF:
         x.f = x.Mpl
         x.ratio = x.omega/x.f
         
-        for key in data.keys():
-            x.vals[key] = data[key]
-            
-        if len(x.vals["t"]) == 1:
+        if len(data["t"]) == 1:
             print("It seems your table only contains one data point. This indicates a GEF run which is not yet executed. We suggest you initialise your run anew and use self.RunGEF")
             print("the completed-Flag is set to False")
             x.completed = False
+            
         else:
             x.completed = True
+        for key in data.keys():
+                x.vals[key] = data[key]
         return
             
     def Unitless(x):
@@ -421,6 +446,7 @@ class GEF:
             x.vals["phi"] = x.vals["phi"]/f
             x.vals["dphi"] = x.vals["dphi"]/(f*omega)
             x.vals["H"] = x.vals["H"]/(omega)
+            x.vals["Hprime"] = x.vals["Hprime"]/(omega)**2
             x.vals["E"] = x.vals["E"]/(omega)**4
             x.vals["B"] = x.vals["B"]/(omega)**4
             x.vals["G"] = x.vals["G"]/(omega)**4
@@ -444,6 +470,7 @@ class GEF:
             x.vals["phi"] = x.vals["phi"]*f
             x.vals["dphi"] = x.vals["dphi"]*(f*omega)
             x.vals["H"] = x.vals["H"]*(omega)
+            x.vals["Hprime"] = x.vals["Hprime"]*(omega)**2
             x.vals["E"] = x.vals["E"]*(omega)**4
             x.vals["B"] = x.vals["B"]*(omega)**4
             x.vals["G"] = x.vals["G"]*(omega)**4

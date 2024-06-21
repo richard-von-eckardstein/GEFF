@@ -15,7 +15,6 @@ from timer import Timer
 import math
 from mpmath import whitw, whitm, re, conj, gamma
 
-
 class GEF:
     def __init__(x, alpha, beta, Mpl, ini, M, ntr, SE, AltDamp=0, approx=True):
         x.units = True
@@ -51,9 +50,14 @@ class GEF:
                 elif (x.AltDamp == 2):
                     x.GaugePos = 5
                     x.deltaf = x.ApproxDeltaf
-                    x.WhittakerNoFerm = x.WhittakerApprox_NoSE
-                    x.WhittakerWithFerm = x.WhittakerApprox_WithSE
-                    x.conductivity = x.ComputeImprovedSigmaKDep
+                    if approx:
+                        x.WhittakerNoFerm = x.WhittakerApprox_NoSE
+                        x.WhittakerWithFerm = x.WhittakerApprox_WithSE
+                    else:
+                        x.WhittakerNoFerm = x.WhittakerExact
+                        x.WhittakerWithFerm = x.WhittakerExact
+                    x.conductivity = x.ComputeImprovedSigma
+                    x.EoMlnkS = x.EoMlnkSMixed
                 else:
                     x.GaugePos = 6
                     x.conductivity = x.ComputeImprovedSigma
@@ -66,13 +70,17 @@ class GEF:
                     x.GaugePos = 5
                     x.deltaf = x.ApproxDeltaf
                     #x.tferm = lambda t: t
-                    x.WhittakerNoFerm = x.WhittakerApprox_NoSE
-                    x.WhittakerWithFerm = x.WhittakerApprox_WithSE
-                    x.conductivity = x.ComputeSigmaCollinearKDep
+                    if approx:
+                        x.WhittakerNoFerm = x.WhittakerApprox_NoSE
+                        x.WhittakerWithFerm = x.WhittakerApprox_WithSE
+                    else:
+                        x.WhittakerNoFerm = x.WhittakerExact
+                        x.WhittakerWithFerm = x.WhittakerExact
+                    x.conductivity = x.ComputeSigmaCollinear
+                    x.EoMlnkS = x.EoMlnkSFrac
                 else:
                     x.GaugePos = 6
                     x.conductivity = x.ComputeSigmaCollinear
-                    x.coeff = np.zeros(x.order)
                 if(SE == 1. and approx):
                     x.Whittaker = x.WhittakerApprox_NoSE
                     x.WhittakerWithFerm = x.WhittakerApprox_NoSE
@@ -119,26 +127,8 @@ class GEF:
     
     def GetS(x, sigma):
         return (x.vals["a"]**(x.alpha) * sigma)/(2* x.vals["H"])
-    
+            
     def ComputeSigmaCollinear(x):
-        E0 = x.vals["E"][0]
-        B0 = x.vals["B"][0]
-        mu = ((E0+B0)/2)**(1/4)
-        if mu==0.:
-            return 0., 0.
-        else:
-            mz = 91.2/(2.43536e18)
-            gmz = 0.35
-            gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*x.ratio))))
-
-            frac = x.SE
-            sigma = ((x.vals["a"]**x.alpha) * (41.*gmu**3/(72.*np.pi**2 * x.vals["H"] * np.tanh(np.pi*np.sqrt(B0/E0)))))
-            sigmaE =  np.sqrt(B0) * (min(1., 1.- frac)*E0 + max(-frac, 0.)*B0) * sigma / (E0+B0)         
-            sigmaB = -np.sign(x.vals["G"][0]) * np.sqrt(E0)*(min(1., 1.+ frac)*B0 + max(frac,0.)*E0)* sigma/(E0+B0)
-            
-            return sigmaE, sigmaB
-            
-    def ComputeSigmaCollinearKDep(x):
         E0 = x.vals["E"][0]
         B0 = x.vals["B"][0]
         mu = (E0+B0)
@@ -160,44 +150,16 @@ class GEF:
             
             ks = gmu**(1/2)*E0**(1/4)*a**(1-x.alpha)
             if (ks < (a*H)):
-                #print("Scale", np.log(a), "ks", ks, )
                 sigmaE = 0.
                 sigmaB = 0.
             
             return sigmaE, sigmaB, ks
-            
-            
+
     def ComputeImprovedSigma(x):
         E0 = x.vals["E"][0]
         B0 = x.vals["B"][0]
         G0 = x.vals["G"][0]
         Sigma = np.sqrt((E0 - B0)**2 + 4*G0**2)
-        #print(Sigma)
-        if Sigma==0:
-            x.vals["sigmaE"] = 0.
-            x.vals["sigmaB"] = 0.
-            return 0., 0.
-        else:
-            mz = 91.2/(2.43536e18)
-            mu = ((Sigma)/2)**(1/4)
-            gmz = 0.35
-            gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*x.ratio))))
-
-            Eprime = np.sqrt(E0 - B0 + Sigma)
-            Bprime = np.sqrt(B0- E0 + Sigma)
-            Sum = E0 + B0 + Sigma
-
-            sigma = (x.vals["a"]**x.alpha)*(41.*gmu**3/(72.*np.pi**2)
-                     /(np.sqrt(Sigma*Sum)*x.vals["H"] * np.tanh(np.pi*Bprime/Eprime)))
-            
-            return abs(G0)*Eprime*sigma, -G0*Bprime*sigma
-        
-    def ComputeImprovedSigmaKDep(x):
-        E0 = x.vals["E"][0]
-        B0 = x.vals["B"][0]
-        G0 = x.vals["G"][0]
-        Sigma = np.sqrt((E0 - B0)**2 + 4*G0**2)
-        #print(Sigma)
         if Sigma==0:
             x.vals["sigmaE"] = 0.
             x.vals["sigmaB"] = 0.
@@ -244,22 +206,22 @@ class GEF:
         xieff = x.vals["xieff"]
         s = x.vals["s"]
         sb = xieff - x.vals["xi"]
-        r = (abs(xieff) + np.sqrt(xieff**2 + s**2 + s))
+        sqrtterm = np.sqrt(xieff**2 + s**2 + s)
+        r = (abs(xieff) + sqrtterm)
         
         fc = a**(1-alpha) * H * r
 
         dsigmaEdt = 0.
         dsigmaBdt = 0.
-        #approximation: dHdt = alphaH**2 (slow-roll)
-        fcprime = (((1-alpha)*H+a**(1-alpha)*alpha*H)*fc
-                      + np.sign(xieff)*(a**(1-alpha)*(x.ddIddphi()*x.vals["dphi"]**2
-                                                      + x.dIdphi()*ddphiddt)/2
-                                           +a*(2*alpha*H**2*sb + dsigmaBdt)/2
-                                           - a**(1-alpha)*alpha*H**2*xieff)*
-                   (1. + xieff/np.sqrt(xieff**2 + s**2 + s))
-                      + (a*(2*alpha*H**2*s + dsigmaEdt)/2 
-                         - a**(1-alpha)*alpha*H**2*s)*(abs(s) + 1/2)/np.sqrt(xieff**2 + s**2 + s))
-        #fprime = f*H
+
+        dHdt = alpha*H**2 #approximation  dHdt = alphaH**2  (slow-roll)
+        xieffprime = (-dHdt * xieff + 
+                      (x.ddIddphi()*x.vals["dphi"]**2 + x.dIdphi()*ddphiddt + a**(1-alpha)*(alpha*H*x.vals["sigmaB"] + dsigmaBdt))/2
+                     )/H
+        sEprime = (-dHdt * s + a**(1-alpha)*(alpha*H*x.vals["sigmaE"]+ dsigmaEdt)/2)/H
+        rprime = (np.sign(xieff)+xieff/sqrtterm)*xieffprime + sEprime*(s+1/2)/sqrtterm
+        fcprime = (1-alpha)*H*fc + dHdt*a**(1-alpha)*r + a**(1-alpha)*H*rprime
+        
         if (fcprime >= 0):
             if((kh-fc)/kh <=1e-3):
                 dlnkhdt = fcprime/kh
@@ -270,7 +232,7 @@ class GEF:
     
         return dlnkhdt
 
-    def EoMlnkS(x, dEdt, dBdt, dGdt):
+    def EoMlnkSMixed(x, dEdt, dBdt, dGdt):
         alpha = x.alpha
         a = x.vals["a"]
         H = x.vals["H"]
@@ -288,9 +250,27 @@ class GEF:
 
         Eprime2 = E0 - B0 + Sigma
 
-        dlnkSdt = ((1-alpha)*H + 1/2*(dEdt-dBdt)*(gmu2/8*41/(48*np.pi**2)*(E0-B0)/Sigma**2 + 1/Sigma )
-                    + dGdt*G0/Sigma*(1/4*gmu2*41/(48*np.pi**2)/Sigma + 2/(E0-B0+Sigma) ))
-    
+        dlnkSdt = ((1-alpha)*H + 1/4*(dEdt-dBdt)/Sigma*(gmu2/4*41/(48*np.pi**2)*(E0-B0)/Sigma + 1)
+                    + dGdt*G0/Sigma**2*(gmu2/4*41/(48*np.pi**2) + Sigma/Eprime2))
+        return dlnkSdt
+        
+    def EoMlnkSFrac(x, dEdt, dBdt, dGdt):
+        alpha = x.alpha
+        a = x.vals["a"]
+        H = x.vals["H"]
+
+        E0 = x.vals["E"][0]
+        B0 = x.vals["B"][0]
+        mu = (E0+B0)
+        if mu<=0:
+            return (1-alpha)*H
+        mu = (mu/2)**(1/4)
+        mz = 91.2/(2.43536e18)
+        gmz = 0.35
+        gmu2 = gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*x.ratio)))
+
+        dlnkSdt = ((1-alpha)*H + 0.25*dEdt*(gmu2/8*41/(48*np.pi**2)/mu**4 + 1/E0 )
+                    + dBdt*gmu2/32*41/(48*np.pi**2)/mu**4)
         return dlnkSdt
     
     def ApproxDeltaf(x, t):
@@ -475,10 +455,8 @@ class GEF:
         dydt[1] = x.vals["dphi"]
         dydt[2] = x.EoMphi()
         dlnkhdt = x.EoMlnkh(dydt[2])
-        dydt[3] = dlnkhdt
-        
+        dydt[3] = dlnkhdt       
         if (x.SE != None):
-            
             if (x.AltDamp == 0):
                 dydt[4] = x.EoMrhoChi()
                 dydt[5] = x.EoMDelta()
@@ -535,7 +513,7 @@ class GEF:
                 x.vals["kS"] = x.vals["kh"]
                 x.vals["rhoChi"] = y[4]
                 x.vals["H"] = x.FriedmannEq()
-                x.vals["sigmaE"], x.vals["sigmaB"] = x.conductivity()
+                x.vals["sigmaE"], x.vals["sigmaB"], _ = x.conductivity()
                 x.vals["s"] = x.GetS(x.vals["sigmaE"])
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
@@ -568,7 +546,7 @@ class GEF:
                 x.vals["delta"] = y[4]
                 x.vals["rhoChi"] = y[5]
                 x.vals["H"] = x.FriedmannEq()
-                x.vals["sigmaE"], x.vals["sigmaB"] = x.conductivity()
+                x.vals["sigmaE"], x.vals["sigmaB"], _ = x.conductivity()
                 x.vals["s"] = x.GetS(x.vals["sigmaE"])
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
@@ -966,7 +944,6 @@ class GEF:
 
     def WhittakerExactkS(x):
         xi = x.vals["xi"]
-        s = x.vals["s"]
         r = x.vals["kS"]/(x.vals["a"]*x.vals["H"])
         
         Whitt1Plus = whitw(-xi*(1j), 1/2, -2j*r)
