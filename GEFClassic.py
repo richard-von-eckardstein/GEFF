@@ -234,7 +234,7 @@ class GEF:
         
         fc = a**(1-alpha) * H * r
         
-        dHdt = x.vals["Hprime"]# #approximation  dHdt = alphaH**2  (slow-roll)
+        dHdt = 0#x.vals["Hprime"]# #approximation  dHdt = alphaH**2  (slow-roll)
         xiprime = (-dHdt * xi + (x.ddIddphi()*x.vals["dphi"]**2 + x.dIdphi()*ddphiddt)/2)/H
         rprime = 2*np.sign(xi)*xiprime
         fcprime = (1-alpha)*H*fc + dHdt*a**(1-alpha)*r + a**(1-alpha)*H*rprime
@@ -415,7 +415,7 @@ class GEF:
         for name in names:
             if name not in data.keys():
                 print("The file you provided does not contain information on the parameter " + name + ". Please provide a complete data file")
-                print("A complete file contains information on the parameters:" + names)
+                print("A complete file contains information on the parameters:", names)
                 return
             
         #Since GEF data is always stored untiless, it is assumed to be untiless when loaded
