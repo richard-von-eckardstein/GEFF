@@ -11,6 +11,7 @@ from scipy.integrate import solve_ivp, quad
 from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 from scipy.special import binom
+import matplotlib.pyplot as plt
 from timer import Timer
 import math
 from mpmath import whitw, whitm, re, conj, gamma
@@ -458,8 +459,8 @@ class GEF:
         dydt[3] = dlnkhdt       
         if (x.SE != None):
             if (x.AltDamp == 0):
-                dydt[4] = x.EoMrhoChi()
-                dydt[5] = x.EoMDelta()
+                dydt[4] = x.EoMDelta()
+                dydt[5] = x.EoMrhoChi()
                 dFdt = x.EoMF(dlnkhdt)
                 dydt[x.GaugePos:] = dFdt.reshape(x.ntr*3)
             elif (x.AltDamp == 1):
@@ -542,6 +543,11 @@ class GEF:
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])*(1-x.Ferm2)
             else:
+                F = y[x.GaugePos:]
+                F = F.reshape(x.ntr, 3)
+                x.vals["E"] = F[:,0]
+                x.vals["B"] = F[:,1]
+                x.vals["G"] = F[:,2]
                 x.vals["kh"] = np.exp(y[3])
                 x.vals["delta"] = y[4]
                 x.vals["rhoChi"] = y[5]
@@ -799,6 +805,7 @@ class GEF:
                 x.vals["GBar"] = x.vals["GBar"]*(omega)**4
             x.omega = 1.
             x.f = 1.
+            x.ratio=x.f/x.omega
             x.units = True
         else:
             print("Already Unitful")
@@ -1030,21 +1037,21 @@ class GEF:
 
     def EndOfInflation(x, tol=1e-4, plot=False):
         if x.units == True:
-            unitswereon = True
-            x.Unitless()
+            unitswereoff = False
         else:
-            unitswereon = False
+            unitswereoff = True
+            x.Unitful()
         N = x.vals["N"]
         dphi = x.vals["dphi"]
         V = x.potential()
         E = x.vals["E"]
         B = x.vals["B"]
         rhoChi = x.vals["rhoChi"]
-        f = CubicSpline(N, (dphi**2 - V + (0.5*(E+B) - rhoChi)*x.omega**2/x.f**2))
+        f = CubicSpline(N, (dphi**2 - V + (0.5*(E+B) + rhoChi)*x.omega**2/x.f**2))
         res = fsolve(f, 60, 1e-4)
         print(res)
-        if unitswereon:
-            x.Unitful()
+        if unitswereoff:
+            x.Unitless()
         if plot:
             plt.plot(N, f(N))
             plt.plot(N, np.zeros(N.size))
