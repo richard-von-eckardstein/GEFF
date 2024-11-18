@@ -207,8 +207,8 @@ class GEF:
         return np.sqrt(Hsq)
 
     def FriedmannEq2(x):
-        Hprime = (-1/2)*(x.vals["dphi"]**2/2 - x.vals["a"]**(2*x.alpha)*
-                       (x.potential() + x.ratio**2*(x.vals["E"][0]+x.vals["B"][0])/6) ) - 3/2*x.vals["H"]**2
+        Hprime = (-1/2)*(0.5 * x.vals["dphi"]**2 + x.vals["a"]**(2*x.alpha)*
+                       ( - x.potential() + x.ratio**2*(x.vals["E"][0]+x.vals["B"][0])/6) ) - 3/2*x.vals["H"]**2
         return Hprime
     
     def GetXi(x):
@@ -374,10 +374,10 @@ class GEF:
                 res["ddphi"].append(ddphi)
                 dlnkhdt = x.EoMlnkh(ddphi)
                 res["dlnkh"].append(dlnkhdt)
-                dFdt = x.EoMF(dlnkhdt)
+                dFdt = x.EoMF(0)
                 res["Edot"].append(dFdt[0,0])
-                res["Bdot"].append(dFdt[1,0])
-                res["Gdot"].append(dFdt[2,0])
+                res["Bdot"].append(dFdt[0,1])
+                res["Gdot"].append(dFdt[0,2])
                 for par in parsold:
                     if (par in ["E", "B", "G"]):
                         res[par].append(x.vals[par][0])
@@ -491,6 +491,7 @@ class GEF:
             x.vals["Gdot"] = x.vals["Gdot"]*(omega)**5
             x.omega = 1.
             x.f = 1.
+            x.ratio = 1.
             x.units = True
         else:
             print("Already Unitful")
@@ -601,7 +602,7 @@ class GEF:
         E = x.vals["E"]
         B = x.vals["B"]
         f = CubicSpline(N, (dphi**2 - V + 0.5*(E+B)*x.omega**2/x.f**2))
-        res = fsolve(f, 60, 1e-4)
+        res = fsolve(f, 61, 1e-4)
         print(res)
         if unitswereon:
             x.Unitful()
