@@ -154,7 +154,6 @@ class GEF:
         #M: set self.mass
         #ntr: sets self.ntr
         #approx: sets self.approx
-
         x.units = True
         x.completed = False
         x.alpha = 0
@@ -207,8 +206,8 @@ class GEF:
         return np.sqrt(Hsq)
 
     def FriedmannEq2(x):
-        Hprime = (-1/2)*(0.5 * x.vals["dphi"]**2 + x.vals["a"]**(2*x.alpha)*
-                       ( - x.potential() + x.ratio**2*(x.vals["E"][0]+x.vals["B"][0])/6) ) - 3/2*x.vals["H"]**2
+        Hprime = -(x.vals["dphi"]**2/3 - x.vals["a"]**(2*x.alpha)*
+                       (x.potential()/3 - x.ratio**2*(x.vals["E"][0]+x.vals["B"][0])/6) ) - (1-x.alpha)*x.vals["H"]**2
         return Hprime
     
     def GetXi(x):
@@ -365,7 +364,7 @@ class GEF:
             y = sol.y
             print("success:", sol.success)
             parsold = list(x.vals.keys())
-            newpars = ["E1", "B1", "G1", "Edot", "Bdot", "Gdot", "ddphi", "dlnkh"]
+            newpars = ["E1", "B1", "G1", "Edot", "Bdot", "Gdot", "EdotBdr", "BdotBdr", "GdotBdr", "ddphi", "dlnkh"]
             pars = parsold + newpars
             res = dict(zip(pars, [[] for par in pars]))
             for i in range(len(t)):
@@ -378,6 +377,10 @@ class GEF:
                 res["Edot"].append(dFdt[0,0])
                 res["Bdot"].append(dFdt[0,1])
                 res["Gdot"].append(dFdt[0,2])
+                dFdt = x.EoMF(dlnkhdt)
+                res["EdotBdr"].append(dFdt[0,0])
+                res["BdotBdr"].append(dFdt[0,1])
+                res["GdotBdr"].append(dFdt[0,2])
                 for par in parsold:
                     if (par in ["E", "B", "G"]):
                         res[par].append(x.vals[par][0])
@@ -410,14 +413,16 @@ class GEF:
         input_df = pd.read_table(file, sep=",")
         data = dict(zip(input_df.columns[1:],input_df.values[1:,1:].T))
         
-        names = ["t", "phi", "dphi", "ddphi", "a", "H", "E", "B", "G", "E1", "B1", "G1", "Edot", "Bdot", "Gdot", "kh", "dlnkh"]
+        names = ["t", "phi", "dphi", "ddphi", "a", "H",
+                 "E", "B", "G", "E1", "B1", "G1", "Edot", "Bdot", "Gdot",
+                 "kh", "dlnkh"]
         #Check if data file is in order:
         for name in names:
             if name not in data.keys():
                 print("The file you provided does not contain information on the parameter " + name + ". Please provide a complete data file")
                 print("A complete file contains information on the parameters:", names)
                 return
-            
+        
         #Since GEF data is always stored untiless, it is assumed to be untiless when loaded
         x.units = False
         x.omega = x.H0
@@ -433,6 +438,14 @@ class GEF:
             x.completed = True
         for key in data.keys():
                 x.vals[key] = data[key]
+
+        Bdrnames = ["EdotBdr","BdotBdr","GdotBdr"]
+        for bdrname in Bdrnames:
+            if bdrname not in data.keys():
+                x.vals["EdotBdr"] = data["Edot"]
+                x.vals["BdotBdr"] = data["Bdot"]
+                x.vals["GdotBdr"] = data["Gdot"]
+            
         return
             
     def Unitless(x):
@@ -452,12 +465,16 @@ class GEF:
             x.vals["B"] = x.vals["B"]/(omega)**4
             x.vals["G"] = x.vals["G"]/(omega)**4
             x.vals["kh"] = x.vals["kh"]/omega
+            x.vals["dlnkh"] = x.vals["dlnkh"]/omega
             x.vals["E1"] = x.vals["E1"]/(omega)**5
             x.vals["B1"] = x.vals["B1"]/(omega)**5
             x.vals["G1"] = x.vals["G1"]/(omega)**5
             x.vals["Edot"] = x.vals["Edot"]/(omega)**5
             x.vals["Bdot"] = x.vals["Bdot"]/(omega)**5
             x.vals["Gdot"] = x.vals["Gdot"]/(omega)**5
+            x.vals["EdotBdr"] = x.vals["EdotBdr"]/(omega)**5
+            x.vals["BdotBdr"] = x.vals["BdotBdr"]/(omega)**5
+            x.vals["GdotBdr"] = x.vals["GdotBdr"]/(omega)**5
             x.omega = omega
             x.f = f
             x.ratio = x.omega/x.f
@@ -483,12 +500,16 @@ class GEF:
             x.vals["B"] = x.vals["B"]*(omega)**4
             x.vals["G"] = x.vals["G"]*(omega)**4
             x.vals["kh"] = x.vals["kh"]*omega
+            x.vals["dlnkh"] = x.vals["dlnkh"]*omega
             x.vals["E1"] = x.vals["E1"]*(omega)**5
             x.vals["B1"] = x.vals["B1"]*(omega)**5
             x.vals["G1"] = x.vals["G1"]*(omega)**5
             x.vals["Edot"] = x.vals["Edot"]*(omega)**5
             x.vals["Bdot"] = x.vals["Bdot"]*(omega)**5
             x.vals["Gdot"] = x.vals["Gdot"]*(omega)**5
+            x.vals["EdotBdr"] = x.vals["EdotBdr"]*(omega)**5
+            x.vals["BdotBdr"] = x.vals["BdotBdr"]*(omega)**5
+            x.vals["GdotBdr"] = x.vals["GdotBdr"]*(omega)**5
             x.omega = 1.
             x.f = 1.
             x.ratio = 1.
