@@ -77,7 +77,7 @@ class ModeByMode:
         
         #Define suitable range of wavenumbers which can be considered given the background dynamics. mink might still change
         x.maxk = CubicSpline(x.__N, kh)(maxN)
-        x.mink = 10**(3)*kh[0]
+        x.mink = 10**4*kh[0]
         
         return
     
@@ -88,26 +88,28 @@ class ModeByMode:
         if mode=="t":
             tstart = init
             k = 10**(5/2)*x.__khf(tstart)
-        elif mode=="k":
-            k = init
-            x0 = np.log(k[0]) - 5/2*np.log(10)
-            tstart = []
-            for l in k:
-                f = lambda t: np.log(l) - np.log(x.__khf(t)) - 5/2*np.log(10)
-                ttmp = fsolve(f, x0)[0]
-                x0 = ttmp
-                tstart.append(ttmp)
-            tstart = np.array(tstart)
         elif mode=="N":
             tstart = CubicSpline(x.__N, x.__t)(init)
             k = 10**(5/2)*x.__khf(tstart)
+        elif mode=="k":
+            k = init
+            dk = np.log(init[1]/init[0])
+            print(dk)
+            x0 = np.log(k[0]) - 5/2*np.log(10) - np.log(2)
+            tstart = []
+            for l in k:
+                f = lambda t: np.log(l) - np.log(x.__khf(t)) - 5/2*np.log(10)
+                ttmp = fsolve(f, x0, xtol=dk*1e-3)[0]
+                x0 = ttmp
+                tstart.append(ttmp)
+            tstart = np.array(tstart)
         else:
             print("not a valid choice")
             return
 
         return k, tstart
     
-    def ComputeMode(x, k, tstart, teval=[], atol=1e-4, rtol=1e-3):
+    def ComputeMode(x, k, tstart, teval=[], atol=1e-2, rtol=1e-4):
         #For a given mode k=10^(5/2) k_h(tstart), solve the mode equation. teval: time points at which to evaluate the mode
         
         #Parse input
@@ -138,7 +140,7 @@ class ModeByMode:
         eta = x.__etaf(teval)
         teval = teval[istart:]
 
-        #Initial conditions for A and dAdt for both helicities (rescaled appropriately)
+        #Initial conditions for A and dAdt for both helicities
         Aini = np.array([1., -1/2*sigmaEf(tstart)/k, 0, -1.,
                          1., -1/2*sigmaEf(tstart)/k, 0, -1.])*np.sqrt( deltaf(tstart) )
         
@@ -186,9 +188,8 @@ class ModeByMode:
     
     def ComputeEBGnMode(x, AP, AM, dAP, dAM, t, ks, n=0):
         #Compute quantum expecation values ErotnE, BrotnB and ErotnB for a given time t and with 
-        #AP = A(t,k,+), AM = A(t,k,-), dAP = dAdt(t,k,+), dAM = dAdt(t,k,-) rescaled in an appropriate way
-        
-        #AP AM dAP, dAM are sqrt(2k)Ap etc.
+        #AP = sqrt(2k)*A(t,k,+), AM = sqrt(2k)*A(t,k,-), dAP = sqrt(2/k)*dAdt(t,k,+), dAM = sqrt(2/k)*dAdt(t,k,-)
+
         Es = []
         Bs = []
         Gs = []
