@@ -233,7 +233,9 @@ def RunMBM(file, Nstart, beta, EarlyModes=200, LateModes=800, cut=0.01, SE=False
     dAp = np.array([*[CubicSpline(ts1, dAp1[i,:])(ts) for i in range(len(ks))], *list(dAp2)])
     Am = np.array([*[CubicSpline(ts1, Am1[i,:])(ts) for i in range(len(ks))], *list(Am2)])
     dAm = np.array([*[CubicSpline(ts1, dAm1[i,:])(ts) for i in range(len(ks))], *list(dAm2)])
-    ks = np.array([*list(ks1), *list(ks2)])
+    ks = np.array([*list(ks1), *list(logks2)])
     
+    if(save != None):
+        SaveMode(ts, ks, Ap, dAp, Am, dAm, af, name=save+".dat")
     
     return ts, ks, Ap, dAp, Am, dAm, af(ts), khf(ts)
