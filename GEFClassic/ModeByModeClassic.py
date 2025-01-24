@@ -6,19 +6,18 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 import os
 
-
 alpha=0
 
-def ModeEoM(A, k, SclrCpl, a):
+def ModeEoM(y, k, SclrCpl, a):
     """
     Compute the time derivative of the gauge-field mode and its derivatives for a fixed wavenumber at a given moment of time t (in Hubble units)
 
     Parameters
     ----------
-    A : numpy.array
+    y : numpy.array
         contains the gauge-field mode and its derivatives for both helicities +/- (in Hubble units).
-        A[0/4] = Re( sqrt(2k)*A(t,k,+/-) ), A[2/6] = Im( sqrt(2k)*A(t,k,+/-) )
-        A[1/5] = Re( sqrt(2/k)*dAdt(t,k,+/-) ), A[3/7] = Im( sqrt(2/k)*dAdt(t,k,+/-) )
+        y[0/4] = Re( sqrt(2k)*A(t,k,+/-) ), y[2/6] = Im( sqrt(2k)*A(t,k,+/-) )
+        y[1/5] = Re( sqrt(2/k)*dAdeta(t,k,+/-) ), y[3/7] = Im( sqrt(2/k)*dAdeta(t,k,+/-) ), eta being conformal time, deta = a*dt
     k : float
         the wavenumber in Hubble units
     SclrCpl : float
@@ -28,12 +27,12 @@ def ModeEoM(A, k, SclrCpl, a):
 
     Returns
     -------
-    dAdt : array
-        an array of time derivatives of A
+    dydt : array
+        an array of time derivatives of y
 
     """
     
-    dAdt = np.zeros(A.size)
+    dydt = np.zeros(y.size)
     
     drag = 0
     dis1 = k * a**(alpha-1)
@@ -42,24 +41,24 @@ def ModeEoM(A, k, SclrCpl, a):
     #positive helicity
     lam = 1.
     #Real Part
-    dAdt[0] = A[1]*(k/a)*a**(alpha)
-    dAdt[1] = -( drag * A[1] + (dis1  - lam * dis2) * A[0] )
+    dydt[0] = y[1]*(k/a)*a**(alpha)
+    dydt[1] = -( drag * y[1] + (dis1  - lam * dis2) * y[0] )
     
     #Imaginary Part
-    dAdt[2] = A[3]*(k/a)*a**(alpha)
-    dAdt[3] = -( drag * A[3] + (dis1  - lam * dis2) * A[2] )
+    dydt[2] = y[3]*(k/a)*a**(alpha)
+    dydt[3] = -( drag * y[3] + (dis1  - lam * dis2) * y[2] )
     
     #negative helicity
     lam = -1.
     #Real Part
-    dAdt[4] = A[5]*(k/a)*a**(alpha)
-    dAdt[5] = -( drag * A[5] + (dis1  - lam * dis2) * A[4] )
+    dydt[4] = y[5]*(k/a)*a**(alpha)
+    dydt[5] = -( drag * y[5] + (dis1  - lam * dis2) * y[4] )
     
     #Imaginary Part
-    dAdt[6] = A[7]*(k/a)*a**(alpha)
-    dAdt[7] = -( drag * A[7] + (dis1  - lam * dis2) * A[6] )
+    dydt[6] = y[7]*(k/a)*a**(alpha)
+    dydt[7] = -( drag * y[7] + (dis1  - lam * dis2) * y[6] )
     
-    return dAdt
+    return dydt
 
 class ModeByMode:
     """
@@ -102,8 +101,8 @@ class ModeByMode:
         Computes the spectrum of E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n]) at a given moment of time t and a helicity lambda gusing the gauge field spectrum A(t, k, lambda)
     ComputeEBGnMode()
         Computes the expectation values E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n]) at a given moment of time t given the gauge field spectrum A(t, k, +/-). Useful for comparing GEF results to ModeByMode results.
-    
     """
+    
     #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
     def __init__(x, G):
         
@@ -194,19 +193,19 @@ class ModeByMode:
 
         Return
         ------
-        Ap : array
+        yp : array
             the positive helicity modes (rescaled), sqrt(2k)*A(teval, k, +)
-        dApdt : array
-            the derivative of the positive helicity modes (rescaled), sqrt(2/k)*dAdt(teval, k, +)
-        Am : array
+        dypdt : array
+            the derivative of the positive helicity modes (rescaled), sqrt(2/k)*dAdeta(teval, k, +)
+        ym : array
             the negative helicity modes (rescaled), sqrt(2k)*A(teval, k, -)
-        dAmdt : array
-            the derivative of the negative helicity modes (rescaled), sqrt(2/k)*dAdt(teval, k, -)
+        dymdt : array
+            the derivative of the negative helicity modes (rescaled), sqrt(2/k)*dAdeta(teval, k, -)
         """
 
         
-        #Initial conditions for A and dAdt for both helicities (rescaled appropriately)
-        Aini = np.array([1., 0, 0, -1., 1, 0, 0, -1.])
+        #Initial conditions for y and dydt for both helicities (rescaled appropriately)
+        yini = np.array([1., 0, 0, -1., 1, 0, 0, -1.])
         
         #Define ODE to solve
         ode = lambda t, y: ModeEoM(y, k, x.__SclrCplf(t), x.__af(t))
@@ -227,22 +226,22 @@ class ModeByMode:
         teval = teval[istart:]
         
         #Solve differential equation from tstart to tmax
-        sol = solve_ivp(ode, [tstart, tmax], Aini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
+        sol = solve_ivp(ode, [tstart, tmax], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
         
         #the mode was in vacuum before tstart
         vac = list( np.exp(-1j*eta[:istart]*k) )
         dvac = list( -1j*np.exp(-1j*eta[:istart]*k) )
 
         #Create array of mode evolution stringing together vacuum and non-vacuum time evolutions to get evolution from t0 to tend
-        Ap = np.array( vac + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )
-        dApdt = np.array( dvac + list( (sol.y[1,:] + 1j*sol.y[3,:])*np.exp(-1j*k*eta[istart]) ) )
+        yp = np.array( vac + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )
+        dypdt = np.array( dvac + list( (sol.y[1,:] + 1j*sol.y[3,:])*np.exp(-1j*k*eta[istart]) ) )
         
-        Am = np.array( vac + list( (sol.y[4,:] + 1j*sol.y[6,:])*np.exp(-1j*k*eta[istart]) ) )
-        dAmdt = np.array( dvac + list( (sol.y[5,:] + 1j*sol.y[7,:])*np.exp(-1j*k*eta[istart]) ) )
+        ym = np.array( vac + list( (sol.y[4,:] + 1j*sol.y[6,:])*np.exp(-1j*k*eta[istart]) ) )
+        dymdt = np.array( dvac + list( (sol.y[5,:] + 1j*sol.y[7,:])*np.exp(-1j*k*eta[istart]) ) )
 
-        return Ap, dApdt, Am, dAmdt
+        return yp, dypdt, ym, dymdt
     
-    def EBGnSpec(x, k, lam, Alam, dAlam, a, n):
+    def EBGnSpec(x, k, lam, ylam, dylam, a, n):
         """
         Input
         -----
@@ -250,10 +249,10 @@ class ModeByMode:
             the wavenumber for which the spectrum should be computed
         lam : float
             the helicity of the spectrum (either +1 or -1)
-        Alam : float
+        ylam : float
             the mode function sqrt(2k) A(t,k,lam) for a given wavenumber k and helicity lam evaluated at time t
-        dAlam : float
-            the mode-function derivative, sqrt(2/k) dAdt(t,k,lam) for a given wavenumber k and helicity lam evaluated at time t
+        dylam : float
+            the mode-function derivative, sqrt(2/k) dAdeta(t,k,lam) for a given wavenumber k and helicity lam evaluated at time t
         a : float
             the scale factor at time t
         n : int
@@ -269,11 +268,11 @@ class ModeByMode:
             the spectrum of -1/a^n E rot^n B for wavenumber k and helicity lam
         """
     
-        Eterm = abs(dAlam)**2
+        Eterm = abs(dylam)**2
 
-        Bterm = abs(Alam)**2
+        Bterm = abs(ylam)**2
 
-        Gterm = lam*(Alam.conjugate() * dAlam).real
+        Gterm = lam*(ylam.conjugate() * dylam).real
 
         #prefac modified to account for sqrt(2k) factor in modes
         prefac = lam**n * 1/(2*np.pi)**2 * (k/a)**(n+3)/a
@@ -288,18 +287,18 @@ class ModeByMode:
         G = prefac * Gterm
         return E, B, G
     
-    def ComputeEBGnMode(x, AP, AM, dAP, dAM, t, ks, n=0):
+    def ComputeEBGnMode(x, yP, yM, dyP, dyM, t, ks, n=0):
         """
         Input
         -----
-        AP : array
+        yP : array
             the positive-helicity mode sqrt(2ks)*A(t,ks,+) for a fixed time t
-        AM : array
+        yM : array
             the negative-helicity mode sqrt(2ks)*A(t,ks,-) for a fixed time t
-        dAP : array
-            the positive-helicity mode's derivative sqrt(2/ks)*dAdt(t,ks,+) for a fixed time t
-        dAM : array
-            the negative-helicity mode's derivative sqrt(2/ks)*dAdt(t,ks,+) for a fixed time t
+        dyP : array
+            the positive-helicity mode's derivative sqrt(2/ks)*dAdeta(t,ks,+) for a fixed time t
+        dyM : array
+            the negative-helicity mode's derivative sqrt(2/ks)*dAdeta(t,ks,+) for a fixed time t
         t : float
             the physical time at which to evaluate the function
         ks : array
@@ -321,8 +320,8 @@ class ModeByMode:
         Gs = []
         for i, k in enumerate(ks):
             if k < x.__khf(t) and k > x.mink:
-                Ep, Bp, Gp = x.EBGnSpec(k, 1.0, AP[i], dAP[i], x.__af(t), n)
-                Em, Bm, Gm = x.EBGnSpec(k, -1.0, AM[i], dAM[i], x.__af(t), n)
+                Ep, Bp, Gp = x.EBGnSpec(k, 1.0, yP[i], dyP[i], x.__af(t), n)
+                Em, Bm, Gm = x.EBGnSpec(k, -1.0, yM[i], dyM[i], x.__af(t), n)
                 Es.append(Ep + Em)
                 Bs.append(Bp + Bm)
                 Gs.append(Gp + Gm)
@@ -340,7 +339,7 @@ class ModeByMode:
 
         return En, Bn, Gn
 
-    def SaveMode(x, t, ks, Ap, dAp, Am, dAm, name=None):
+    def SaveMode(x, t, ks, yp, dyp, ym, dym, name=None):
         logk = np.log10(ks)
         N = list(np.log(x.__af(t)))
         N = np.array([np.nan]+N)
@@ -348,13 +347,13 @@ class ModeByMode:
         dic = {"t":t}
         dic = dict(dic, **{"N":N})
         for k in range(len(logk)):
-            dictmp = {"Ap_" + str(k) :np.array([logk[k]] + list(Ap[k,:]))}
+            dictmp = {"yp_" + str(k) :np.array([logk[k]] + list(yp[k,:]))}
             dic = dict(dic, **dictmp)
-            dictmp = {"Am_" + str(k) :np.array([logk[k]] + list(dAp[k,:]))}
+            dictmp = {"ym_" + str(k) :np.array([logk[k]] + list(dyp[k,:]))}
             dic = dict(dic, **dictmp)
-            dictmp = {"dAp_" + str(k):np.array([logk[k]] + list(Am[k,:]))}
+            dictmp = {"dyp_" + str(k):np.array([logk[k]] + list(ym[k,:]))}
             dic = dict(dic, **dictmp)
-            dictmp = {"dAm_" + str(k):np.array([logk[k]] + list(dAm[k,:]))}
+            dictmp = {"dym_" + str(k):np.array([logk[k]] + list(dym[k,:]))}
             dic = dict(dic, **dictmp)
             
         if(name==None):
@@ -379,28 +378,18 @@ class ModeByMode:
             file = os.path.join(DirName, filename)
             
         input_df = pd.read_table(file, sep=",")
-        dataAp = input_df.values
+        datayp = input_df.values
     
-        x = np.arange(3,dataAp.shape[1], 4)
+        x = np.arange(3,datayp.shape[1], 4)
         
-        t = np.array(dataAp[1:,1])
-        N = np.array(dataAp[1:,2])
-        logk = np.array([(complex(dataAp[0,y])).real for y in x])
-        Ap = np.array([[complex(dataAp[i+1,y]) for i in range(len(N))] for y in x])
-        dAp = np.array([[complex(dataAp[i+1,y+1]) for i in range(len(N))] for y in x])
-        Am = np.array([[complex(dataAp[i+1,y+2]) for i in range(len(N))] for y in x])
-        dAm = np.array([[complex(dataAp[i+1,y+3]) for i in range(len(N))] for y in x])
+        t = np.array(datayp[1:,1])
+        N = np.array(datayp[1:,2])
+        logk = np.array([(complex(datayp[0,y])).real for y in x])
+        yp = np.array([[complex(datayp[i+1,y]) for i in range(len(N))] for y in x])
+        dyp = np.array([[complex(datayp[i+1,y+1]) for i in range(len(N))] for y in x])
+        ym = np.array([[complex(datayp[i+1,y+2]) for i in range(len(N))] for y in x])
+        dym = np.array([[complex(datayp[i+1,y+3]) for i in range(len(N))] for y in x])
 
         k = 10**logk
         
-        return t, N, k, Ap, dAp, Am, dAm
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+        return t, N, k, yp, dyp, ym, dym
