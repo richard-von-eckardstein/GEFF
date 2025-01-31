@@ -8,7 +8,7 @@ import pandas as pd
 import math
 from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
-from timer import Timer
+from ..Common.timer import Timer
 import os
 
 alpha = 0
@@ -180,7 +180,7 @@ def ComputeEBGnModeInterp(AP, AM, dAP, dAM, a, ks, kh, n):
 
     return En, Bn, Gn
 
-def RunMBM(file, Nstart, EarlyModes=200, LateModes=800, cut=0.01, SE=False, save=None):
+def RunMBM(file, Nstart, beta, EarlyModes=200, LateModes=800, cut=0.01, SE=False, save=None):
     input_df = pd.read_table(file, sep=",")
     data = input_df.values
     tR = data[1:,1]

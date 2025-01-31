@@ -1,49 +1,13 @@
 import pandas as pd
-import os
 import sys
+sys.path.insert(0,"../")
 import numpy as np
-from scipy.integrate import solve_ivp, quad
+from scipy.integrate import solve_ivp
 from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
-from scipy.special import binom
-from timer import Timer
+from Common.timer import Timer
 import math
-from mpmath import whitw, re, conj, gamma
-import time
-
-class Timer:
-
-    def __init__(self):
-
-        self._start_time = None
-
-
-    def start(self):
-
-        """Start a new timer"""
-
-        if self._start_time is not None:
-
-            raise TimerError(f"Timer is running. Use .stop() to stop it")
-
-
-        self._start_time = time.perf_counter()
-
-
-    def stop(self):
-
-        """Stop the timer, and report the elapsed time"""
-
-        if self._start_time is None:
-
-            raise TimerError(f"Timer is not running. Use .start() to start it")
-
-
-        elapsed_time = time.perf_counter() - self._start_time
-
-        self._start_time = None
-
-        print(f"Elapsed time: {elapsed_time:0.4f} seconds")
+from mpmath import whitw
 
 
 class GEF:
@@ -353,7 +317,8 @@ class GEF:
         yini = x.InitialiseGEF()
         ODE = lambda t, y: x.TimeStep(t, y)
         t.start()
-        sol = solve_ivp(ODE, [t0,t1], yini, method="RK45", atol=atol, rtol=rtol)
+        teval = np.arange(t0, t1+0.1, 0.1)
+        sol = solve_ivp(ODE, [t0,t1], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
         t.stop()
         return sol
     
@@ -610,7 +575,7 @@ class GEF:
 
         return Fterm
     
-    def EndOfInflation(x, tol=1e-4, plot=False):
+    def EndOfInflation(x, tol=1e-4):
         if x.units == True:
             unitswereon = True
             x.Unitless()
@@ -627,13 +592,6 @@ class GEF:
         print(res)
         if unitswereon:
             x.Unitful()
-        if plot:
-            plt.plot(N, f(N))
-            plt.plot(N, np.zeros(N.size))
-            plt.xlim(60, max(N))
-            plt.ylim(-0.01,0.01)
-            plt.vlines(res, -1e-2, 1e-2, "k")
-            plt.show()       
         return res
    
             

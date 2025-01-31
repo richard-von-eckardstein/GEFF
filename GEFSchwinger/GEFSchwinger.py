@@ -1,20 +1,23 @@
 ###Working Version for SE=-1, includes Boundary Corrections and Damping Corrections (properly) for sigmaE and sigmaB
 ###Working Version for SE=1 (very slow for 1 bdr corr)
+###Working Version for SE=mix, includes Boundary Corrections and Damping Corrections (properly) for sigmaE and sigmaB
 ###Alt Damp=1 properly implemented
-###One less parameter wrt v11, more efficient
 
-import pandas as pd
+
+
 import os
 import sys
+sys.path.insert(0, "../")
+
+import pandas as pd
 import numpy as np
+
 from scipy.integrate import solve_ivp, quad
 from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
-from scipy.special import binom
-import matplotlib.pyplot as plt
-from timer import Timer
+from Common.timer import Timer
 import math
-from mpmath import whitw, whitm, re, conj, gamma
+from mpmath import whitw, whitm, gamma
 
 class GEF:
     def __init__(x, alpha, beta, Mpl, ini, M, ntr, SE, AltDamp=0, approx=True):
@@ -698,7 +701,7 @@ class GEF:
                 if(x.AltDamp == 1):
                     filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+"_AltDamp_v4.dat"
                 elif(x.AltDamp == 2):
-                    filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+"_KDep"+ suffix + ".dat"
+                    filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+"_KDep"  + ".dat"
                 else:
                     filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+".dat"
                 DirName = os.getcwd()
@@ -1035,7 +1038,7 @@ class GEF:
         F[2,1] = x.Gmf(t)
         return F
 
-    def EndOfInflation(x, tol=1e-4, plot=False):
+    def EndOfInflation(x, tol=1e-4):
         if x.units == True:
             unitswereoff = False
         else:
@@ -1051,13 +1054,6 @@ class GEF:
         res = fsolve(f, 60, 1e-4)
         print(res)
         if unitswereoff:
-            x.Unitless()
-        if plot:
-            plt.plot(N, f(N))
-            plt.plot(N, np.zeros(N.size))
-            plt.xlim(60, max(N))
-            plt.ylim(-0.01,0.01)
-            plt.vlines(res, -1e-2, 1e-2, "k")
-            plt.show()       
+            x.Unitless()    
         return res
             
