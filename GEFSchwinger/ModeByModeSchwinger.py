@@ -8,6 +8,31 @@ import os
 
 alpha=0
 
+def ReadMode(x, file=None):
+    if(file==None):
+        filename = "Modes+Beta" + str(x.__beta) + "+M6_16" + ".dat"
+        DirName = os.getcwd()
+
+        file = os.path.join(DirName, filename)
+        
+    input_df = pd.read_table(file, sep=",")
+    dataAp = input_df.values
+
+    x = np.arange(3,dataAp.shape[1], 4)
+    
+    t = np.array(dataAp[1:,1])
+    N = np.array(dataAp[1:,2])
+    logk = np.array([(complex(dataAp[0,y])).real for y in x])
+    Ap = np.array([[complex(dataAp[i+1,y]) for i in range(len(N))] for y in x])
+    dAp = np.array([[complex(dataAp[i+1,y+1]) for i in range(len(N))] for y in x])
+    Am = np.array([[complex(dataAp[i+1,y+2]) for i in range(len(N))] for y in x])
+    dAm = np.array([[complex(dataAp[i+1,y+3]) for i in range(len(N))] for y in x])
+
+    k = 10**logk
+    
+    return t, N, k, Ap, dAp, Am, dAm
+    
+
 def ModeEoM(A, k, a, SclrCpl, sigmaE, sigmaB):
     #Compute dA2dt2 for a given gauge-field mode with wavenumber k for both helicities
     #A is the mode function and its derivative, k is the wavenumber, SclrCpl is phidot*dI2, a is the scale factor
@@ -109,7 +134,7 @@ class ModeByMode:
 
         return k, tstart
     
-    def ComputeMode(x, k, tstart, teval=[], atol=1e-2, rtol=1e-4):
+    def ComputeMode(x, k, tstart, teval=[], atol=1e-3, rtol=1e-5):
         #For a given mode k=10^(5/2) k_h(tstart), solve the mode equation. teval: time points at which to evaluate the mode
         
         #Parse input
@@ -245,30 +270,7 @@ class ModeByMode:
         
         return
 
-    def ReadMode(x, file=None):
-        if(file==None):
-            filename = "Modes+Beta" + str(x.__beta) + "+M6_16" + ".dat"
-            DirName = os.getcwd()
-    
-            file = os.path.join(DirName, filename)
-            
-        input_df = pd.read_table(file, sep=",")
-        dataAp = input_df.values
-    
-        x = np.arange(3,dataAp.shape[1], 4)
-        
-        t = np.array(dataAp[1:,1])
-        N = np.array(dataAp[1:,2])
-        logk = np.array([(complex(dataAp[0,y])).real for y in x])
-        Ap = np.array([[complex(dataAp[i+1,y]) for i in range(len(N))] for y in x])
-        dAp = np.array([[complex(dataAp[i+1,y+1]) for i in range(len(N))] for y in x])
-        Am = np.array([[complex(dataAp[i+1,y+2]) for i in range(len(N))] for y in x])
-        dAm = np.array([[complex(dataAp[i+1,y+3]) for i in range(len(N))] for y in x])
 
-        k = 10**logk
-        
-        return t, N, k, Ap, dAp, Am, dAm
-    
     
     
     
