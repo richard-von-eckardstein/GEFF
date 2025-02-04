@@ -134,7 +134,7 @@ class ModeByMode:
 
         return k, tstart
     
-    def ComputeMode(x, k, tstart, teval=[], atol=1e-2, rtol=1e-4):
+    def ComputeMode(x, k, tstart, teval=[], atol=1e-3, rtol=1e-5):
         #For a given mode k=10^(5/2) k_h(tstart), solve the mode equation. teval: time points at which to evaluate the mode
         
         #Parse input
