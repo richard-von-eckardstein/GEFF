@@ -230,9 +230,8 @@ class PowSpecT:
         if Nfin==None:
             Nfin = x.__Nend
         
-        indend = 0
-        while Ngrid[indend] < Nfin:
-            indend+=1
+        inds = np.where(Ngrid < Nfin)[0]
+        indend = inds[-1]
 
         PT = {"tot":[], "vac":[], "ind+,++":[], "ind+,+-":[], "ind+,--":[], "ind-,++":[], "ind-,+-":[], "ind-,--":[]}
 
@@ -277,7 +276,8 @@ class PowSpecT:
         PT["tot"] = np.zeros(ks.shape)
         for key in PT.keys():
             PT[key] = np.array(PT[key])
-            if "+" or "-" in key:
+            if ("+" in key) or ("-" in key):
+                print(key)
                 PT["tot"] += 0.5*PT[key]
             elif key=="vac":
                 PT["tot"] += PT[key]
@@ -294,7 +294,7 @@ class PowSpecT:
 
     def PTtoOmega(x, PT, k):
         f = x.ktofreq(k)
-        OmegaGW = h**2*omega_r*2/24  * PT * (g_rho(f, True)/g_rho_0) * (g_s_0/g_s(f, True))**(4/3)
+        OmegaGW = h**2*omega_r/24  * PT * (g_rho(f, True)/g_rho_0) * (g_s_0/g_s(f, True))**(4/3)
         return OmegaGW
     
     def PTAnalytical(x):
@@ -309,6 +309,6 @@ class PowSpecT:
             indM = pre * 8.6e-7 * H**2 * np.exp(4*np.pi*xi)/xi**6
         
         #Factors of two to match my convention
-        PTanalytic = {"tot":(2*(1 + (1 - 0.73)*x.__nT)*pre + indP + indM), "vac":2*pre*(1 + (1 - 0.73)*x.__nT), "ind+":2*indP, "ind-":2*indM}
+        PTanalytic = {"tot":(2*pre + indP + indM), "vac":2*pre, "ind+":2*indP, "ind-":2*indM}
         return PTanalytic
 
