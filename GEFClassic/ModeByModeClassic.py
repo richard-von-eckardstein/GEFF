@@ -8,6 +8,30 @@ import os
 
 alpha=0
 
+def ReadMode(file=None):
+        if(file==None):
+            filename = "Modes+Beta" + str(x.__beta) + "+M6_16" + ".dat"
+            DirName = os.getcwd()
+    
+            file = os.path.join(DirName, filename)
+            
+        input_df = pd.read_table(file, sep=",")
+        datayp = input_df.values
+    
+        x = np.arange(3,datayp.shape[1], 4)
+        
+        t = np.array(datayp[1:,1])
+        N = np.array(datayp[1:,2])
+        logk = np.array([(complex(datayp[0,y])).real for y in x])
+        yp = np.array([[complex(datayp[i+1,y]) for i in range(len(N))] for y in x])
+        dyp = np.array([[complex(datayp[i+1,y+1]) for i in range(len(N))] for y in x])
+        ym = np.array([[complex(datayp[i+1,y+2]) for i in range(len(N))] for y in x])
+        dym = np.array([[complex(datayp[i+1,y+3]) for i in range(len(N))] for y in x])
+
+        k = 10**logk
+        
+        return t, N, k, yp, dyp, ym, dym
+
 def ModeEoM(y, k, SclrCpl, a):
     """
     Compute the time derivative of the gauge-field mode and its derivatives for a fixed wavenumber at a given moment of time t (in Hubble units)
@@ -370,26 +394,4 @@ class ModeByMode:
         
         return
 
-    def ReadMode(x, file=None):
-        if(file==None):
-            filename = "Modes+Beta" + str(x.__beta) + "+M6_16" + ".dat"
-            DirName = os.getcwd()
     
-            file = os.path.join(DirName, filename)
-            
-        input_df = pd.read_table(file, sep=",")
-        datayp = input_df.values
-    
-        x = np.arange(3,datayp.shape[1], 4)
-        
-        t = np.array(datayp[1:,1])
-        N = np.array(datayp[1:,2])
-        logk = np.array([(complex(datayp[0,y])).real for y in x])
-        yp = np.array([[complex(datayp[i+1,y]) for i in range(len(N))] for y in x])
-        dyp = np.array([[complex(datayp[i+1,y+1]) for i in range(len(N))] for y in x])
-        ym = np.array([[complex(datayp[i+1,y+2]) for i in range(len(N))] for y in x])
-        dym = np.array([[complex(datayp[i+1,y+3]) for i in range(len(N))] for y in x])
-
-        k = 10**logk
-        
-        return t, N, k, yp, dyp, ym, dym
