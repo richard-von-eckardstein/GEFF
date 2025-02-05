@@ -1,6 +1,8 @@
 import os
-#from ..GEFClassic.GEFClassic import GEF as GEFClassic
-#from ..GEFSchwinger.GEFSchwinger import GEF as GEFSchwinger
+import sys
+sys.path.append("../")
+from GEFClassic.GEFClassic import GEF as GEFClassic
+from GEFSchwinger.GEFSchwinger import GEF as GEFSchwinger
 import importlib.util as util
 from types import ModuleType
 import warnings
@@ -16,7 +18,7 @@ def load_GEFConfig(GEFFile: str):
 
 def check_GEFConfig(GEFconfig: ModuleType):
     #Check if necessary input is given, if not, raise an error
-    necessaryInput = ["beta", "V", "dVdphi", "init"]
+    necessaryInput = ["beta", "V", "dVdphi", "InitialConditions"]
 
     for key in necessaryInput:
         if not hasattr(GEFconfig, key):
@@ -53,23 +55,23 @@ def check_GEFConfig(GEFconfig: ModuleType):
     
     PhiKeys = ["phi", "dphi"]
     try:
-        keys = GEFconfig.init.keys()
+        keys = GEFconfig.InitialConditions.keys()
         for PhiKey in PhiKeys:
             assert PhiKey in keys
-            assert isinstance(GEFconfig.init[PhiKey], float)
+            assert isinstance(GEFconfig.InitialConditions[PhiKey], float)
         warn = False
         for key in keys:
             if "E" in key or "B" in key or "G" in "key":
                 warn = True
         if warn:
-            warning = "\nGiving initial data for bilinear gauge field expectation values is not yet implemented. Keys in 'init' refering to gauge-fields will be ignored."
+            warning = "\nGiving initial data for bilinear gauge field expectation values is not yet implemented. Keys in 'InitialConditions' refering to gauge-fields will be ignored."
             warnings.warn(warning)
 
     except AttributeError:
-        error =  "'init' must be a dictionary"
+        error =  "'InitialConditions' must be a dictionary"
         raise AttributeError(error)
     except AssertionError:
-        error = "'init' must contain initial data for the inflaton field with keys 'phi' and 'dphi'"
+        error = "'InitialConditions' must contain initial data for the inflaton field with keys 'phi' and 'dphi'"
         raise Exception(error)
 
     if not isinstance(GEFconfig.SE, bool):
@@ -78,8 +80,8 @@ def check_GEFConfig(GEFconfig: ModuleType):
         
    
     if GEFconfig.SE:
-        if (not (GEFconfig.SEModel in ["KDep", "Del1"]) or (GEFconfig.SEModel==None)):
-            error =  f"'SEModel' must be 'KDep', 'Del1' or None"
+        if not (GEFconfig.SEModel in ["KDep", "Del1", "Old"]):
+            error =  f"'SEModel' must be 'KDep', 'Del1' or 'Old'"
             raise Exception(error)
         
         if not (GEFconfig.SEPicture in ["electric", "magnetic", "mixed"]):
@@ -102,9 +104,57 @@ def check_GEFConfig(GEFconfig: ModuleType):
             GEFconfig.MbMFile=None
             warnings.warn(warning)
     elif not GEFconfig.MbMFile==None:
-        warning =  f"\n'GEFFile' must be a path to a file or None. This input will be ignored"
+        warning =  f"\n'MbMFile' must be a path to a file or None. Will be set to None."
         GEFconfig.MbMFile=None
         warnings.warn(warning)
     
     return GEFconfig
+
+def CreateGEF(GEFFile: str, ntr: int, approx=True):
+    #Load GEF configurations and check for consistency
+    GEFconfig = load_GEFConfig(GEFFile)
+    GEFconfig = check_GEFConfig(GEFconfig)
+
+    #common input:
+    Mpl = 1.
+
+    beta = GEFconfig.beta
+
+    V = GEFconfig.V
+    dV = GEFconfig.dVdphi
+    
+    #For now, assume the potential contains only a mass term.
+    M = abs(dV(1.))**(1/2)
+
+    InitialConditions = GEFconfig.InitialConditions
+
+    #Setup Schwinger GEF or Classic GEF depending on GEFconfig.SE
+    if GEFconfig.SE:
+        alpha = 0
+        if GEFconfig.SEModel=="Old":
+            AltDamp=0
+        elif GEFconfig.SEModel=="Del1":
+            AltDamp=1
+        elif GEFconfig.SEModel=="KDep":
+            AltDamp=2
+
+        if GEFconfig.SEPicture=="electric":
+            SE=-1
+        elif GEFconfig.SEPicture=="magnetic":
+            SE=1
+        elif GEFconfig.SEPicture=="mixed":
+            SE="mix"
+
+        G = GEFSchwinger(alpha, beta, Mpl, InitialConditions, M, ntr, SE, AltDamp=AltDamp, approx=approx)
+    else:
+        G = GEFClassic(beta, Mpl, InitialConditions, M, ntr, approx=approx)
+
+    if GEFconfig.GEFFile==None:
+        print("No existing GEF data found. You can specify a file to load using GEF.LoadData or solve the GEF equations using GEF.RunGEF.")
+    else:
+        G.LoadData(GEFconfig.GEFFile)
+        G.Unitful()
+
+    return G
+
 
