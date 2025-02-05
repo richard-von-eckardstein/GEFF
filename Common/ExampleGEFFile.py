@@ -1,7 +1,7 @@
 
 
 #Define the inflaton--gauge-field coupling strength beta/M_pl \phi F Ftilde
-beta=10
+beta = 10
 
 #Define Potentials (in Planck units)
 m = 6e-6
@@ -20,18 +20,18 @@ init = {"phi":phi0, "dphi":dphidt0}
 
 
 #Toggle Schwinger Effect (True/False)
-SE=False
+SE=True
 
 #Decide Schwinger Effect Treatment ("KDep", "Del1", None)
-SEMode="KDep"
+SEModel="KDep"
 
 #Decide Schwinger Effect picture ("electric", "magnetic", "mixed")
 SEPicture="mixed"
 
 #Path to file containing available GEF data given the above input. If None, it is assumed that no GEF data exists.
-GEFFile=None
+GEFFile="be"#None
 
 #Path to file containing available Mode-by-Mode data given the above input. If None, it is assumed that no Mode-by-Mode data exists.
-ModeFile=None
+MbMFile=None
 
 
