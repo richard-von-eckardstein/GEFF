@@ -122,16 +122,11 @@ def CreateGEF(GEFFile: str, approx=True):
 
     V = GEFconfig.V
     dV = GEFconfig.dVdphi
-    
-    #For now, assume the potential contains only a mass term.
-    M = abs(dV(1.))**(1/2)
 
     InitialConditions = GEFconfig.InitialConditions
 
     #Setup Schwinger GEF or Classic GEF depending on GEFconfig.SE
     if GEFconfig.SE:
-        alpha = 0
-
         if GEFconfig.SEPicture=="electric":
             SE=-1
         elif GEFconfig.SEPicture=="magnetic":
@@ -141,7 +136,7 @@ def CreateGEF(GEFFile: str, approx=True):
 
         G = GEFSchwinger(beta, InitialConditions, V, dV, SEPicture=SE, SEModel=GEFconfig.SEModel, GEFData=GEFconfig.GEFFile, ModeData=GEFconfig.MbMFile, approx=approx)
     else:
-        G = GEFClassic(beta, Mpl, InitialConditions, M, ntr, approx=approx)
+        G = GEFClassic(beta, InitialConditions, V, dV, GEFData=GEFconfig.GEFFile, ModeData=GEFconfig.MbMFile, approx=approx)
 
     if GEFconfig.GEFFile==None:
         print("No existing GEF data found. You can specify a file to load using GEF.LoadData or solve the GEF equations using GEF.RunGEF.")

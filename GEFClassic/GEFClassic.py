@@ -1,5 +1,6 @@
 import pandas as pd
 import sys
+import os
 sys.path.insert(0,"../")
 import numpy as np
 from scipy.integrate import solve_ivp
@@ -24,9 +25,11 @@ class GEF:
     alpha : int
         Parameter allwoing to switch between physical time and alpha time. Currently, alpha=0 is hardcoded (equations are solved in physical time t)
     beta : float
-        Coupling strength of the inflaton to the gauge fields, I_2(phi) = beta7Mpl
-    mass : 
-        Inflaton mass
+        Coupling strength of the inflaton to the gauge fields, I_2(phi) = beta/Mpl
+    V : function
+        The potential as a function of the inflaton field in Planck units.
+    dV : function
+        The potential derivative as a function of the inflaton field in Planck units.
     ntr : int
         order in bilinear expectation values at which GEF equations are truncated
     vals : dictionary
@@ -62,6 +65,10 @@ class GEF:
         initial value of the Hubble rate in the dimensional unit system. Used for unit conversion.
     Mpl : float
         value of the Planck mass in the dimensional unit system. Used for unit conversion.
+    GEFData : None | str
+        Path to file where GEF results are stored
+    ModeData : None | str
+        Path to file where Mode By Mode results are stored
         
     ...
     
@@ -94,12 +101,12 @@ class GEF:
         Evolves the GEF system of equations by one time step, can be passed to solve_ivp
     DefineDictionary(t, y)
         stores the values in t and y from TimeStep() into the dictionary self.vals
-    SolveGEF(t0=0., t1=120., atol=1e-6, rtol=1e-3)
+    SolveGEF(ntr, t0=0., t1=120., atol=1e-6, rtol=1e-3)
         Solve the GEF system from time t0 to t1 with the given tolerances for solve_ivp
-    SaveData(outdir)
-        store the GEF results in a file under the path specified in outdir
-    LoadData(file)
-        load GEF results from the specified file
+    SaveData()
+        store the GEF results in a file under the path GEF.GEFData or a default path.
+    LoadData()
+        load GEF results from GEF.GEFData
     Unitless()
         Convert all values in self.vals and all EoMs such that they assume dimensionless quantities
     Unitful()
@@ -108,7 +115,7 @@ class GEF:
         Find the end of inflation from self.vals by solving for ddot(a) = 0.
     """
  
-    def __init__(x, beta, Mpl, ini, M, ntr, approx=True):
+    def __init__(x, beta: float, ini: dict, V, dV, GEFData: None|str=None, ModeData: None|str=None, approx: bool=True):
         #beta: axial coupling strenght I_2(phi) = beta/M_P
         #Mpl: numerical value of the Planck mass. In Planck units, Mpl = 1
         #ini: a dictionary specifying the initial conditions for the GEF. 
@@ -121,37 +128,38 @@ class GEF:
         x.units = True
         x.completed = False
         x.alpha = 0
+
         x.beta = beta
-        x.mass = M
+        
+        x.V = V
+        x.dV = dV
+
         x.vals = ini.copy()
-        x.ntr = ntr+1
+
+        x.GEFData = GEFData
+        x.ModeData = ModeData
+
         if(approx):
             x.Whittaker = x.WhittakerApprox
         else:
             x.Whittaker = x.WhittakerExact
+        
         x.approx = approx
         x.omega = 1.
         x.f = 1.
         x.ratio = 1.
         #Need Unitful Potential once, to compute omega
-        x.H0 = np.sqrt((0.5*x.vals["dphi"]**2 + x.potential())/(3*Mpl**2))
-        x.Mpl = Mpl
+        x.H0 = np.sqrt( ( 0.5*x.vals["dphi"]**2 + x.V(x.vals["phi"]) )/3 )
+        x.Mpl = 1.
     
     #Potentials and Couplings
     def potential(x):
         phi = x.f*x.vals["phi"]
-        V = 0.5*phi**2*x.mass**2
-        return V / (x.f*x.omega)**2
+        return x.V(phi) / (x.f*x.omega)**2
     
     def dVdphi(x):
         phi = x.f*x.vals["phi"]
-        dV = phi*x.mass**2
-        return dV/(x.f*x.omega**2)
-
-    def ddVddphi(x):
-        phi = x.f*x.vals["phi"]
-        ddV = x.mass**2
-        return ddV/(x.omega**2)
+        return x.dV(phi)/(x.f*x.omega**2)
 
     def dIdphi(x):
         phi = x.f*x.vals["phi"]
@@ -322,7 +330,8 @@ class GEF:
         t.stop()
         return sol
     
-    def RunGEF(x, t0=0., t1=120., atol=1e-6, rtol=1e-3):
+    def RunGEF(x, ntr, t0=0., t1=120., atol=1e-6, rtol=1e-3):
+        x.ntr = ntr+1
         if not(x.completed):
             sol = x.SolveGEF(t0, t1, atol=atol, rtol=rtol)
             t = sol.t
@@ -361,21 +370,35 @@ class GEF:
             print("This run is already completed, access data using GEF.vals")
             return
         
-    def SaveData(x, outdir):
+    def SaveData(x):
         if (x.completed):
             #x.Unitful()
             #Data is always stored without units
-            x.Unitless()
-            path = outdir
-            
+            if x.GEFData==None:
+                filename = f"Out/GEF_Beta{x.beta}_SE{x.SEPicture}_{x.SEModel}.dat"
+                DirName = os.getcwd()
+                path = os.path.join(DirName, filename)
+            else:
+                path = x.GEFData
 
             output_df = pd.DataFrame(x.vals)  
             output_df.to_csv(path)
         else:
             print("You need to RunGEF first")
+        return
             
-    def LoadData(x, file):
-        input_df = pd.read_table(file, sep=",")
+    def LoadData(x):
+        if x.GEFData == None:
+            print("You did not specify the file from which to load the GEF data. Set 'GEFData' to the file's path from which you want to load your data.")
+            return
+        else:
+            file = x.GEFData
+            try:
+                input_df = pd.read_table(file, sep=",")
+            except FileNotFoundError:
+                print("This file does not exist")
+                raise FileNotFoundError
+
         data = dict(zip(input_df.columns[1:],input_df.values[1:,1:].T))
         
         names = ["t", "phi", "dphi", "ddphi", "a", "H",
@@ -386,7 +409,7 @@ class GEF:
             if name not in data.keys():
                 print("The file you provided does not contain information on the parameter " + name + ". Please provide a complete data file")
                 print("A complete file contains information on the parameters:", names)
-                return
+                raise ImportError
         
         #Since GEF data is always stored untiless, it is assumed to be untiless when loaded
         x.units = False
