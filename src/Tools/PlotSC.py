@@ -7,7 +7,7 @@ import random
 h = 0.67
 def PlotSensitivityCurves(ax, names=[], cols=[], alpha=0.25):
     #ReadFiles
-    path = "./power-law-integrated_sensitivities/"
+    path = "./src/Tools/power-law-integrated_sensitivities/"
     arr = os.listdir(path)
     #Obtain List of experiments and running experiments
     exp = [a.replace("plis_","").replace(".dat", "") for a in arr ]

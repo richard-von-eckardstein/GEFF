@@ -3,7 +3,7 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 from scipy.integrate import solve_ivp, trapezoid
 
-from GEFClassic.ModeByModeClassic import ReadMode
+from src.GEFClassic.ModeByModeClassic import ReadMode
 
 from ptarcade.models_utils import g_rho, g_rho_0, g_s, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
 
@@ -277,7 +277,6 @@ class PowSpecT:
         for key in PT.keys():
             PT[key] = np.array(PT[key])
             if ("+" in key) or ("-" in key):
-                print(key)
                 PT["tot"] += 0.5*PT[key]
             elif key=="vac":
                 PT["tot"] += PT[key]

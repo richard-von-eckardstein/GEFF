@@ -1,8 +1,6 @@
 import os
-import sys
-sys.path.append("../")
-from GEFClassic.GEFClassic import GEF as GEFClassic
-from GEFSchwinger.GEFSchwinger import GEF as GEFSchwinger
+from src.GEFClassic.GEFClassic import GEF as GEFClassic
+from src.GEFSchwinger.GEFSchwinger import GEF as GEFSchwinger
 import importlib.util as util
 from types import ModuleType
 import warnings

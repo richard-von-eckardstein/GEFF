@@ -1,12 +1,10 @@
 import pandas as pd
-import sys
 import os
-sys.path.insert(0,"../")
 import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
-from Common.timer import Timer
+from src.Tools.timer import Timer
 import math
 from mpmath import whitw
 
@@ -375,9 +373,7 @@ class GEF:
             #x.Unitful()
             #Data is always stored without units
             if x.GEFData==None:
-                filename = f"Out/GEF_Beta{x.beta}_SE{x.SEPicture}_{x.SEModel}.dat"
-                DirName = os.getcwd()
-                path = os.path.join(DirName, filename)
+                path = f"./Out/GEF_Beta{x.beta}.dat"
             else:
                 path = x.GEFData
 
