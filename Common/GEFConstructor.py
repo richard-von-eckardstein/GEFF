@@ -110,7 +110,7 @@ def check_GEFConfig(GEFconfig: ModuleType):
     
     return GEFconfig
 
-def CreateGEF(GEFFile: str, ntr: int, approx=True):
+def CreateGEF(GEFFile: str, approx=True):
     #Load GEF configurations and check for consistency
     GEFconfig = load_GEFConfig(GEFFile)
     GEFconfig = check_GEFConfig(GEFconfig)
@@ -131,12 +131,6 @@ def CreateGEF(GEFFile: str, ntr: int, approx=True):
     #Setup Schwinger GEF or Classic GEF depending on GEFconfig.SE
     if GEFconfig.SE:
         alpha = 0
-        if GEFconfig.SEModel=="Old":
-            AltDamp=0
-        elif GEFconfig.SEModel=="Del1":
-            AltDamp=1
-        elif GEFconfig.SEModel=="KDep":
-            AltDamp=2
 
         if GEFconfig.SEPicture=="electric":
             SE=-1
@@ -145,15 +139,18 @@ def CreateGEF(GEFFile: str, ntr: int, approx=True):
         elif GEFconfig.SEPicture=="mixed":
             SE="mix"
 
-        G = GEFSchwinger(alpha, beta, Mpl, InitialConditions, M, ntr, SE, AltDamp=AltDamp, approx=approx)
+        G = GEFSchwinger(beta, InitialConditions, V, dV, SEPicture=SE, SEModel=GEFconfig.SEModel, GEFData=GEFconfig.GEFFile, ModeData=GEFconfig.MbMFile, approx=approx)
     else:
         G = GEFClassic(beta, Mpl, InitialConditions, M, ntr, approx=approx)
 
     if GEFconfig.GEFFile==None:
         print("No existing GEF data found. You can specify a file to load using GEF.LoadData or solve the GEF equations using GEF.RunGEF.")
     else:
-        G.LoadData(GEFconfig.GEFFile)
-        G.Unitful()
+        try:
+            G.LoadData()
+            G.Unitful()
+        except:
+            print("Could not load GEF data from file.")
 
     return G
 

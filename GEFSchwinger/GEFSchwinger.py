@@ -1,6 +1,6 @@
-###Working Version for SE=-1, includes Boundary Corrections and Damping Corrections (properly) for sigmaE and sigmaB
-###Working Version for SE=1 (very slow for 1 bdr corr)
-###Working Version for SE=mix, includes Boundary Corrections and Damping Corrections (properly) for sigmaE and sigmaB
+###Working Version for SEPicture=-1, includes Boundary Corrections and Damping Corrections (properly) for sigmaE and sigmaB
+###Working Version for SEPicture=1 (very slow for 1 bdr corr)
+###Working Version for SEPicture=mix, includes Boundary Corrections and Damping Corrections (properly) for sigmaE and sigmaB
 ###Alt Damp=1 properly implemented
 
 
@@ -20,24 +20,30 @@ import math
 from mpmath import whitw, whitm, gamma
 
 class GEF:
-    def __init__(x, alpha, beta, Mpl, ini, M, ntr, SE, AltDamp=0, approx=True):
+    def __init__(x, beta: float, ini: dict, V, dV, SEPicture: int|str="mix", SEModel: str="KDep", GEFData: None|str=None, ModeData: None|str=None, approx: bool=True):
         x.units = True
         x.completed = False
-        x.alpha = alpha
+        x.alpha = 0 # artifcat of previous attempt, may be reinstated at later times
         x.beta = beta
-        x.mass = M
+
+        x.V = V
+        x.dV = dV
+
         x.vals = ini.copy()
-        x.ntr = ntr+1
-        x.AltDamp = AltDamp
-        x.SE = SE
-        if (SE==None):
+        x.vals["rhoChi"] = 0.
+        x.vals["delta"] = 1.
+        x.vals["sigmaE"] = 0.
+        x.vals["s"] = 0.
+        x.vals["sigmaB"] = 0.
+
+        x.GEFData = GEFData
+        x.ModeData = ModeData
+
+        x.SEModel = SEModel
+        x.SEPicture = SEPicture
+        if (SEPicture==None):
             x.GaugePos = 4
             x.conductivity = lambda y: 0., 0.
-            x.vals["rhoChi"] = 0.
-            x.vals["delta"] = 1.
-            x.vals["sigmaE"] = 0.
-            x.vals["s"] = 0.
-            x.vals["sigmaB"] = 0.
             if(approx):
                 x.Whittaker = x.WhittakerApprox_NoSE
             else:
@@ -47,11 +53,11 @@ class GEF:
                 x.Whittaker = x.WhittakerApprox_WithSE
             else:
                 x.Whittaker = x.WhittakerExact
-            if (SE=="mix"):
-                if (x.AltDamp == 1):
+            if (SEPicture=="mix"):
+                if (x.SEModel == "Del1"):
                     x.GaugePos = 5
                     x.conductivity = x.ComputeImprovedSigma
-                elif (x.AltDamp == 2):
+                elif (x.SEModel == "KDep"):
                     x.GaugePos = 5
                     x.deltaf = x.ApproxDeltaf
                     if approx:
@@ -65,11 +71,11 @@ class GEF:
                 else:
                     x.GaugePos = 6
                     x.conductivity = x.ComputeImprovedSigma
-            elif (-1. <= SE <=1.):
-                if (x.AltDamp == 1):
+            elif (-1. <= SEPicture <=1.):
+                if (x.SEModel == "Del1"):
                     x.GaugePos = 5
                     x.conductivity = x.ComputeSigmaCollinear
-                elif (x.AltDamp == 2):
+                elif (x.SEModel == "KDep"):
                     x.DeltaFunc = False
                     x.GaugePos = 5
                     x.deltaf = x.ApproxDeltaf
@@ -85,30 +91,28 @@ class GEF:
                 else:
                     x.GaugePos = 6
                     x.conductivity = x.ComputeSigmaCollinear
-                if(SE == 1. and approx):
+                if(SEPicture == 1. and approx):
                     x.Whittaker = x.WhittakerApprox_NoSE
                     x.WhittakerWithFerm = x.WhittakerApprox_NoSE
                     x.deltaf = lambda x: 1.
             else:
-                print(SE, "is not a valid choice for SE")
+                print(SEPicture, "is not a valid choice for SEPicture")
         x.approx = approx
         x.omega = 1.
         x.f = 1.
         x.ratio = 1.
         #Need Unitful Potential once, to compute omega
-        x.H0 = np.sqrt((0.5*x.vals["dphi"]**2 + x.potential())/(3*Mpl**2))
-        x.Mpl = Mpl
+        x.H0 = np.sqrt( ( 0.5*x.vals["dphi"]**2 + x.V(x.vals["phi"]) )/3 )
+        x.Mpl = 1.
     
     #Potentials and Couplings
     def potential(x):
         phi = x.f*x.vals["phi"]
-        V = 0.5*phi**2*x.mass**2
-        return V / (x.f*x.omega)**2
+        return x.V(phi) / (x.f*x.omega)**2
     
     def dVdphi(x):
         phi = x.f*x.vals["phi"]
-        dV = phi*x.mass**2
-        return dV/(x.f*x.omega**2)
+        return x.dV(phi)/(x.f*x.omega**2)
 
     def dIdphi(x):
         phi = x.f*x.vals["phi"]
@@ -147,7 +151,7 @@ class GEF:
             H = x.vals["H"]
             a = x.vals["a"]
 
-            frac = x.SE
+            frac = x.SEPicture
             sigma = ((a**x.alpha) * (41.*gmu**3/(72.*np.pi**2 * H * np.tanh(np.pi*np.sqrt(B0/E0)))))
             sigmaE =  np.sqrt(B0) * (min(1., 1.- frac)*E0 + max(-frac, 0.)*B0) * sigma / (E0+B0)         
             sigmaB = -np.sign(x.vals["G"][0]) * np.sqrt(E0)*(min(1., 1.+ frac)*B0 + max(frac,0.)*E0)* sigma/(E0+B0)
@@ -413,7 +417,7 @@ class GEF:
             
     #Run GEF
     def InitialiseGEF(x):
-        if (x.SE != None and x.AltDamp == 2):
+        if (x.SEPicture != None and x.SEModel == "KDep"):
             yini = np.zeros((2*x.ntr*3+x.GaugePos))
         else:
             yini = np.zeros((x.ntr*3+x.GaugePos))
@@ -432,11 +436,11 @@ class GEF:
         x.vals["kh"] = np.log(abs(yini[2]*x.dIdphi()))
         yini[3] = x.vals["kh"]
         
-        if (x.SE != None):
-            if (x.AltDamp == 1):
+        if (x.SEPicture != None):
+            if (x.SEModel == "Del1"):
                 x.Ferm2=0.
                 yini[4] = x.vals["rhoChi"]
-            elif (x.AltDamp == 2):
+            elif (x.SEModel == "KDep"):
                 #x.FermionEntry = 1
                 x.Ferm2=1
                 yini[4] = x.vals["rhoChi"]
@@ -460,17 +464,17 @@ class GEF:
         dydt[2] = x.EoMphi()
         dlnkhdt = x.EoMlnkh(dydt[2])
         dydt[3] = dlnkhdt       
-        if (x.SE != None):
-            if (x.AltDamp == 0):
+        if (x.SEPicture != None):
+            if (x.SEModel == "Old"):
                 dydt[4] = x.EoMDelta()
                 dydt[5] = x.EoMrhoChi()
                 dFdt = x.EoMF(dlnkhdt)
                 dydt[x.GaugePos:] = dFdt.reshape(x.ntr*3)
-            elif (x.AltDamp == 1):
+            elif (x.SEModel == "Del1"):
                 dydt[4] = x.EoMrhoChi()
                 dFdt = x.EoMF(dlnkhdt)
                 dydt[x.GaugePos:] = dFdt.reshape(x.ntr*3)
-            elif (x.AltDamp == 2):
+            elif (x.SEModel == "KDep"):
                 dydt[4] = x.EoMrhoChiBar()
                 if x.Ferm2 == 0:
                     dGdt = x.EoMF(dlnkhdt)
@@ -494,7 +498,7 @@ class GEF:
         x.vals["phi"] = y[1]
         x.vals["dphi"] = y[2]
         
-        if (x.SE == None):
+        if (x.SEPicture == None):
             F = y[x.GaugePos:]
             F = F.reshape(x.ntr, 3)
             x.vals["E"] = F[:,0]
@@ -507,7 +511,7 @@ class GEF:
             x.vals["xi"] = x.GetXi()
             x.vals["xieff"] = x.vals["xi"]
         else:
-            if (x.AltDamp == 1):
+            if (x.SEModel == "Del1"):
                 F = y[x.GaugePos:]
                 F = F.reshape(x.ntr, 3)
                 x.vals["E"] = F[:,0]
@@ -521,7 +525,7 @@ class GEF:
                 x.vals["s"] = x.GetS(x.vals["sigmaE"])
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
-            elif (x.AltDamp == 2):
+            elif (x.SEModel == "KDep"):
                 F = y[x.GaugePos:]
                 F = F.reshape(2*x.ntr, 3)
                 x.vals["E"] = F[:x.ntr,0]
@@ -571,7 +575,8 @@ class GEF:
         t.stop()
         return sol
     
-    def RunGEF(x, t0=0., t1=120., atol=1e-6, rtol=1e-3):
+    def RunGEF(x, ntr, t0=0., t1=120., atol=1e-6, rtol=1e-3):
+        x.ntr = ntr+1
         if not(x.completed):
             sol = x.SolveGEF(t0, t1, atol=atol, rtol=rtol)
             t = sol.t
@@ -579,7 +584,7 @@ class GEF:
             print("success:", sol.success)
             pars = x.vals.keys()
             res = dict(zip(pars, [[] for par in pars]))
-            if (x.AltDamp == 2):
+            if (x.SEModel == "KDep"):
                 #x.FermionEntry = 1
                 res["sigmaEk"] = []
                 res["sigmaBk"] = []
@@ -589,7 +594,7 @@ class GEF:
                 x.vals["kS"] = x.vals["kh"]*1e-3 
             for i in range(len(t)):
                 x.DefineDictionary(t[i], y[:,i])
-                if (x.AltDamp == 2):
+                if (x.SEModel == "KDep"):
                     x.vals["delta"] = 1*x.Ferm2 + (1-x.Ferm2)*x.deltaf(x.vals["t"])
                     x.vals["sigmaEk"] = (1.-x.Ferm2)*x.vals["sigmaE"]
                     x.vals["sigmaBk"] = (1.-x.Ferm2)*x.vals["sigmaB"]
@@ -613,8 +618,8 @@ class GEF:
     
     def CreateDeltaFunction(x):
         if (x.completed):
-            if(x.AltDamp != 2 or x.SE == None):
-                print("This only works for SE Runs with AltDamp = 2")
+            if(x.SEModel != "KDep" or x.SEPicture == None):
+                print("This only works for SE Runs with SEModel = KDep")
             else:
                 ts = x.vals["t"]
                 kh = x.vals["kh"]
@@ -670,7 +675,7 @@ class GEF:
     def IterateGEF(x, t0=0., t1=120.):
         if (x.completed):
             x.Unitless()
-            if (x.AltDamp == 2):
+            if (x.SEModel == "KDep"):
                 #x.DeltaFunc = True
                 x.CreateDeltaFunction()
                 #x.Whittaker = x.Whittaker_Interp
@@ -692,59 +697,65 @@ class GEF:
             print("You first need to RunGEF")
             return
         
-    def SaveData(x, outdir=None):
+    def SaveData(x):
         if (x.completed):
             #x.Unitful()
             #Data is always stored without units
             x.Unitless()
-            if outdir==None:
-                if(x.AltDamp == 1):
-                    filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+"_AltDamp_v4.dat"
-                elif(x.AltDamp == 2):
-                    filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+"_KDep"  + ".dat"
-                else:
-                    filename = "Out/GEF_Beta"+str(x.beta)+"_SE"+str(x.SE)+".dat"
+            if x.GEFData==None:
+                filename = f"Out/GEF_Beta{x.beta}_SE{x.SEPicture}_{x.SEModel}.dat"
                 DirName = os.getcwd()
-
-                """settings = [{"alpha":x.alpha}, {"beta":x.beta}, {"M":x.mass},{ "Mpl":x.Mpl}, 
-                            {"H0":x.H0}, {"units":x.units}, {"SE":x.SE}, {"approx":x.approx}, {"ntr":x.ntr}]"""
-
                 path = os.path.join(DirName, filename)
             else:
-                path = outdir
-            
-            #dic = dict(x.vals, **{"settings":settings})
+                path = x.GEFData
 
             output_df = pd.DataFrame(x.vals)  
             output_df.to_csv(path)
         else:
             print("You need to RunGEF first")
             
-    def LoadData(x, file):
-        input_df = pd.read_table(file, sep=",")
-        data = dict(zip(input_df.columns[1:],input_df.values[1:,1:].T))
-        
-        names = ["t", "phi", "dphi", "H", "a", "E", "B", "G", "rhoChi", "sigmaE", "sigmaB", "kh"]
-        #Check if data file is in order:
-        for name in names:
-            if name not in data.keys():
-                print("The file you provided does not contain information on the parameter " + name + ". Please provide a complete data file")
-                print("A complete file contains information on the parameters:" + names)
-                return
-            
-        #Since GEF data is always stored untiless, it is assumed to be untiless when loaded
-        x.units = False
-        
-        for key in data.keys():
-            x.vals[key] = data[key]
-            
-        if len(x.vals["t"]) == 1:
-            print("It seems your table only contains one data point. This indicates a GEF run which is not yet executed. We suggest you initialise your run anew and use RunGEF")
-            print("the completed-Flag is set to False")
-            x.completed = False
+    def LoadData(x):
+        if x.GEFData == None:
+            print("You did not specify the file from which to load the GEF data. Set 'GEFData' to the file's path from which you want to load your data.")
+            return
         else:
-            x.completed = True
-        return
+            file = x.GEFData
+            try:
+                input_df = pd.read_table(file, sep=",")
+            except FileNotFoundError:
+                print("This file does not exist")
+                raise FileNotFoundError
+            
+            data = dict(zip(input_df.columns[1:],input_df.values[1:,1:].T))
+            
+            names = ["t", "phi", "dphi", "H", "a", "E", "B", "G", "rhoChi", "sigmaE", "sigmaB", "kh"]
+            #Check if data file is in order:
+
+            for name in names:
+                if name not in data.keys():
+                    print("The file you provided does not contain information on the parameter " + name + ". Please provide a complete data file")
+                    print("A complete file contains information on the parameters:" + names)
+                    raise ImportError
+
+            """if ("kS" in data.keys()) and (x.SEModel in ["Old", "Del1"]):
+                print(f"The file you are attempting to load seems to refer to a 'KDep' run. This is incompatible with your GEF setup. Please check your file path.")
+                raise ImportError
+            elif ("kS" not in data.keys()) and (x.SEModel=="KDep"):
+                print(f"The file you are attempting to load is not 'KDep' run. This is incompatible with your GEF setup. Please check your file path.")
+                raise ImportError"""
+            #Since GEF data is always stored untiless, it is assumed to be untiless when loaded
+            x.units = False
+            
+            for key in data.keys():
+                x.vals[key] = data[key]
+                
+            if len(x.vals["t"]) == 1:
+                print("It seems your table only contains one data point. This indicates a GEF run which is not yet executed. We suggest you initialise your run anew and use RunGEF")
+                print("the completed-Flag is set to False")
+                x.completed = False
+            else:
+                x.completed = True
+            return
             
     def Unitless(x):
         omega = x.H0
@@ -765,7 +776,7 @@ class GEF:
             x.vals["sigmaE"] = x.vals["sigmaE"]/omega
             x.vals["sigmaB"] = x.vals["sigmaB"]/omega
             x.vals["kh"] = x.vals["kh"]/omega
-            if (x.AltDamp == 2):
+            if (x.SEModel == "KDep"):
                 x.vals["kS"] = x.vals["kS"]/omega
                 x.vals["sigmaEk"] = x.vals["sigmaEk"]/omega
                 x.vals["sigmaBk"] = x.vals["sigmaBk"]/omega
@@ -799,7 +810,7 @@ class GEF:
             x.vals["sigmaE"] = x.vals["sigmaE"]*omega
             x.vals["sigmaB"] = x.vals["sigmaB"]*omega
             x.vals["kh"] = x.vals["kh"]*omega
-            if (x.AltDamp == 2):
+            if (x.SEModel == "KDep"):
                 x.vals["kS"] = x.vals["kS"]*omega
                 x.vals["sigmaEk"] = x.vals["sigmaEk"]*omega
                 x.vals["sigmaBk"] = x.vals["sigmaBk"]*omega
