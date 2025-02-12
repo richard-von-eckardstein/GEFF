@@ -42,8 +42,8 @@ def check_GEFConfig(GEFconfig: ModuleType):
         raise Exception(error)
     
     try:
-        assert isinstance(GEFconfig.V(1.), float)
-        assert isinstance(GEFconfig.dVdphi(1.), float)
+        GEFconfig.V(1.)
+        GEFconfig.dVdphi(1.)
     except TypeError:
         error = f"The potential and its derivative must be a function of the field phi"
         raise TypeError(error)
