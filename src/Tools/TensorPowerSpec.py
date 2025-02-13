@@ -7,6 +7,7 @@ from src.GEFClassic.ModeByModeClassic import ReadMode
 
 from ptarcade.models_utils import g_rho, g_rho_0, g_s, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
 
+
 fcmb = 7.73e-17 #in Hz
 
 class PowSpecT: 
@@ -32,8 +33,6 @@ class PowSpecT:
 
         #Define Useful quantities
         x.__beta = G.beta
-        x.__nT = -G.dVdphi()/G.potential()
-        
 
         x.__t = G.vals["t"]
         x.__N = N
@@ -120,15 +119,15 @@ class PowSpecT:
         eta = (soleta.y[0,:] - soleta.y[0,lstart]).astype(complex)
 
         #ensure that Zs is the same length for every mode k
-        f = np.array( list( np.exp(-1j*k*eta[:lstart]) )
+        phik = np.array( list( np.exp(-1j*k*eta[:lstart]) )
                       + list( sol.y[0,:] + 1j*sol.y[2,:] ) )/x.__af(teval)
 
-        g = np.array( list( (-1j)*np.exp(-1j*k*eta[:lstart]) )
+        dphik = np.array( list( (-1j)*np.exp(-1j*k*eta[:lstart]) )
                       + list( sol.y[1,:] + 1j*sol.y[3,:] ) )/x.__af(teval)
 
-        return f, g
+        return phik, dphik
 
-    def _GreenFunc_(x, k, f, ind, tstart, teval=[]):
+    def _GreenFunc_(x, k, phik, ind, tstart, teval=[]):
         def ode(A, H, q, a):
             dAdt = np.zeros(A.shape)
             dAdt[0] =(2*H*A[0] + k/a*A[1])
@@ -152,12 +151,12 @@ class PowSpecT:
 
         GreenN = np.zeros(teval.shape)
         GreenN[lstart:ind+1] = solA.y[0,:][::-1]
-        GreenN[:lstart] = ( (f[ind].conjugate()*f).imag*x.__af(teval)**2 )[:lstart]
+        GreenN[:lstart] = ( (phik[ind].conjugate()*phik).imag*x.__af(teval)**2 )[:lstart]
 
         return GreenN
 
-    def _VacuumPowSpec_(x, k, f):
-        return 2*(k*x.__omega)**2/( np.pi**2 ) * abs(f)**2
+    def _VacuumPowSpec_(x, k, phik):
+        return 2*(k*x.__omega)**2/( np.pi**2 ) * abs(phik)**2
 
     def _InducedTensorPowerSpecLog_(x, k, lgrav, ind, Ngrid, HN, GreenN, kgrid, l1, A1, dA1, l2, A2, dA2):
         
@@ -212,7 +211,7 @@ class PowSpecT:
 
         int = trapezoid(IntOuter, logAs)
 
-        return int / (16*np.pi**4)*(k*x.__omega)**4
+        return int / (16**2*np.pi**4)*(k*x.__omega)**4
 
     
     def ComputePowSpec(x, vals, Nfin=None, mode="k", ModePath=None, FastGW=True):
@@ -287,7 +286,7 @@ class PowSpecT:
         Hend = x.__HN(x.__Nend)
 
         Trh = np.sqrt(3*Hend*x.__omega/np.pi)*(10/106.75)**(1/4)*M_pl
-        Trh = Trh*(106.75/g_rho(Trh))**(1/4)
+        #Trh = Trh*(106.75/g_rho(Trh))**(1/4)
 
         return k*x.__omega*M_pl*gev_to_hz/(2*np.pi*np.exp(x.__Nend)) * T_0/Trh * (g_s(Trh)/g_s_0)**(-1/3)
 

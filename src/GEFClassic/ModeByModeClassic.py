@@ -141,6 +141,7 @@ class ModeByMode:
         x.__af = CubicSpline(x.__t, np.exp(x.__N))
         x.__SclrCplf = CubicSpline(x.__t, G.dIdphi()*G.vals["dphi"])
         x.__khf = CubicSpline(x.__t, kh)
+        x.__Hf = CubicSpline(x.__t, H)
         
         deta = lambda t, y: 1/x.__af(t)
         
@@ -182,12 +183,13 @@ class ModeByMode:
             k = 10**(5/2)*x.__khf(tstart)
         elif mode=="k":
             k = init
-            x0 = np.log(k[0]) - 5/2*np.log(10)
+            x0 = np.log(k[0]) - np.log(x.__khf(0)) - 5/2*np.log(10)
             tstart = []
-            for l in k:
+            for i, l in enumerate(k):
                 f = lambda t: np.log(l) - np.log(x.__khf(t)) - 5/2*np.log(10)
                 ttmp = fsolve(f, x0)[0]
-                x0 = ttmp
+                if i<len(k)-1:
+                    x0 = ttmp + np.log(k[i+1]/l)/x.__Hf(ttmp)
                 tstart.append(ttmp)
             tstart = np.array(tstart)
         elif mode=="N":

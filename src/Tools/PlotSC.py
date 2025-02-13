@@ -57,6 +57,10 @@ def PlotSensitivityCurves(ax, names=[], cols=[], alpha=0.25):
             tab = pd.read_table(path+dic[key]["file"], comment="#").values.T
             f = 10**tab[0,:]
             SCurve = 10**tab[1,:]
+            
+
+        f = np.array([f[0]] + list(f) + [f[-1]])
+        SCurve = np.array([1.] + list(SCurve) + [1.])
         
         if dic[key]["running"]:
             ax.fill_between(f, max(SCurve)*np.ones(f.shape), SCurve, color=dic[key]["col"], alpha=alpha)
