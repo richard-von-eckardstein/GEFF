@@ -138,6 +138,7 @@ class ModeByMode:
         x.__af = CubicSpline(x.__t, np.exp(x.__N))
         x.__SclrCplf = CubicSpline(x.__t, G.dIdphi()*G.vals["dphi"])
         x.__khf = CubicSpline(x.__t, kh)
+        x.__Hf = CubicSpline(x.__t, H)
         
         deta = lambda t, y: 1/x.__af(t)
         
