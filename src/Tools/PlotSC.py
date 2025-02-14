@@ -1,14 +1,39 @@
 import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
 import random
 
 h = 0.67
-def PlotSensitivityCurves(ax, names=[], cols=[], alpha=0.25):
-    #ReadFiles
+def PlotSensitivityCurves(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25):
+    """
+    Plot the sensitivity curves for current and planned gravitational wave experiments on a OmegaGW vs. frequency plot. Experiments with existing data
+    are shown with filled-in sensivity curves.
+
+    Parameters
+    ----------
+    ax : Axes-type
+        the plot over which to overlay the sensitivity curves 
+    names : list
+        the names of GW experiments for which to plot the sensitivity curves. 
+        Accepted names are 'LISA', 'EPTA', 'IPTA', 'HLV', 'BBO', 'HLVK', 'HLVO2', 'DECIGO', 'HL', 'NANOGrav', 'SKA', 'CE', 'ET', 'NANOGrav', 'PPTA'
+        Empty lists, or lists containing invalid names are parsed to show all sensitivity curves
+    cols : list
+        a list of colours for which to plot the sensitivity curves. The ordering of the colors is the same as the ordering of experiments in names.
+        If no colors are given (col=[]), the colors are generated at random.
+    alpha : float
+        the opacity with which to fill in the sensivity curves for experiments with existing data
+
+    Returns
+    -------
+    ax : Axes-type
+        the updated plot.
+    """
+    #the path to the sensitivity curve data
     path = "./src/Tools/power-law-integrated_sensitivities/"
     arr = os.listdir(path)
+
     #Obtain List of experiments and running experiments
     exp = [a.replace("plis_","").replace(".dat", "") for a in arr ]
     RunningExp = ["IPTA", "NANOGrav", "PPTA", "EPTA", "HLVK", "HLV", "HLV02"]
@@ -34,7 +59,7 @@ def PlotSensitivityCurves(ax, names=[], cols=[], alpha=0.25):
 
     elif names==[]:
         names=exp
-    print(exp)
+
     #Parse Input Colors
     if cols==[]:
         colavail = list(mcolors.CSS4_COLORS.keys())
@@ -57,6 +82,8 @@ def PlotSensitivityCurves(ax, names=[], cols=[], alpha=0.25):
             tab = pd.read_table(path+dic[key]["file"], comment="#").values.T
             f = 10**tab[0,:]
             SCurve = 10**tab[1,:]
+        f = np.array([f[0]] + list(f) + [f[-1]])
+        SCurve = np.array([1.] + list(SCurve) + [1.])
         
         if dic[key]["running"]:
             ax.fill_between(f, max(SCurve)*np.ones(f.shape), SCurve, color=dic[key]["col"], alpha=alpha)

@@ -126,10 +126,7 @@ class ModeByMode:
     ComputeEBGnMode()
         Computes the expectation values E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n]) at a given moment of time t given the gauge field spectrum A(t, k, +/-). Useful for comparing GEF results to ModeByMode results.
     """
-    
-    #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
     def __init__(x, G):
-        
     #Initialise the ModeByMode class, defines all relevant quantities for this class from the background GEF values G
         if G.units: G.Unitless()
         x.__t = G.vals["t"]
@@ -180,22 +177,27 @@ class ModeByMode:
         if mode=="t":
             tstart = init
             k = 10**(5/2)*x.__khf(tstart)
+
         elif mode=="k":
             k = init
-            x0 = np.log(k[0]) - 5/2*np.log(10)
+            x0 = np.log(k[0]) - np.log(x.__khf(0.)) - 5/2*np.log(10)
             tstart = []
-            for l in k:
+            for i, l in enumerate(k):
                 f = lambda t: np.log(l) - np.log(x.__khf(t)) - 5/2*np.log(10)
                 ttmp = fsolve(f, x0)[0]
-                x0 = ttmp
+                #Update the initial guess based on the previous result
+                if i < len(k)-1:
+                    x0 = ttmp + np.log(k[i+1]/l)
                 tstart.append(ttmp)
             tstart = np.array(tstart)
+
         elif mode=="N":
             tstart = CubicSpline(x.__N, x.__t)(init)
             k = 10**(5/2)*x.__khf(tstart)
+
         else:
             print("not a valid choice")
-            return
+            raise KeyError
 
         return k, tstart
     
@@ -219,11 +221,11 @@ class ModeByMode:
         ------
         yp : array
             the positive helicity modes (rescaled), sqrt(2k)*A(teval, k, +)
-        dypdt : array
+        dyp : array
             the derivative of the positive helicity modes (rescaled), sqrt(2/k)*dAdeta(teval, k, +)
         ym : array
             the negative helicity modes (rescaled), sqrt(2k)*A(teval, k, -)
-        dymdt : array
+        dym : array
             the derivative of the negative helicity modes (rescaled), sqrt(2/k)*dAdeta(teval, k, -)
         """
 
@@ -258,12 +260,12 @@ class ModeByMode:
 
         #Create array of mode evolution stringing together vacuum and non-vacuum time evolutions to get evolution from t0 to tend
         yp = np.array( vac + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )
-        dypdt = np.array( dvac + list( (sol.y[1,:] + 1j*sol.y[3,:])*np.exp(-1j*k*eta[istart]) ) )
+        dyp = np.array( dvac + list( (sol.y[1,:] + 1j*sol.y[3,:])*np.exp(-1j*k*eta[istart]) ) )
         
         ym = np.array( vac + list( (sol.y[4,:] + 1j*sol.y[6,:])*np.exp(-1j*k*eta[istart]) ) )
-        dymdt = np.array( dvac + list( (sol.y[5,:] + 1j*sol.y[7,:])*np.exp(-1j*k*eta[istart]) ) )
+        dym = np.array( dvac + list( (sol.y[5,:] + 1j*sol.y[7,:])*np.exp(-1j*k*eta[istart]) ) )
 
-        return yp, dypdt, ym, dymdt
+        return yp, dyp, ym, dym
     
     def EBGnSpec(x, k, lam, ylam, dylam, a, n):
         """
