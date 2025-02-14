@@ -11,16 +11,16 @@ from numpy.typing import ArrayLike
 
 def TensorModeEoM(y : ArrayLike, k : float, H : float, a : float):
     """
-    Compute the time derivative of a vacuum tensor mode and its derivative for a fixed wavenumber at a given moment of time t (in Hubble units)
+    Compute the time derivative of a vacuum tensor mode and its derivative for a fixed comoving wavenumber at a given moment of time t (in Hubble units)
 
     Parameters
     ----------
     y : array
         contains the vacuum tensor mode and its derivative. (in Hubble units).
         y[0] = Re( M_P*sqrt(2k)*a(t)*h(t,k)/2 ), y[2] = Im( M_P*sqrt(2k)*a(t)*h(t,k)/2  )
-        y[1/5] = Re( M_P*sqrt(2/k)*a(t)*dhdeta(t,k)/2 ), y[3/7] = Im( M_P*sqrt(2/k)*a(t)*dhdeta(t,k)/2 ), eta being conformal time, deta = a*dt
+        y[1/5] = Re( M_P*sqrt(2/k)*a(t)*dhdeta(t,k)/2 ), y[3/7] = Im( M_P*sqrt(2/k)*a(t)*dhdeta(t,k)/2 ), eta being conformal time, a*deta = dt
     k : float
-        the wavenumber in Hubble units
+        the comoving wavenumber in Hubble units
     H : float
         the Hubble rate at time t (in Hubble units)
     a : float
@@ -46,8 +46,8 @@ def TensorModeEoM(y : ArrayLike, k : float, H : float, a : float):
 
 def GreenEoM(A : ArrayLike, k : float, H : float, a : float):
     """
-    For fixed times t and t', and wavenumber k (in Hubble units), compute the t' derivative of 
-    B(k, t, t') k*G(k, t, t') = k M_P^2/2 a(t')^2 Im ( h(k, t) h^*(k, t') )
+    For fixed times t and t', and comoving wavenumber k (in Hubble units), compute the t' derivative of 
+    B(k, t, t') = k*G(k, t, t') = k M_P^2/2 a(t')^2 Im ( h(k, t) h^*(k, t') )
     and 
     C(k, t, t') = M_P^2/2 a(t')^2 Im ( dhdeta(k, t) h^*(k, t') ) 
     Here, G(k, t, t') is the retarded Green function associated with the differential operator D = d/deta^2 + 2 H a d/deta + k^2
@@ -57,7 +57,7 @@ def GreenEoM(A : ArrayLike, k : float, H : float, a : float):
     A : array
         the values of B(k, t, t') and C(k, t, t')
     k : float
-        the wavenumber in Hubble units
+        the comoving wavenumber in Hubble units
     H : float
         the Hubble rate at time t (in Hubble units)
     a : float
@@ -107,9 +107,9 @@ class PowSpecT:
     x.__etaf : function
         returns the conformal time eta(t) as a function of physical time normalised to eta(0)=-1/H_0. Obtained by numerical integration and interpolation.
     x.maxk : float
-        the maximal wavenumber k which can be resolved based on the dynamical range covered by the GEF solution
+        the maximal comoving wavenumber k which can be resolved based on the dynamical range covered by the GEF solution
     x.mink : float
-        the minimal wavenumber k which can be resolved based on the initial conditions of the GEF solution
+        the minimal comoving wavenumber k which can be resolved based on the initial conditions of the GEF solution
     x.__omega : float
         The ratio H_0/M_pl where H_0 is the value of the Hubble parameter at initialisation of the GEF system.
         Used to obtain gravitational-wave power spectra a a function of frequency today.
@@ -125,20 +125,21 @@ class PowSpecT:
     -------
     
     _InitialKTN_()
-        Determines the solution to k = 10^(5/2)*a(t)H(t). initial data can be given for the wavenumber k, the physical time coordinates t, or e-Folds N.
+        Determines the solution to k = 10^(5/2)*a(t)H(t). 
+        Initial data can be given for the comoving wavenumber k, the physical time coordinates t, or e-Folds N.
     _GetHomSol_()
-        For a given wavenumber k satisfying k=10^(5/2)*a(t)H(t), initialises the gauge-field modes at time t in the Bunch-Davies vacuum and computes
-        the time evolution within a given time interval, teval.
+        For a given comoving wavenumber k satisfying k=10^(5/2)*a(t)H(t), initialises the vacuum tensor modes at time t in the Bunch-Davies vacuum
+        and computes the time evolution within a given time interval, teval.
     _GreenFunc_()
-        Computes the Green function G_k(N, N') for a given wavenumber k at a given moment of time N for a range of times N' (time in e-folds)
+        Computes the Green function G_k(N, N') for a given comoving wavenumber k at a given moment of time N for a range of times N' (time in e-folds)
     _VacuumPowSpec_()
-        Computes the vacuum contribution to the tensor power spectrum for a given wavenumber k
+        Computes the vacuum contribution to the tensor power spectrum for a given comoving wavenumber k
     _InducedTensorPowSpec_()
-        Computes the gauge-field-induced power spectrum for a given wavenumber k at a given moment of time N (in e-folds)
+        Computes the gauge-field-induced power spectrum for a given comoving wavenumber k at a given moment of time N (in e-folds)
     ComputePowSpec()
-        Computes the full tensor power spectrum (including vacuum and sourced contributions) for a specified range of wavenumbers k.
+        Computes the full tensor power spectrum (including vacuum and sourced contributions) for a specified range of comoving wavenumbers k.
     ktofreq()
-        Red-shifts an inflationary wavenumber k to obtain the corresponding requency in Hz today.
+        Red-shifts a comoving wavenumber k to obtain the corresponding requency in Hz today.
         Assumes  x.Nend corresponds to the end of inflation and instantaneous reheating. 
     PTtoOmega():
         Converts a tensor power spectrum to the gravitational-wave energy density, h^2 OmegaGW.
@@ -195,16 +196,16 @@ class PowSpecT:
         Input
         -----
         init : array
-           an array of physical time coordinates t, OR of e-Folds N, OR of wavenumbers k (within x.mink and x.maxk)
+           an array of physical time coordinates t, OR of e-Folds N, OR of comoving wavenumbers k (within x.mink and x.maxk)
         mode : str
             if init contains physical time coordinates: mode="t"
             if init contains e-Folds: mode="N"
-            if init contains wavenumbers: mode="k"
+            if init contains comoving wavenumbers: mode="k"
 
         Return
         ------
         k : array
-            an array of wavenumbers k satisfying k=10^(5/2) a(tstart)H(tstart)
+            an array of comoving wavenumbers k satisfying k=10^(5/2) a(tstart)H(tstart)
         tstart : array
             an array of physical time coordinates t satisfying k=10^(5/2) a(tstart)H(tstart)
         """
@@ -244,7 +245,7 @@ class PowSpecT:
         Input
         -----
         k : float
-           the wavenumber k for which the mode function h(t,k) is evolved.
+           the comoving wavenumber k for which the mode function h(t,k) is evolved.
         tstart : float
             the time coordinate satisfying k = 10^(5/2)k_h(tstart) needed to ensure that the modes initialised in the Bunch-Davies vacuum
         teval : array|list
@@ -299,7 +300,7 @@ class PowSpecT:
         Input
         -----
         k : float
-            the wavenumber k for which the retarded Green function G(k, t, t') = Im( h(k, t) h^*(k, t') ) / Im( dhdeta(k, t') h^*(k, t') ) is evolved.
+            the comoving wavenumber k for which the retarded Green function G(k, t, t') = Im( h(k, t) h^*(k, t') ) / Im( dhdeta(k, t') h^*(k, t') ) is evolved.
         phik : array
             the values of the vacuum tensor mode phi(teval, k) = sqrt(2k)*h(teval, k)*M_P/2
         tstart : float
@@ -347,14 +348,14 @@ class PowSpecT:
         Input
         -----
         k : array
-            an array of wavenumbers k for which the vacuum power spectrum is computed
+            an array of comoving wavenumbers k for which the vacuum power spectrum is computed
         phik : array
             the values of the vacuum tensor mode phi(t, k) = sqrt(2k)*h(teval, k)*M_P/2
 
         Return
         ------
         PTvac : array
-            the vacuum tensor power spectrum PT_vac(t, k) at a fixed time t as a function of wavenumber.
+            the vacuum tensor power spectrum PT_vac(t, k) at a fixed time t as a function of comoving wavenumber.
         """
         PTvac = 2*(k*x.__omega)**2/( np.pi**2 ) * abs(phik)**2
         return PTvac
@@ -365,7 +366,7 @@ class PowSpecT:
         Input
         -----
         k : float
-            the wavenumber k for which the gauge-field induced power spectrum is computed.
+            the comoving wavenumber k for which the gauge-field induced power spectrum is computed.
         lgrav : array
             the gravitational-wave helicity for which the gauge-field induced power spectrum is computed.
         ind : integer
@@ -375,7 +376,7 @@ class PowSpecT:
         GreenN : array
             a 1D-array of Green function values k G(k, Ngrid[ind], Ngrid)
         kgrid : array
-            an array of wavenumbers for which the gauge-field mode functions are given.
+            an array of comoving wavenumbers for which the gauge-field mode functions are given.
         l1, l2 : float
             the gauge-field helicities of the given mode functions
         A1, A2 : float
@@ -450,7 +451,7 @@ class PowSpecT:
         Input
         -----
         k : array
-            the wavenumber k for which to compute the tensor power spectrum.
+            the comoving wavenumber k for which to compute the tensor power spectrum.
         N : float|None
             the time (in e-folds) at which to compute the tensor power spectrun.
             If N=None, the tensor power spectrum is computed at x.Nend.

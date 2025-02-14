@@ -5,10 +5,11 @@ import pandas as pd
 from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 import os
+from numpy.typing import ArrayLike
 
 alpha=0
 
-def ReadMode(file=None):
+def ReadMode(file : str|None=None):
         if(file==None):
             filename = "Modes+Beta" + str(x.__beta) + "+M6_16" + ".dat"
             DirName = os.getcwd()
@@ -32,18 +33,18 @@ def ReadMode(file=None):
         
         return t, N, k, yp, dyp, ym, dym
 
-def ModeEoM(y, k, SclrCpl, a):
+def ModeEoM(y : ArrayLike, k : float, SclrCpl : float, a : float):
     """
-    Compute the time derivative of the gauge-field mode and its derivatives for a fixed wavenumber at a given moment of time t (in Hubble units)
+    Compute the time derivative of the gauge-field mode and its derivatives for a fixed comoving wavenumber at a given moment of time t
 
     Parameters
     ----------
     y : numpy.array
         contains the gauge-field mode and its derivatives for both helicities +/- (in Hubble units).
         y[0/4] = Re( sqrt(2k)*A(t,k,+/-) ), y[2/6] = Im( sqrt(2k)*A(t,k,+/-) )
-        y[1/5] = Re( sqrt(2/k)*dAdeta(t,k,+/-) ), y[3/7] = Im( sqrt(2/k)*dAdeta(t,k,+/-) ), eta being conformal time, deta = a*dt
+        y[1/5] = Re( sqrt(2/k)*dAdeta(t,k,+/-) ), y[3/7] = Im( sqrt(2/k)*dAdeta(t,k,+/-) ), eta being conformal time, a*deta = dt
     k : float
-        the wavenumber in Hubble units
+        the comoving wavenumber in Hubble units
     SclrCpl : float
         coupling induced by the axion velocity at time t, beta/M_P*dphidt (in Hubble units)
     a : float
@@ -86,7 +87,8 @@ def ModeEoM(y, k, SclrCpl, a):
 
 class ModeByMode:
     """
-    A class used to solve the gauge-field mode equation for axion inflation based on a given GEF solution. Can be used to internally verify the consistency of the GEF solution. All quantities throught are treated in Hubble units.
+    A class used to solve the gauge-field mode equation for axion inflation based on a given GEF solution.
+    Can be used to internally verify the consistency of the GEF solution. All quantities throught are treated in Hubble units.
     
     ...
     
@@ -102,15 +104,17 @@ class ModeByMode:
     x.__af : function
         returns the scale factor, a(t), as a function of physical time. Obtained by interpolation of the GEF solution.
     x.__SclrCplf : function
-        returns the coupling of the inflaton velocity to the gauge-field, beta/M_p*dphidt, as a function of physical time. Obtained by interpolation of the GEF solution.
+        returns the coupling of the inflaton velocity to the gauge-field, beta/M_p*dphidt, as a function of physical time.
+        Obtained by interpolation of the GEF solution.
     x.__khf : function
         returns the instability scale k_h(t) as a function of physical time. Obtained by interpolation of the GEF solution.
     x.__etaf : function
-        returns the conformal time eta(t) as a function of physical time normalised to eta(0)=-1/H_0. Obtained by numerical integration and interpolation.
+        returns the conformal time eta(t) as a function of physical time normalised to eta(0)=-1/H_0.
+        Obtained by numerical integration and interpolation.
     x.maxk : float
-        the maximal wavenumber k which can be resolved based on the dynamical range covered by the GEF solution
+        the maximal comoving wavenumber k which can be resolved based on the dynamical range covered by the GEF solution
     x.mink : float
-        the minimal wavenumber k which can be resolved based on the initial conditions of the GEF solution
+        the minimal comoving wavenumber k which can be resolved based on the initial conditions of the GEF solution
     
     ...
     
@@ -118,13 +122,17 @@ class ModeByMode:
     -------
     
     InitialKTN()
-        Determines the solution to k = 10^(5/2)*k_h(t). initial data can be given for the wavenumber k, the physical time coordinates t, or e-Folds N.
+        Determines the solution to k = 10^(5/2)*k_h(t). 
+        Initial data can be given for the comoving wavenumber k, the physical time coordinates t, or e-Folds N.
     ComputeMode()
-        For a given wavenumber k satisfying k=10^(5/2)*k_h(t), initialises the gauge-field modes at time t in the Bunch-Davies vacuum and computes the time evolution within a given time interval, teval.
+        For a given comoving wavenumber k satisfying k=10^(5/2)*k_h(t), initialises the gauge-field modes at time t in the Bunch-Davies vacuum
+        and computes the time evolution within a given time interval, teval.
     EBGnSpec()
-        Computes the spectrum of E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n]) at a given moment of time t and a helicity lambda gusing the gauge field spectrum A(t, k, lambda)
+        Computes the spectrum of E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n])
+        at a given moment of time t and a helicity lambda gusing the gauge field spectrum A(t, k, lambda)
     ComputeEBGnMode()
-        Computes the expectation values E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n]) at a given moment of time t given the gauge field spectrum A(t, k, +/-). Useful for comparing GEF results to ModeByMode results.
+        Computes the expectation values E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n]) at a given moment of time t
+        given the gauge field spectrum A(t, k, +/-). Useful for comparing GEF results to mode-by-mode results.
     """
     def __init__(x, G):
     #Initialise the ModeByMode class, defines all relevant quantities for this class from the background GEF values G
@@ -156,21 +164,21 @@ class ModeByMode:
         
         return
     
-    def InitialKTN(x, init, mode="t"):
+    def InitialKTN(x, init : ArrayLike, mode : str="t"):
         """
         Input
         -----
         init : array
-           an array of physical time coordinates t, OR of e-Folds N, OR of wavenumbers k (within x.mink and x.maxk)
+           an array of physical time coordinates t, OR of e-Folds N, OR of comoving wavenumbers k (within x.mink and x.maxk)
         mode : str
             if init contains physical time coordinates: mode="t"
             if init contains e-Folds: mode="N"
-            if init contains wavenumbers: mode="k"
+            if init contains comoving wavenumbers: mode="k"
 
         Return
         ------
         k : array
-            an array of wavenumbers k satisfying k=10^(5/2)k_h(tstart)
+            an array of comoving wavenumbers k satisfying k=10^(5/2)k_h(tstart)
         tstart : array
             an array of physical time coordinates t satisfying k=10^(5/2)k_h(tstart)
         """
@@ -202,12 +210,12 @@ class ModeByMode:
 
         return k, tstart
     
-    def ComputeMode(x, k, tstart, teval=[], atol=1e-3, rtol=1e-4):
+    def ComputeMode(x, k : float, tstart : float, teval : ArrayLike|list=[], atol : float=1e-3, rtol : float=1e-4):
         """
         Input
         -----
         k : float
-           the wavenumber k for which the mode function A(t,k, +/-) is evolved.
+           the comoving wavenumber k for which the mode function A(t,k, +/-) is evolved.
         tstart : float
             the time coordinate satisfying k = 10^(5/2)k_h(tstart) needed to ensure that the modes initialised in the Bunch-Davies vacuum
         teval : array/list
@@ -268,18 +276,18 @@ class ModeByMode:
 
         return yp, dyp, ym, dym
     
-    def EBGnSpec(x, k, lam, ylam, dylam, a, n):
+    def EBGnSpec(x, k : float, lam : float, ylam : float, dylam : float, a : float, n : int):
         """
         Input
         -----
         k : float
-            the wavenumber for which the spectrum should be computed
+            the comoving wavenumber for which the spectrum should be computed
         lam : float
             the helicity of the spectrum (either +1 or -1)
         ylam : float
-            the mode function sqrt(2k) A(t,k,lam) for a given wavenumber k and helicity lam evaluated at time t
+            the mode function sqrt(2k) A(t,k,lam) for a given comoving wavenumber k and helicity lam evaluated at time t
         dylam : float
-            the mode-function derivative, sqrt(2/k) dAdeta(t,k,lam) for a given wavenumber k and helicity lam evaluated at time t
+            the mode-function derivative, sqrt(2/k) dAdeta(t,k,lam) for a given comoving wavenumber k and helicity lam evaluated at time t
         a : float
             the scale factor at time t
         n : int
@@ -288,11 +296,11 @@ class ModeByMode:
         Return
         ------
         E : float
-            the spectrum of 1/a^n E rot^n E for wavenumber k and helicity lam
+            the spectrum of 1/a^n E rot^n E for comoving wavenumber k and helicity lam
         B : float
-            the spectrum of 1/a^n B rot^n B for wavenumber k and helicity lam
+            the spectrum of 1/a^n B rot^n B for comoving wavenumber k and helicity lam
         G : float
-            the spectrum of -1/a^n E rot^n B for wavenumber k and helicity lam
+            the spectrum of -1/a^n E rot^n B for comoving wavenumber k and helicity lam
         """
     
         Eterm = abs(dylam)**2
@@ -314,7 +322,7 @@ class ModeByMode:
         G = prefac * Gterm
         return E, B, G
     
-    def ComputeEBGnMode(x, yP, yM, dyP, dyM, t, ks, n=0):
+    def ComputeEBGnMode(x, yP : ArrayLike, yM : ArrayLike, dyP : ArrayLike, dyM : ArrayLike, t : float, ks : ArrayLike, n : int=0):
         """
         Input
         -----
@@ -329,7 +337,7 @@ class ModeByMode:
         t : float
             the physical time at which to evaluate the function
         ks : array
-            an array of wavenumbers associated to the modes
+            an array of comoving wavenumbers associated to the modes
         n : int
             the power of the curl in E rot^n E, B rot^n B, etc.
 
