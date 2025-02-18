@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import os
 import random
+import inspect
+import src.GEFConstructor
 
 h = 0.67
 def PlotSensitivityCurves(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25):
@@ -31,9 +33,10 @@ def PlotSensitivityCurves(ax : plt.Axes, names : list=[], cols : list=[], alpha 
         the updated plot.
     """
     #the path to the sensitivity curve data
-    path = "./src/Tools/power-law-integrated_sensitivities/"
+    path = os.path.abspath(inspect.getfile(src.GEFConstructor)).replace("GEFConstructor.py", "Tools/power-law-integrated_sensitivities/")
+    print(path)
     arr = os.listdir(path)
-
+    
     #Obtain List of experiments and running experiments
     exp = [a.replace("plis_","").replace(".dat", "") for a in arr ]
     RunningExp = ["IPTA", "NANOGrav", "PPTA", "EPTA", "HLVK", "HLV", "HLV02"]
