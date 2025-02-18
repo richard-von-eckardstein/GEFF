@@ -17,8 +17,8 @@ def TensorModeEoM(y : ArrayLike, k : float, H : float, a : float):
     ----------
     y : array
         contains the vacuum tensor mode and its derivative. (in Hubble units).
-        y[0] = Re( M_P*sqrt(2k)*a(t)*h(t,k)/2 ), y[2] = Im( M_P*sqrt(2k)*a(t)*h(t,k)/2  )
-        y[1/5] = Re( M_P*sqrt(2/k)*a(t)*dhdeta(t,k)/2 ), y[3/7] = Im( M_P*sqrt(2/k)*a(t)*dhdeta(t,k)/2 ), eta being conformal time, a*deta = dt
+        y[0] = Re( sqrt(2k)*a(t)*h(t,k)/2 ), y[2] = Im( sqrt(2k)*a(t)*h(t,k)/2  )
+        y[1/5] = Re( sqrt(2/k)*a(t)*dhdeta(t,k)/2 ), y[3/7] = Im( sqrt(2/k)*a(t)*dhdeta(t,k)/2 ), eta being conformal time, a*deta = dt
     k : float
         the comoving wavenumber in Hubble units
     H : float
@@ -47,9 +47,9 @@ def TensorModeEoM(y : ArrayLike, k : float, H : float, a : float):
 def GreenEoM(A : ArrayLike, k : float, H : float, a : float):
     """
     For fixed times t and t', and comoving wavenumber k (in Hubble units), compute the t' derivative of 
-    B(k, t, t') = k*G(k, t, t') = k M_P^2/2 a(t')^2 Im ( h(k, t) h^*(k, t') )
+    B(k, t, t') = k*G(k, t, t') = k 1/2 a(t')^2 Im ( h(k, t) h^*(k, t') )
     and 
-    C(k, t, t') = M_P^2/2 a(t')^2 Im ( dhdeta(k, t) h^*(k, t') ) 
+    C(k, t, t') = 1/2 a(t')^2 Im ( dhdeta(k, t) h^*(k, t') ) 
     Here, G(k, t, t') is the retarded Green function associated with the differential operator D = d/deta^2 + 2 H a d/deta + k^2
 
     Parameters
@@ -113,7 +113,7 @@ class PowSpecT:
     x.__omega : float
         The ratio H_0/M_pl where H_0 is the value of the Hubble parameter at initialisation of the GEF system.
         Used to obtain gravitational-wave power spectra a a function of frequency today.
-    x.Nend : float
+    x.maxN : float
         If the GEF solution captures the end of Inflation, contains the number of e-folds after initialisation corresponding to the end of inflation.
         Otherwise, contains the largest number of e-folds after initialisiation which is captured by the GEF.
         This value is used to determine the redshift of frequencies and the gravitational wave power spectrum. 
@@ -140,10 +140,10 @@ class PowSpecT:
         Computes the full tensor power spectrum (including vacuum and sourced contributions) for a specified range of comoving wavenumbers k.
     ktofreq()
         Red-shifts a comoving wavenumber k to obtain the corresponding requency in Hz today.
-        Assumes  x.Nend corresponds to the end of inflation and instantaneous reheating. 
+        Assumes  x.maxN corresponds to the end of inflation. 
     PTtoOmega():
         Converts a tensor power spectrum to the gravitational-wave energy density, h^2 OmegaGW.
-        Assumes  x.Nend corresponds to the end of inflation and instantaneous reheating. 
+        Assumes  x.maxN corresponds to the end of inflation. 
     PTAnalyitcal():
         From a given GEF result, compute the analytical estimate of the tensor power spectrum from axion inflation.
     """
@@ -163,7 +163,7 @@ class PowSpecT:
         if max(N) < Nend:
             print("This GEF run has not run reached the end of inflation. The code will assume Nend = max(N). Proceed with caution!")
         maxN = min(max(N), Nend)
-        x.Nend = maxN
+        x.maxN = maxN
             
         #Set the range of modes
         x.maxk = CubicSpline(N, a*H)(maxN)
@@ -259,9 +259,9 @@ class PowSpecT:
         Return
         ------
         phik : array
-            the vacuum tensor mode (rescaled), sqrt(2k)*h(teval, k)*M_P/2
+            the vacuum tensor mode (rescaled), sqrt(2k)*h(teval, k)/2
         dphik : array
-            the derivative of the vacuum tensor mode (rescaled), sqrt(2/k)*dhdeta(teval, k)*M_P/2
+            the derivative of the vacuum tensor mode (rescaled), sqrt(2/k)*dhdeta(teval, k)/2
         """
 
         if len(teval)==0:
@@ -302,7 +302,7 @@ class PowSpecT:
         k : float
             the comoving wavenumber k for which the retarded Green function G(k, t, t') = Im( h(k, t) h^*(k, t') ) / Im( dhdeta(k, t') h^*(k, t') ) is evolved.
         phik : array
-            the values of the vacuum tensor mode phi(teval, k) = sqrt(2k)*h(teval, k)*M_P/2
+            the values of the vacuum tensor mode phi(teval, k) = sqrt(2k)*h(teval, k)/2
         tstart : float
             the time coordinate satisfying k = 10^(5/2)k_h(tstart), s.t. phi(t <= tstart, k) is in the Bunch-Davies state.
         ind : integer
@@ -350,7 +350,7 @@ class PowSpecT:
         k : array
             an array of comoving wavenumbers k for which the vacuum power spectrum is computed
         phik : array
-            the values of the vacuum tensor mode phi(t, k) = sqrt(2k)*h(teval, k)*M_P/2
+            the values of the vacuum tensor mode phi(t, k) = sqrt(2k)*h(teval, k)/2
 
         Return
         ------
@@ -374,7 +374,7 @@ class PowSpecT:
         Ngrid : array
             an array of e-folds over which the Green function and gauge-mode functions are integrated
         GreenN : array
-            a 1D-array of Green function values k G(k, Ngrid[ind], Ngrid)
+            a 1D-array of Green function values k*G(k, Ngrid[ind], Ngrid)
         kgrid : array
             an array of comoving wavenumbers for which the gauge-field mode functions are given.
         l1, l2 : float
@@ -454,7 +454,7 @@ class PowSpecT:
             the comoving wavenumber k for which to compute the tensor power spectrum.
         N : float|None
             the time (in e-folds) at which to compute the tensor power spectrun.
-            If N=None, the tensor power spectrum is computed at x.Nend.
+            If N=None, the tensor power spectrum is computed at x.maxN.
         ModePath : str
             The path to a file containing the tabulated gauge-field mode functions from a mode-by-mode computation.
         FastGW : bool
@@ -483,7 +483,7 @@ class PowSpecT:
         GaugeModes = {"+":(Ap, dAp), "-":(Am, dAm)}
 
         if N==None:
-            N = x.Nend
+            N = x.maxN
         
         inds = np.where(Ngrid < N)[0]
         indend = inds[-1]
@@ -558,28 +558,36 @@ class PowSpecT:
         PTanalytic = {"tot":(2*pre + indP + indM), "vac":2*pre, "ind+":2*indP, "ind-":2*indM}
         return PTanalytic
     
-    def ktofreq(x, k : ArrayLike):
+    def ktofreq(x, k : ArrayLike, Nend : float|None=None, DeltaN : float=0.):
         """
         Input
         -----
         k : array
             an array of comoving wavenumbers k during inflation
+        Nend : float
+            the number of e-folds corresponding to the end of inflation.
+        DeltaN : float
+            an uncertainty of e-folds encoding the duration of reheating. Instantaneous reheating assumes deltaN=0
 
         Return
         ------
         f : array
             the red-shifted frequencies in Hz
         """
-        Hend = x.__HN(x.Nend)
+        if Nend==None:
+            Nend = x.maxN
 
-        Trh = np.sqrt(3*Hend*x.__omega/np.pi)*(10/106.75)**(1/4)*M_pl
+        #We assume instantaneous reheating. To parametrise this assumption, shift the output frequency f -> f exp(- Nrh). Nrh is the unknown number of e-folds of reheating.
+        Hrh = x.__HN(Nend)
+
+        Trh = np.sqrt(3*Hrh*x.__omega/np.pi)*(10/106.75)**(1/4)*M_pl
         Trh = Trh*(106.75/g_rho(Trh))**(1/4)
 
-        f = k*x.__omega*M_pl*gev_to_hz/(2*np.pi*np.exp(x.Nend)) * T_0/Trh * (g_s(Trh)/g_s_0)**(-1/3)
+        f = k*x.__omega*M_pl*gev_to_hz/(2*np.pi*np.exp(Nend)) * T_0/Trh * (g_s(Trh)/g_s_0)**(-1/3)*np.exp(-DeltaN)
 
         return f
 
-    def PTtoOmega(x, PT : ArrayLike, k : ArrayLike):
+    def PTtoOmega(x, PT : ArrayLike, k : ArrayLike, Nend : float|None=None, DeltaN : float=0.):
         """
         Input
         -----
@@ -587,15 +595,19 @@ class PowSpecT:
             an array of tensor power spectra at the end of inflation for comoving wavenumbers k
         k : array
             an array of comoving wavenumbers k during inflation
+        Nend : float
+            the number of e-folds corresponding to the end of inflation.
+        DeltaN : float
+            an uncertainty of e-folds encoding the duration of reheating. Instantaneous reheating assumes DeltaN=0
 
         Return
         ------
         f : array
             the red-shifted frequencies in Hz
         """
-        f = x.ktofreq(k)
+        f = x.ktofreq(k, Nend, DeltaN)
         OmegaGW = h**2*omega_r/24  * PT * (g_rho(f, True)/g_rho_0) * (g_s_0/g_s(f, True))**(4/3)
-        return OmegaGW
+        return OmegaGW, f
     
 
 
