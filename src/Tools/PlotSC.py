@@ -34,7 +34,6 @@ def PlotSensitivityCurves(ax : plt.Axes, names : list=[], cols : list=[], alpha 
     """
     #the path to the sensitivity curve data
     path = os.path.abspath(inspect.getfile(src.GEFConstructor)).replace("GEFConstructor.py", "Tools/power-law-integrated_sensitivities/")
-    print(path)
     arr = os.listdir(path)
     
     #Obtain List of experiments and running experiments

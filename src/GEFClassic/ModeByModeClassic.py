@@ -146,7 +146,6 @@ class ModeByMode:
         x.__af = CubicSpline(x.__t, np.exp(x.__N))
         x.__SclrCplf = CubicSpline(x.__t, G.dIdphi()*G.vals["dphi"])
         x.__khf = CubicSpline(x.__t, kh)
-        x.__Hf = CubicSpline(x.__t, H)
         
         deta = lambda t, y: 1/x.__af(t)
         
@@ -276,20 +275,20 @@ class ModeByMode:
 
         return yp, dyp, ym, dym
     
-    def EBGnSpec(x, k : float, lam : float, ylam : float, dylam : float, a : float, n : int):
+    def EBGnSpec(x, k : float, t : float, lam : float, ylam : float, dylam : float, n : int):
         """
         Input
         -----
         k : float
             the comoving wavenumber for which the spectrum should be computed
+        t : float
+            the time at which to evaluate the spectrum
         lam : float
             the helicity of the spectrum (either +1 or -1)
         ylam : float
             the mode function sqrt(2k) A(t,k,lam) for a given comoving wavenumber k and helicity lam evaluated at time t
         dylam : float
             the mode-function derivative, sqrt(2/k) dAdeta(t,k,lam) for a given comoving wavenumber k and helicity lam evaluated at time t
-        a : float
-            the scale factor at time t
         n : int
             the power of the curl in E rot^n E, B rot^n B, etc.
 
@@ -302,6 +301,8 @@ class ModeByMode:
         G : float
             the spectrum of -1/a^n E rot^n B for comoving wavenumber k and helicity lam
         """
+
+        a = x.__af(t)
     
         Eterm = abs(dylam)**2
 
@@ -355,8 +356,8 @@ class ModeByMode:
         Gs = []
         for i, k in enumerate(ks):
             if k < x.__khf(t) and k > x.mink:
-                Ep, Bp, Gp = x.EBGnSpec(k, 1.0, yP[i], dyP[i], x.__af(t), n)
-                Em, Bm, Gm = x.EBGnSpec(k, -1.0, yM[i], dyM[i], x.__af(t), n)
+                Ep, Bp, Gp = x.EBGnSpec(k, t,  1.0, yP[i], dyP[i], n)
+                Em, Bm, Gm = x.EBGnSpec(k, t, -1.0, yM[i], dyM[i], n)
                 Es.append(Ep + Em)
                 Bs.append(Bp + Bm)
                 Gs.append(Gp + Gm)

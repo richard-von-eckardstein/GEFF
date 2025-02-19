@@ -88,8 +88,8 @@ def check_GEFConfig(GEFconfig: ModuleType):
     
     if isinstance(GEFconfig.GEFFile, str):
         if not os.path.isfile(GEFconfig.GEFFile):
-            warning =  f"\nNo file found under {GEFconfig.GEFFile}. This input will be ignored"
-            GEFconfig.GEFFile=None
+            warning =  f"\nNo file found under {GEFconfig.GEFFile}. This path is treated as default for storing GEF data."
+            #GEFconfig.GEFFile=None
             warnings.warn(warning)
     elif not GEFconfig.GEFFile==None:
         warning =  f"\n'GEFFile' must be a path to a file or None. This input will be ignored"
@@ -98,8 +98,8 @@ def check_GEFConfig(GEFconfig: ModuleType):
         
     if isinstance(GEFconfig.MbMFile, str):
         if not os.path.isfile(GEFconfig.MbMFile):
-            warning =  f"\nNo file found under {GEFconfig.MbMFile}. This input will be ignored"
-            GEFconfig.MbMFile=None
+            warning =  f"\nNo file found under {GEFconfig.MbMFile}. This path is treated as default for storing mode-by-mode data."
+            #GEFconfig.MbMFile=None
             warnings.warn(warning)
     elif not GEFconfig.MbMFile==None:
         warning =  f"\n'MbMFile' must be a path to a file or None. Will be set to None."
@@ -113,9 +113,7 @@ def CreateGEF(GEFFile: str, approx=True):
     GEFconfig = load_GEFConfig(GEFFile)
     GEFconfig = check_GEFConfig(GEFconfig)
 
-    #common input:
-    Mpl = 1.
-
+    #Common Input
     beta = GEFconfig.beta
 
     V = GEFconfig.V
@@ -143,7 +141,7 @@ def CreateGEF(GEFFile: str, approx=True):
             G.LoadData()
             G.Unitful()
         except:
-            print("Could not load GEF data from file.")
+            print("Could not load GEF data from file. Try solving the GEF equations using GEF.RunGEF.")
 
     return G
 

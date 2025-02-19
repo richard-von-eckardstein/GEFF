@@ -361,7 +361,8 @@ class PowSpecT:
         return PTvac
 
     def _InducedTensorPowerSpec_(x, k : float, lgrav : float, ind: int, Ngrid : ArrayLike, GreenN : ArrayLike, kgrid : ArrayLike,
-                                l1 : float, A1 : ArrayLike, dA1 : ArrayLike, l2 : float, A2 : ArrayLike, dA2 : ArrayLike):
+                                l1 : float, A1 : ArrayLike, dA1 : ArrayLike, l2 : float, A2 : ArrayLike, dA2 : ArrayLike,
+                                momgrid : int=100):
         """
         Input
         -----
@@ -383,6 +384,8 @@ class PowSpecT:
             the gauge-field mode functions sqrt(2k)*A(Ngrid, kgrid, l1/l2) as obtained from the mode-by-mode code
         dA1, dA2 : float
             the derivatives of the gauge-field mode functions sqrt(2/k)*dAdeta(Ngrid, kgrid, l1/l2) as obtained from the mode-by-mode code
+        momgrid : int
+            the internal momentum integral over p and k-p is performed using a momgrid x momgrid grid.
 
         Return
         ------
@@ -394,7 +397,7 @@ class PowSpecT:
         cutIR = min(kgrid)/k
         HN = x.__HN(Ngrid)
 
-        logAs = np.linspace(np.log(max(0.5, cutIR)), np.log(cutUV), 100)
+        logAs = np.linspace(np.log(max(0.5, cutIR)), np.log(cutUV), momgrid)
 
         Afuncx = CubicSpline(np.log(kgrid), A1)
         dAfuncx = CubicSpline(np.log(kgrid), dA1)
@@ -413,7 +416,7 @@ class PowSpecT:
                 if Bhigh>0.5:
                     Blow = -0.5
                     Bhigh = 0.5
-            Bs = np.linspace(Blow, Bhigh, 100)[1:-1]
+            Bs = np.linspace(Blow, Bhigh, momgrid)[1:-1]
 
             IntInner = np.zeros(Bs.shape)
 
@@ -446,7 +449,7 @@ class PowSpecT:
 
     
     def ComputePowSpec(x, k : ArrayLike, N : float|None=None, ModePath : str|None=None, FastGW : bool=True,
-                       atol : float=1e-3, rtol : float=1e-4):
+                       atol : float=1e-3, rtol : float=1e-4, momgrid : int=100):
         """
         Input
         -----
@@ -465,6 +468,8 @@ class PowSpecT:
             the absolute precision of the numerical intergrator used to compute the vacuum tensor mode functions and the Green function.
         rtol : float
              the relative precision of the numerical intergrator used to compute the vacuum tensor mode functions and the Green function.
+        momgrid : int
+            the internal momentum integral for the induced power spectrum over p and k-p is performed using a momgrid x momgrid grid
 
         Return
         ------
@@ -525,7 +530,7 @@ class PowSpecT:
                             PT[f"ind{lgrav[0]},{mu[0][0]}{mu[1][0]}"].append(0.)
                         else:
                             PT[f"ind{lgrav[0]},{mu[0][0]}{mu[1][0]}"].append(
-                                x._InducedTensorPowerSpec_(k, GWpol, indend, Ngrid, Green, kgrid, lx, Ax, dAx, ly, Ay, dAy) )
+                                x._InducedTensorPowerSpec_(k, GWpol, indend, Ngrid, Green, kgrid, lx, Ax, dAx, ly, Ay, dAy, momgrid) )
 
         PT["tot"] = np.zeros(ks.shape)
         for key in PT.keys():
