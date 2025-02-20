@@ -7,9 +7,10 @@ from src.Tools.ModeByMode import ReadMode
 
 from ptarcade.models_utils import g_rho, g_rho_0, g_s, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
 
+from typing import Tuple
 from numpy.typing import ArrayLike
 
-def TensorModeEoM(y : ArrayLike, k : float, H : float, a : float):
+def TensorModeEoM(y : ArrayLike, k : float, H : float, a : float) -> ArrayLike:
     """
     Compute the time derivative of a vacuum tensor mode and its derivative for a fixed comoving wavenumber at a given moment of time t (in Hubble units)
 
@@ -44,7 +45,7 @@ def TensorModeEoM(y : ArrayLike, k : float, H : float, a : float):
 
     return dydt
 
-def GreenEoM(A : ArrayLike, k : float, H : float, a : float):
+def GreenEoM(A : ArrayLike, k : float, H : float, a : float) -> ArrayLike:
     """
     For fixed times t and t', and comoving wavenumber k (in Hubble units), compute the t' derivative of 
     B(k, t, t') = k*G(k, t, t') = k 1/2 a(t')^2 Im ( h(k, t) h^*(k, t') )
@@ -191,7 +192,7 @@ class PowSpecT:
         x.__etaf = CubicSpline(x.__t, soleta.y[0,:])
         return
     
-    def _InitialKTN_(x, init : ArrayLike, mode : str ="t", pwr : float=5/2):
+    def _InitialKTN_(x, init : ArrayLike, mode : str ="t", pwr : float=5/2) -> Tuple[ArrayLike, ArrayLike]:
         """
         Input
         -----
@@ -240,7 +241,7 @@ class PowSpecT:
 
         return k, tstart
         
-    def _GetHomSol_(x, k : float, tstart : float, teval : ArrayLike|list=[], atol : float=1e-3, rtol : float=1e-4):
+    def _GetHomSol_(x, k : float, tstart : float, teval : ArrayLike|list=[], atol : float=1e-3, rtol : float=1e-4) -> Tuple[ArrayLike, ArrayLike]:
         """
         Input
         -----
@@ -295,7 +296,7 @@ class PowSpecT:
 
         return phik, dphik
 
-    def _GreenFunc_(x, k : float, phik : ArrayLike, ind : int, tstart : float, teval : ArrayLike|list=[], atol : float=1e-3, rtol : float=1e-4):
+    def _GreenFunc_(x, k : float, phik : ArrayLike, ind : int, tstart : float, teval : ArrayLike|list=[], atol : float=1e-3, rtol : float=1e-4) -> ArrayLike:
         """
         Input
         -----
@@ -343,7 +344,7 @@ class PowSpecT:
 
         return GreenN
 
-    def _VacuumPowSpec_(x, k : ArrayLike, phik : ArrayLike):
+    def _VacuumPowSpec_(x, k : ArrayLike, phik : ArrayLike) -> ArrayLike:
         """
         Input
         -----
@@ -362,7 +363,7 @@ class PowSpecT:
 
     def _InducedTensorPowerSpec_(x, k : float, lgrav : float, ind: int, Ngrid : ArrayLike, GreenN : ArrayLike, kgrid : ArrayLike,
                                 l1 : float, A1 : ArrayLike, dA1 : ArrayLike, l2 : float, A2 : ArrayLike, dA2 : ArrayLike,
-                                momgrid : int=100):
+                                momgrid : int=100) -> float:
         """
         Input
         -----
@@ -449,7 +450,7 @@ class PowSpecT:
 
     
     def ComputePowSpec(x, k : ArrayLike, N : float|None=None, ModePath : str|None=None, FastGW : bool=True,
-                       atol : float=1e-3, rtol : float=1e-4, momgrid : int=100):
+                       atol : float=1e-3, rtol : float=1e-4, momgrid : int=100) -> dict:
         """
         Input
         -----
@@ -542,7 +543,7 @@ class PowSpecT:
 
         return PT
     
-    def PTAnalytical(x):
+    def PTAnalytical(x) -> dict:
         """
         Return
         ------
@@ -562,37 +563,44 @@ class PowSpecT:
         #Factors of two to match my convention
         PTanalytic = {"tot":(2*pre + indP + indM), "vac":2*pre, "ind+":2*indP, "ind-":2*indM}
         return PTanalytic
-    
-    def ktofreq(x, k : ArrayLike, Nend : float|None=None, DeltaN : float=0.):
+
+    def ktofreq(x, k : ArrayLike, Nend : float|None=None, Trh : None|float=None) -> ArrayLike:
         """
         Input
         -----
         k : array
             an array of comoving wavenumbers k during inflation
-        Nend : float
+        Nend : float or None
             the number of e-folds corresponding to the end of inflation.
-        DeltaN : float
-            an uncertainty of e-folds encoding the duration of reheating. Instantaneous reheating assumes deltaN=0
+            If Nend=None, it is assumed that x.maxN corresponds to the end of inflation.
+        Trh : None or float
+            the assumed reheating temperature in GeV. Reheating is modelled assuming an EoS parameter wrh=0.
+            If Trh is None, instantaneous reheating is assumed.
 
         Return
         ------
         f : array
             the red-shifted frequencies in Hz
         """
+        #Assumes the end of inflation is reached by the end of the run.
         if Nend==None:
             Nend = x.maxN
 
-        #We assume instantaneous reheating. To parametrise this assumption, shift the output frequency f -> f exp(- Nrh). Nrh is the unknown number of e-folds of reheating.
-        Hrh = x.__HN(Nend)
+        Hend = x.__HN(Nend)
+        if Trh==None:
+            Trh = np.sqrt(3*Hend*x.__omega/np.pi)*(10/106.75)**(1/4)*M_pl
+            Trh = Trh*(106.75/g_rho(Trh))**(1/4)
+            Nrh = 0
+        else:
+            wrh = 0
+            Nrh = np.log( 90*(Hend*x.__omega*M_pl**2)**2 / (np.pi**2*g_rho(Trh)*Trh**4 ) ) / ( 3 * (1 + wrh) )
 
-        Trh = np.sqrt(3*Hrh*x.__omega/np.pi)*(10/106.75)**(1/4)*M_pl
-        Trh = Trh*(106.75/g_rho(Trh))**(1/4)
 
-        f = k*x.__omega*M_pl*gev_to_hz/(2*np.pi*np.exp(Nend)) * T_0/Trh * (g_s(Trh)/g_s_0)**(-1/3)*np.exp(-DeltaN)
+        f = k*x.__omega*M_pl*gev_to_hz/(2*np.pi*np.exp(Nend)) * T_0/Trh * (g_s_0/g_s(Trh))**(1/3) * np.exp(-Nrh)
 
         return f
-
-    def PTtoOmega(x, PT : ArrayLike, k : ArrayLike, Nend : float|None=None, DeltaN : float=0.):
+    
+    def PTtoOmega(x, PT : ArrayLike, k : ArrayLike, Nend : float|None=None, Trh : None|float=None) -> Tuple[ArrayLike, ArrayLike]:
         """
         Input
         -----
@@ -600,18 +608,36 @@ class PowSpecT:
             an array of tensor power spectra at the end of inflation for comoving wavenumbers k
         k : array
             an array of comoving wavenumbers k during inflation
-        Nend : float
+        Nend : float or None
             the number of e-folds corresponding to the end of inflation.
-        DeltaN : float
-            an uncertainty of e-folds encoding the duration of reheating. Instantaneous reheating assumes DeltaN=0
+            If Nend=None, it is assumed that x.maxN corresponds to the end of inflation.
+        Trh : None or float
+            the assumed reheating temperature in GeV. Reheating is modelled assuming an EoS parameter wrh=0.
+            If Trh is None, instantaneous reheating is assumed.
 
         Return
         ------
         f : array
             the red-shifted frequencies in Hz
         """
-        f = x.ktofreq(k, Nend, DeltaN)
-        OmegaGW = h**2*omega_r/24  * PT * (g_rho(f, True)/g_rho_0) * (g_s_0/g_s(f, True))**(4/3)
+
+
+        
+        f = x.ktofreq(k, Nend, Trh)
+        if Trh==None:
+            TransferRH=1
+        else:
+            if Nend==None:
+                Nend = x.maxN
+            
+            frh = 1/(2*np.pi) * (g_s_0/g_s(Trh))**(1/3) * (np.pi**2*g_rho(Trh)/90)**(1/2) * (Trh/M_pl) * T_0*gev_to_hz
+            fend = 1/(2*np.pi) * (g_s_0/g_s(Trh))**(1/3) * (np.pi**2*g_rho(Trh)/90)**(1/3) * (Trh/M_pl)**(1/3) * (x.__HN(Nend)*x.__omega)**(1/3) * T_0*gev_to_hz
+
+            TransferRH = 1/(1. - 0.22*(f/frh)**1.5 + 0.65*(f/frh)**2)
+            TransferRH = np.where(np.log(f/fend) < 0, TransferRH, np.zeros(f.shape))
+
+        OmegaGW = h**2*omega_r/24  * PT * (g_rho(f, True)/g_rho_0) * (g_s_0/g_s(f, True))**(4/3) * TransferRH
+        
         return OmegaGW, f
     
 

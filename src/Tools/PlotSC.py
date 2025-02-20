@@ -38,7 +38,7 @@ def PlotSensitivityCurves(ax : plt.Axes, names : list=[], cols : list=[], alpha 
     
     #Obtain List of experiments and running experiments
     exp = [a.replace("plis_","").replace(".dat", "") for a in arr ]
-    RunningExp = ["IPTA", "NANOGrav", "PPTA", "EPTA", "HLVK", "HLV", "HLV02"]
+    RunningExp = ["IPTA", "NANOGrav", "PPTA", "EPTA", "HLVO2"]
 
     #Parse Input Names
     if names!=[]:
