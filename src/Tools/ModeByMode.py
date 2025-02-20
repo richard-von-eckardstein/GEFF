@@ -9,31 +9,31 @@ from numpy.typing import ArrayLike
 
 alpha=0
 
-def ReadMode(file : str|None=None):
-        if(file==None):
-            filename = "Modes+Beta" + str(x.__beta) + "+M6_16" + ".dat"
-            DirName = os.getcwd()
-    
-            file = os.path.join(DirName, filename)
-            
-        input_df = pd.read_table(file, sep=",")
-        datayp = input_df.values
-    
-        x = np.arange(3,datayp.shape[1], 4)
-        
-        t = np.array(datayp[1:,1])
-        N = np.array(datayp[1:,2])
-        logk = np.array([(complex(datayp[0,y])).real for y in x])
-        yp = np.array([[complex(datayp[i+1,y]) for i in range(len(N))] for y in x])
-        dyp = np.array([[complex(datayp[i+1,y+1]) for i in range(len(N))] for y in x])
-        ym = np.array([[complex(datayp[i+1,y+2]) for i in range(len(N))] for y in x])
-        dym = np.array([[complex(datayp[i+1,y+3]) for i in range(len(N))] for y in x])
+def ReadMode(x, file=None):
+    if(file==None):
+        filename = "Modes+Beta" + str(x.__beta) + "+M6_16" + ".dat"
+        DirName = os.getcwd()
 
-        k = 10**logk
+        file = os.path.join(DirName, filename)
         
-        return t, N, k, yp, dyp, ym, dym
+    input_df = pd.read_table(file, sep=",")
+    dataAp = input_df.values
 
-def ModeEoM(y : ArrayLike, k : float, SclrCpl : float, a : float):
+    x = np.arange(3,dataAp.shape[1], 4)
+    
+    t = np.array(dataAp[1:,1])
+    N = np.array(dataAp[1:,2])
+    logk = np.array([(complex(dataAp[0,y])).real for y in x])
+    Ap = np.array([[complex(dataAp[i+1,y]) for i in range(len(N))] for y in x])
+    dAp = np.array([[complex(dataAp[i+1,y+1]) for i in range(len(N))] for y in x])
+    Am = np.array([[complex(dataAp[i+1,y+2]) for i in range(len(N))] for y in x])
+    dAm = np.array([[complex(dataAp[i+1,y+3]) for i in range(len(N))] for y in x])
+
+    k = 10**logk
+    
+    return t, N, k, Ap, dAp, Am, dAm
+
+def ModeEoM(y : ArrayLike, k : float, a : float, SclrCpl : float, sigmaE : float=0., sigmaB : float=0.):
     """
     Compute the time derivative of the gauge-field mode and its derivatives for a fixed comoving wavenumber at a given moment of time t
 
@@ -45,10 +45,14 @@ def ModeEoM(y : ArrayLike, k : float, SclrCpl : float, a : float):
         y[1/5] = Re( sqrt(2/k)*dAdeta(t,k,+/-) ), y[3/7] = Im( sqrt(2/k)*dAdeta(t,k,+/-) ), eta being conformal time, a*deta = dt
     k : float
         the comoving wavenumber in Hubble units
-    SclrCpl : float
-        coupling induced by the axion velocity at time t, beta/M_P*dphidt (in Hubble units)
     a : float
         the scalefactor at time t
+    SclrCpl : float
+        coupling induced by the axion velocity at time t, beta/M_P*dphidt (in Hubble units)
+    sigmaE : float
+        electric damping term induced by fermions (only relevant for Schwinger effect runs)
+    sigmaB : float
+        magnetic damping term induced by fermions (only relevant for Schwinger effect runs)
 
     Returns
     -------
@@ -59,9 +63,9 @@ def ModeEoM(y : ArrayLike, k : float, SclrCpl : float, a : float):
     
     dydt = np.zeros(y.size)
     
-    drag = 0
+    drag = a**(alpha) * sigmaE
     dis1 = k * a**(alpha-1)
-    dis2 = SclrCpl
+    dis2 = SclrCpl + a**(alpha) * sigmaB
 
     #positive helicity
     lam = 1.
@@ -85,67 +89,93 @@ def ModeEoM(y : ArrayLike, k : float, SclrCpl : float, a : float):
     
     return dydt
 
+
 class ModeByMode:
-    """
-    A class used to solve the gauge-field mode equation for axion inflation based on a given GEF solution.
-    Can be used to internally verify the consistency of the GEF solution. All quantities throught are treated in Hubble units.
-    
-    ...
-    
-    Attributes
-    ----------
-    
-    x.__t : array
-        An increasing array of physical times tracking the evolution of the GEF system.
-    x.__N : array
-        An increasing array of e-Folds tracking the evolution of the GEF system.
-    x.__beta : float
-        The strength of the inflaton--gauge-field interaction, beta/M_P
-    x.__af : function
-        returns the scale factor, a(t), as a function of physical time. Obtained by interpolation of the GEF solution.
-    x.__SclrCplf : function
-        returns the coupling of the inflaton velocity to the gauge-field, beta/M_p*dphidt, as a function of physical time.
-        Obtained by interpolation of the GEF solution.
-    x.__khf : function
-        returns the instability scale k_h(t) as a function of physical time. Obtained by interpolation of the GEF solution.
-    x.__etaf : function
-        returns the conformal time eta(t) as a function of physical time normalised to eta(0)=-1/H_0.
-        Obtained by numerical integration and interpolation.
-    x.maxk : float
-        the maximal comoving wavenumber k which can be resolved based on the dynamical range covered by the GEF solution
-    x.mink : float
-        the minimal comoving wavenumber k which can be resolved based on the initial conditions of the GEF solution
-    
-    ...
-    
-    Methods
-    -------
-    
-    InitialKTN()
-        Determines the solution to k = 10^(5/2)*k_h(t). 
-        Initial data can be given for the comoving wavenumber k, the physical time coordinates t, or e-Folds N.
-    ComputeMode()
-        For a given comoving wavenumber k satisfying k=10^(5/2)*k_h(t), initialises the gauge-field modes at time t in the Bunch-Davies vacuum
-        and computes the time evolution within a given time interval, teval.
-    EBGnSpec()
-        Computes the spectrum of E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n])
-        at a given moment of time t and a helicity lambda gusing the gauge field spectrum A(t, k, lambda)
-    ComputeEBGnMode()
-        Computes the expectation values E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n]) at a given moment of time t
-        given the gauge field spectrum A(t, k, +/-). Useful for comparing GEF results to mode-by-mode results.
-    """
+    #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
     def __init__(x, G):
-    #Initialise the ModeByMode class, defines all relevant quantities for this class from the background GEF values G
+        """
+        A class used to solve the gauge-field mode equation for axion inflation based on a given GEF solution.
+        Can be used to internally verify the consistency of the GEF solution. All quantities throught are treated in Hubble units.
+
+        ...
+
+        Attributes
+        ----------
+
+        x.__t : array
+            An increasing array of physical times tracking the evolution of the GEF system.
+        x.__N : array
+            An increasing array of e-Folds tracking the evolution of the GEF system.
+        x.__beta : float
+            The strength of the inflaton--gauge-field interaction, beta/M_P
+        x.__af : function
+            returns the scale factor, a(t), as a function of physical time. Obtained by interpolation of the GEF solution.
+        x.__SclrCplf : function
+            returns the coupling of the inflaton velocity to the gauge-field, beta/M_p*dphidt, as a function of physical time.
+            Obtained by interpolation of the GEF solution.
+        x.__khf : function
+            returns the instability scale k_h(t) as a function of physical time. Obtained by interpolation of the GEF solution.
+        x.__etaf : function
+            returns the conformal time eta(t) as a function of physical time normalised to eta(0)=-1/H_0.
+            Obtained by numerical integration and interpolation.
+        x.__SE : string | None:
+            if the GEF incorporates the Schwinger effect, x.__SE="KDep" or x.__SE="Old", depending on the configuartion of the GEF run (G.SEModel)
+            otherwise, x.__SE=None
+        x.__sigmaE : array:
+            an array containing the electric conductivities as a function of time (only relevant if x.__SE != None)
+        x.__sigmaB : array:
+            an array containing the magnetic conductivities as a function of time (only relevant if x.__SE != None)
+        x.__delta : array:
+            an array containing the time accumulated damping due to electric conductivity, exp(-int[sigmaE,dt] ) as a function of time (only relevant if x.__SE == "Old") 
+        x.__kFerm : array
+            an array containing the fermion pair-creation scale as a function of time (only relevant if x.__SE == "KDep") 
+        x.maxk : float
+            the maximal comoving wavenumber k which can be resolved based on the dynamical range covered by the GEF solution
+        x.mink : float
+            the minimal comoving wavenumber k which can be resolved based on the initial conditions of the GEF solution
+
+        ...
+
+        Methods
+        -------
+
+        InitialKTN()
+            Determines the solution to k = 10^(5/2)*k_h(t). 
+            Initial data can be given for the comoving wavenumber k, the physical time coordinates t, or e-Folds N.
+        ComputeMode()
+            For a given comoving wavenumber k satisfying k=10^(5/2)*k_h(t), initialises the gauge-field modes at time t in the Bunch-Davies vacuum
+            and computes the time evolution within a given time interval, teval.
+        EBGnSpec()
+            Computes the spectrum of E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n])
+            at a given moment of time t and a helicity lambda gusing the gauge field spectrum A(t, k, lambda)
+        ComputeEBGnMode()
+            Computes the expectation values E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n]) at a given moment of time t
+            given the gauge field spectrum A(t, k, +/-). Useful for comparing GEF results to mode-by-mode results.
+        """
+        
+        #Initialise the ModeByMode class, defines all relevant quantities for this class from the background GEF values G
         if G.units: G.Unitless()
         x.__t = G.vals["t"]
         x.__N = G.vals["N"]
         kh = G.vals["kh"]
-        H = G.vals["H"]
-        x.__beta=G.beta
+        x.__beta = G.beta
 
-        x.__af = CubicSpline(x.__t, np.exp(x.__N))
-        x.__SclrCplf = CubicSpline(x.__t, G.dIdphi()*G.vals["dphi"])
+        x.__af = CubicSpline(x.__t, G.vals["a"])
+        x.__SclrCplf = CubicSpline( x.__t, G.dIdphi()*G.vals["dphi"] )
         x.__khf = CubicSpline(x.__t, kh)
+
+        #Assess if the GEF run incorporates Fermions
+        if hasattr(G, "SEModel"):
+            x.__SE = G.SEModel
+            x.__sigmaB = G.vals["sigmaB"]
+            x.__sigmaE = G.vals["sigmaE"]
+            x.__delta = G.vals["delta"]
+            
+            if x.__SE=="KDep":
+                x.__kFerm = G.vals["kS"]
+
+        else:
+            x.__SE = None
         
         deta = lambda t, y: 1/x.__af(t)
         
@@ -159,11 +189,11 @@ class ModeByMode:
         
         #Define suitable range of wavenumbers which can be considered given the background dynamics. mink might still change
         x.maxk = CubicSpline(x.__N, kh)(maxN)
-        x.mink = 10**(3)*kh[0]
+        x.mink = 10**4*kh[0]
         
         return
     
-    def InitialKTN(x, init : ArrayLike, mode : str="t"):
+    def InitialKTN(x, init, mode="t"):
         """
         Input
         -----
@@ -209,7 +239,7 @@ class ModeByMode:
 
         return k, tstart
     
-    def ComputeMode(x, k : float, tstart : float, teval : ArrayLike|list=[], atol : float=1e-3, rtol : float=1e-4):
+    def ComputeMode(x, k, tstart, teval=[], atol=1e-3, rtol=1e-5):
         """
         Input
         -----
@@ -237,12 +267,36 @@ class ModeByMode:
             the derivative of the negative helicity modes (rescaled), sqrt(2/k)*dAdeta(teval, k, -)
         """
 
-        
-        #Initial conditions for y and dydt for both helicities (rescaled appropriately)
-        yini = np.array([1., 0, 0, -1., 1, 0, 0, -1.])
-        
-        #Define ODE to solve
-        ode = lambda t, y: ModeEoM(y, k, x.__SclrCplf(t), x.__af(t))
+        #Setup initial modes and ODE depending on Schwinger effect mode
+        if x.__SE == None:
+            #Initial conditions for y and dydt for both helicities (rescaled appropriately)
+            yini = np.array([1., 0, 0, -1., 1, 0, 0, -1.])
+            
+            #Define ODE to solve (sigmaE=0, sigmaB=0)
+            ode = lambda t, y: ModeEoM(y, k, x.__af(t), x.__SclrCplf(t))
+        else:
+            #Treat sigma's depending on KDep or not
+            if x.__SE=="KDep":
+                tcross = x.__t[np.where(x.__kFerm/k < 1)][-1]
+                if tstart > tcross: tstart = tcross
+                sigmaEk = np.where( x.__kFerm < k, 0, x.__sigmaE )
+                sigmaBk = np.where( x.__kFerm < k, 0, x.__sigmaB )
+
+                sigmaEf = CubicSpline(x.__t, sigmaEk)
+                sigmaBf = CubicSpline(x.__t, sigmaBk)
+
+                deltaf  = lambda x: 1.0 #we always initialse modes while k > kFerm
+            elif x.__SE=="Old":
+                sigmaEf = CubicSpline(x.__t, x.__sigmaE)
+                sigmaBf = CubicSpline(x.__t, x.__sigmaB)
+                deltaf  = CubicSpline(x.__t, x.__delta)
+
+            #Initial conditions for y and dydt for both helicities (rescaled appropriately)
+            yini = np.array([1., -1/2*sigmaEf(tstart)/k, 0, -1.,
+                            1., -1/2*sigmaEf(tstart)/k, 0, -1.])*np.sqrt( deltaf(tstart) )
+            
+            #Define ODE to solve
+            ode = lambda t, y: ModeEoM( y, k, x.__af(t), x.__SclrCplf(t), sigmaEf(t), sigmaBf(t) )
         
         #maximal time
         tmax = max(x.__t)
@@ -305,9 +359,7 @@ class ModeByMode:
         a = x.__af(t)
     
         Eterm = abs(dylam)**2
-
         Bterm = abs(ylam)**2
-
         Gterm = lam*(ylam.conjugate() * dylam).real
 
         #prefac modified to account for sqrt(2k) factor in modes
@@ -315,12 +367,11 @@ class ModeByMode:
 
         #ErotnE = int(Edk) 
         E = prefac * Eterm
-
         #BrotnB = int(Bdk) 
         B = prefac * Bterm
-
         #-ErotnB = int(Gdk)
         G = prefac * Gterm
+
         return E, B, G
     
     def ComputeEBGnMode(x, yP : ArrayLike, yM : ArrayLike, dyP : ArrayLike, dyM : ArrayLike, t : float, ks : ArrayLike, n : int=0):
@@ -351,6 +402,7 @@ class ModeByMode:
         Gn : float
             the value of -1/a^n E rot^n B at time t
         """
+
         Es = []
         Bs = []
         Gs = []
@@ -366,16 +418,13 @@ class ModeByMode:
                 Bs.append(0)
                 Gs.append(0)
 
-        Es = np.array(Es)
-        En = trapezoid(Es, ks)
-        Bs = np.array(Bs)
-        Bn = trapezoid(Bs, ks)
-        Gs = np.array(Gs)
-        Gn = trapezoid(Gs, ks)
+        En = trapezoid(np.array(Es), ks)
+        Bn = trapezoid(np.array(Bs), ks)
+        Gn = trapezoid(np.array(Gs), ks)
 
         return En, Bn, Gn
 
-    def SaveMode(x, t, ks, yp, dyp, ym, dym, name=None):
+    def SaveMode(x, t, ks, Ap, dAp, Am, dAm, name=None):
         logk = np.log10(ks)
         N = list(np.log(x.__af(t)))
         N = np.array([np.nan]+N)
@@ -383,13 +432,13 @@ class ModeByMode:
         dic = {"t":t}
         dic = dict(dic, **{"N":N})
         for k in range(len(logk)):
-            dictmp = {"yp_" + str(k) :np.array([logk[k]] + list(yp[k,:]))}
+            dictmp = {"Ap_" + str(k) :np.array([logk[k]] + list(Ap[k,:]))}
             dic = dict(dic, **dictmp)
-            dictmp = {"ym_" + str(k) :np.array([logk[k]] + list(dyp[k,:]))}
+            dictmp = {"Am_" + str(k) :np.array([logk[k]] + list(dAp[k,:]))}
             dic = dict(dic, **dictmp)
-            dictmp = {"dyp_" + str(k):np.array([logk[k]] + list(ym[k,:]))}
+            dictmp = {"dAp_" + str(k):np.array([logk[k]] + list(Am[k,:]))}
             dic = dict(dic, **dictmp)
-            dictmp = {"dym_" + str(k):np.array([logk[k]] + list(dym[k,:]))}
+            dictmp = {"dAm_" + str(k):np.array([logk[k]] + list(dAm[k,:]))}
             dic = dict(dic, **dictmp)
             
         if(name==None):
@@ -406,4 +455,13 @@ class ModeByMode:
         
         return
 
+
+    
+    
+    
+    
+    
+    
+    
+    
     

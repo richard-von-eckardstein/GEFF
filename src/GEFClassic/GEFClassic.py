@@ -324,7 +324,7 @@ class GEF:
         ODE = lambda t, y: x.TimeStep(t, y)
         t.start()
         teval = np.arange(t0, t1+0.1, 0.1)
-        sol = solve_ivp(ODE, [t0,t1], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
+        sol = solve_ivp(ODE, [t0,t1+0.05], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
         t.stop()
         return sol
     
@@ -336,7 +336,7 @@ class GEF:
             y = sol.y
             print("success:", sol.success)
             parsold = list(x.vals.keys())
-            newpars = ["E1", "B1", "G1", "Edot", "Bdot", "Gdot", "EdotBdr", "BdotBdr", "GdotBdr", "ddphi", "dlnkh"]
+            newpars = ["E1", "B1", "G1", "Edot", "Bdot", "Gdot", "ddphi", "dlnkh"] #, "EdotBdr", "BdotBdr", "GdotBdr"]
             pars = parsold + newpars
             res = dict(zip(pars, [[] for par in pars]))
             for i in range(len(t)):
@@ -349,10 +349,10 @@ class GEF:
                 res["Edot"].append(dFdt[0,0])
                 res["Bdot"].append(dFdt[0,1])
                 res["Gdot"].append(dFdt[0,2])
-                dFdt = x.EoMF(dlnkhdt)
-                res["EdotBdr"].append(dFdt[0,0])
-                res["BdotBdr"].append(dFdt[0,1])
-                res["GdotBdr"].append(dFdt[0,2])
+                #dFdt = x.EoMF(dlnkhdt)
+                #res["EdotBdr"].append(dFdt[0,0])
+                #res["BdotBdr"].append(dFdt[0,1])
+                #res["GdotBdr"].append(dFdt[0,2])
                 for par in parsold:
                     if (par in ["E", "B", "G"]):
                         res[par].append(x.vals[par][0])
