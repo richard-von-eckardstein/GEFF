@@ -9,13 +9,7 @@ from numpy.typing import ArrayLike
 
 alpha=0
 
-def ReadMode(x, file=None):
-    if(file==None):
-        filename = "Modes+Beta" + str(x.__beta) + "+M6_16" + ".dat"
-        DirName = os.getcwd()
-
-        file = os.path.join(DirName, filename)
-        
+def ReadMode(file):        
     input_df = pd.read_table(file, sep=",")
     dataAp = input_df.values
 

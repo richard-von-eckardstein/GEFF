@@ -3,7 +3,7 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 from scipy.integrate import solve_ivp, trapezoid
 
-from src.GEFClassic.ModeByModeClassic import ReadMode
+from src.Tools.ModeByMode import ReadMode
 
 from ptarcade.models_utils import g_rho, g_rho_0, g_s, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
 
