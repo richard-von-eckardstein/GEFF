@@ -267,11 +267,11 @@ class PowSpecT:
 
         if len(teval)==0:
             teval = x.__t
+        tend = max(teval)
 
         #conformal time needed for relative phases
         eta = x.__etaf(teval)
 
-        tend = max(x.__t)
         istart = 0
         while teval[istart]<tstart:
             istart+=1

@@ -292,12 +292,10 @@ class ModeByMode:
             #Define ODE to solve
             ode = lambda t, y: ModeEoM( y, k, x.__af(t), x.__SclrCplf(t), sigmaEf(t), sigmaBf(t) )
         
-        #maximal time
-        tmax = max(x.__t)
-
         #parse teval input
         if len(teval)==0:
             teval=x.__t
+        tmax = max(teval)
         
         #conformal time needed for relative phases
         eta = x.__etaf(teval)
