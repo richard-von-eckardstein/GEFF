@@ -132,7 +132,7 @@ class GEF:
         x.V = V
         x.dV = dV
 
-        x.vals = ini.copy()
+        x.ini = ini
 
         x.GEFData = GEFData
         x.ModeData = ModeData
@@ -147,7 +147,7 @@ class GEF:
         x.f = 1.
         x.ratio = 1.
         #Need Unitful Potential once, to compute omega
-        x.H0 = np.sqrt( ( 0.5*x.vals["dphi"]**2 + x.V(x.vals["phi"]) )/3 )
+        x.H0 = np.sqrt( ( 0.5*x.ini["dphi"]**2 + x.V(x.ini["phi"]) )/3 )
         x.Mpl = 1.
     
     #Potentials and Couplings
@@ -259,7 +259,11 @@ class GEF:
     #Run GEF
     def InitialiseGEF(x):
         yini = np.zeros((x.ntr*3+4))
+
+        #ini is always in Planck units
+        x.vals = x.ini.copy()
         
+        #x.Uniftul() / x.Unitless() may not work yet, since not all keys are present. Need to do by hand.
         if (x.units):
             x.f = x.Mpl
             x.omega = x.H0
@@ -268,17 +272,36 @@ class GEF:
             x.f = 1.
             x.omega = 1.
             x.units = True
+        
         yini[0] = 0
         yini[1] = x.vals["phi"]/x.f
         yini[2] = x.vals["dphi"]/(x.f*x.omega)
-        x.vals["kh"] = np.log(abs(yini[2]*x.dIdphi()))
-        yini[3] = x.vals["kh"]
+        yini[3] = np.log(abs(yini[2]*x.dIdphi()))
         
         x.f = x.Mpl
         x.omega = x.H0
         x.ratio = x.omega/x.f
         x.units = False
     
+        return yini
+    
+    def ReInitialiseGEF(x):
+        yini = np.zeros((x.ntr*3+4))
+        
+        if (x.units):
+            x.Unitless()
+
+        yini[0] = x.vals["N"]
+        yini[1] = x.vals["phi"]
+        yini[2] = x.vals["dphi"]
+        yini[3] = np.log(x.vals["kh"])
+
+        F = np.zeros( (x.ntr, 3) )
+        F[:,0] = x.vals["E"]
+        F[:,1] = x.vals["B"]
+        F[:,2] = x.vals["G"]
+        yini[4:] = F.reshape(x.ntr*3)
+        
         return yini
     
     def TimeStep(x, t, y):
@@ -318,20 +341,27 @@ class GEF:
         
         return
     
-    def SolveGEF(x, t0=0., t1=120., atol=1e-6, rtol=1e-3):
+    def SolveGEF(x, tend=120., atol=1e-6, rtol=1e-3, restart=False):
         t = Timer()
-        yini = x.InitialiseGEF()
+        if restart:
+            yini = x.ReInitialiseGEF()
+            t0 = x.vals["t"] 
+        else:
+            yini = x.InitialiseGEF()
+            t0 = 0.
+        
         ODE = lambda t, y: x.TimeStep(t, y)
         t.start()
-        teval = np.arange(t0, t1+0.1, 0.1)
-        sol = solve_ivp(ODE, [t0,t1+0.05], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
+        teval = np.arange(t0, tend+0.1, 0.1)
+        sol = solve_ivp(ODE, [t0,tend+0.05], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
         t.stop()
+
         return sol
     
-    def RunGEF(x, ntr, t0=0., t1=120., atol=1e-6, rtol=1e-3):
+    def RunGEF(x, ntr, tend=120., atol=1e-6, rtol=1e-3, restart=False):
         x.ntr = ntr+1
         if not(x.completed):
-            sol = x.SolveGEF(t0, t1, atol=atol, rtol=rtol)
+            sol = x.SolveGEF(tend, atol=atol, rtol=rtol, restart=restart)
             t = sol.t
             y = sol.y
             print("success:", sol.success)
@@ -420,6 +450,8 @@ class GEF:
             
         else:
             x.completed = True
+
+        if not(hasattr(x, "vals")): x.vals = x.ini.copy()
         for key in data.keys():
                 x.vals[key] = data[key]
 
