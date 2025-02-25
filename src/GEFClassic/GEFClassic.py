@@ -344,6 +344,7 @@ class GEF:
     def SolveGEF(x, tend=120., atol=1e-6, rtol=1e-3, restart=False):
         t = Timer()
         if restart:
+            #Note for Tuesday: if you only use ReInitialise when continuing a complete run, just use sol.y for initialisation. Simple, easy, elegant...
             yini = x.ReInitialiseGEF()
             t0 = x.vals["t"] 
         else:
@@ -353,6 +354,7 @@ class GEF:
         ODE = lambda t, y: x.TimeStep(t, y)
         t.start()
         teval = np.arange(t0, tend+0.1, 0.1)
+        print(teval)
         sol = solve_ivp(ODE, [t0,tend+0.05], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
         t.stop()
 
@@ -390,7 +392,11 @@ class GEF:
                     else:
                         res[par].append(x.vals[par])
             for par in pars:
-                res[par] = np.array(res[par])
+                try:
+                    res[par] = np.array(res[par])
+                except:
+                    print(par)
+                    print(res[par])
             x.vals = res
             x.completed = True
             return sol
