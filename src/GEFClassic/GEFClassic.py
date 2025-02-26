@@ -8,12 +8,33 @@ from src.Tools.timer import Timer
 import math
 from mpmath import whitw
 
+class TruncationError(Exception):
+    pass
+
 def AddEventFlags(terminal=True, direction=1):
     def setflags(func):
         func.terminal = terminal
         func.direction = direction
         return func
     return setflags
+
+def PrintSol(sol):
+    print("The run terminated with the following statistics:")
+    for attr in sol.keys():
+        if attr not in ["y", "t", "y_events", "t_events", "sol", "events"]:
+            print(rf"{attr} : {getattr(sol, attr)}")
+    try:
+        events = sol.events
+        if len(events.keys())==0:
+            print("No events occured during the run")
+        else:
+            print("The following events occured during the run:")
+            for event in events.keys():
+                time = events[event]["t"]
+                efold = events[event]["N"]
+                print(rf"{event} at t={time} or N={efold}")
+    except: pass
+    finally: pass
 
 class GEF:
     """
@@ -347,7 +368,7 @@ class GEF:
         x.vals["Hprime"] = x.FriedmannEq2()
         x.vals["xi"] = x.GetXi()
         
-        return
+        pass
     
     @AddEventFlags(True, 1)
     def __CheckAcceleratedExpansion__(x, t, y):
@@ -368,7 +389,11 @@ class GEF:
         
         ODE = lambda t, y: x.TimeStep(t, y)
 
-        if reachNend: event = x.__CheckAcceleratedExpansion__
+        events = []
+        eventnames = []
+        if reachNend: 
+            events.append(x.__CheckAcceleratedExpansion__)
+            eventnames.append("End of inflation")
         else: event=None
         
         t.start()
@@ -379,22 +404,16 @@ class GEF:
         tvals = np.array([t0])
         nfevs = []
         while not(done) and attempts<10:
-            attempts +=1
-            teval = np.arange(t0, tend, 0.1)
-
-            """
-            except ValueError or AssertionError:
-                increase = 25
-                x.ntr += increase
-                print(rf"Run did not converge. Increasing ntr by {increase} to {x.ntr}.")
-            """
+            attempts += 1
+            teval = np.arange(10*t0, 10*tend +1)/10 #hotfix to ensure teval[-1] <= tend
             try:
                 sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
-                                 method="RK45", atol=atol, rtol=rtol, events=event)
-                #print(sol)
+                                 method="RK45", atol=atol, rtol=rtol, events=events)
                 assert sol.success
-            except:# not(ValueError or AssertionError):
+            except not(ValueError or AssertionError):
                 raise RuntimeError
+            except ValueError or AssertionError:
+                raise TruncationError
             else:
                 if reachNend:
 
@@ -402,7 +421,7 @@ class GEF:
                     tvals = np.concatenate([tvals, sol.t[1:]])
                     nfevs.append(sol.nfev)
 
-                    try: x.Nend = sol.y_events[0][0]
+                    try: x.Nend = sol.y_events[0][0,0]
                     except:
                         t0=sol.t[-1]
                         yini = sol.y[:,-1]
@@ -410,8 +429,9 @@ class GEF:
                         if yini[0] > x.Nend: Ninc = 1
                         else: Ninc=x.Nend-yini[0]
 
-                        tdiff = np.round(Ninc/x.vals["H"], 1)
-                        tend += tdiff
+                        tdiff = np.round(Ninc/x.vals["H"])
+                        #round again, sometimes floats cause problems in t_span and t_eval.
+                        tend  = np.round(tend + tdiff, 1)
 
                         print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
                     else: done=True
@@ -419,61 +439,68 @@ class GEF:
             
         t.stop()
 
-        if not(done):
-            print(rf"The run failed after {attempts} attempts at solving it. Check the output for further details.")
-            raise RuntimeError
-        else:
-            print(rf"The GEF run was successful.")
-            sol.t = tvals
-            sol.y = yvals
-            sol.attempts = attempts
-            if attempts>1:
-                sol.nfev = nfevs
-            return sol
+        sol.t = tvals
+        sol.y = yvals
+        sol.attempts = attempts
+        if attempts>1:
+            sol.nfev = nfevs
+        sol.events = dict(zip(eventnames,
+                               [{"t":np.round(sol.t_events[i],1), "N":np.round(sol.y_events[i][:,0],1)} for i, event in enumerate(eventnames)]
+                               ))
+
+        return sol, done
+        
+    def WriteOutGEFResults(x, sol):
+        t = sol.t
+        y = sol.y
+        parsold = list(x.vals.keys())
+        newpars = ["E1", "B1", "G1", "Edot", "Bdot", "Gdot", "ddphi", "dlnkh"] #, "EdotBdr", "BdotBdr", "GdotBdr"]
+        pars = parsold + newpars
+        res = dict(zip(pars, [[] for par in pars]))
+        for i in range(len(t)):
+            x.DefineDictionary(t[i], y[:,i])
+            ddphi = x.EoMphi()
+            res["ddphi"].append(ddphi)
+            dlnkhdt = x.EoMlnkh(ddphi)
+            res["dlnkh"].append(dlnkhdt)
+            dFdt = x.EoMF(0)
+            res["Edot"].append(dFdt[0,0])
+            res["Bdot"].append(dFdt[0,1])
+            res["Gdot"].append(dFdt[0,2])
+            #dFdt = x.EoMF(dlnkhdt)
+            #res["EdotBdr"].append(dFdt[0,0])
+            #res["BdotBdr"].append(dFdt[0,1])
+            #res["GdotBdr"].append(dFdt[0,2])
+            for par in parsold:
+                if (par in ["E", "B", "G"]):
+                    res[par].append(x.vals[par][0])
+                    res[par+"1"].append(x.vals[par][1])
+                else:
+                    res[par].append(x.vals[par])
+        for par in pars:
+            try:
+                res[par] = np.array(res[par])
+            except:
+                print(par)
+                print(res[par])
+        x.vals = res
+        pass
 
 
-    def RunGEF(x, ntr, tend=120., atol=1e-6, rtol=1e-3, reachNend=True):
+    def RunGEF(x, ntr, tend=120., atol=1e-6, rtol=1e-3, reachNend=True, printstats=False):
         x.ntr = ntr+1
         if not(x.completed):
-            sol = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend)
-            t = sol.t
-            y = sol.y
-            parsold = list(x.vals.keys())
-            newpars = ["E1", "B1", "G1", "Edot", "Bdot", "Gdot", "ddphi", "dlnkh"] #, "EdotBdr", "BdotBdr", "GdotBdr"]
-            pars = parsold + newpars
-            res = dict(zip(pars, [[] for par in pars]))
-            for i in range(len(t)):
-                x.DefineDictionary(t[i], y[:,i])
-                ddphi = x.EoMphi()
-                res["ddphi"].append(ddphi)
-                dlnkhdt = x.EoMlnkh(ddphi)
-                res["dlnkh"].append(dlnkhdt)
-                dFdt = x.EoMF(0)
-                res["Edot"].append(dFdt[0,0])
-                res["Bdot"].append(dFdt[0,1])
-                res["Gdot"].append(dFdt[0,2])
-                #dFdt = x.EoMF(dlnkhdt)
-                #res["EdotBdr"].append(dFdt[0,0])
-                #res["BdotBdr"].append(dFdt[0,1])
-                #res["GdotBdr"].append(dFdt[0,2])
-                for par in parsold:
-                    if (par in ["E", "B", "G"]):
-                        res[par].append(x.vals[par][0])
-                        res[par+"1"].append(x.vals[par][1])
-                    else:
-                        res[par].append(x.vals[par])
-            for par in pars:
-                try:
-                    res[par] = np.array(res[par])
-                except:
-                    print(par)
-                    print(res[par])
-            x.vals = res
-            #x.completed = True
-            return sol
+            sol, done = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend)
+            if printstats:
+                PrintSol(sol)
+            if sol.attempts >= 10 and not(done):
+                print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
+            x.WriteOutGEFResults(sol)
+            x.completed = done
+            pass
         else:
             print("This run is already completed, access data using GEF.vals")
-            return
+            pass
         
     def SaveData(x):
         if (x.completed):
@@ -488,7 +515,7 @@ class GEF:
             output_df.to_csv(path)
         else:
             print("You need to RunGEF first")
-        return
+        pass
             
     def LoadData(x):
         if x.GEFData == None:
@@ -539,14 +566,14 @@ class GEF:
                 x.vals["BdotBdr"] = data["Bdot"]
                 x.vals["GdotBdr"] = data["Gdot"]
             
-        return
+        pass
             
     def Unitless(x):
         omega = x.H0
         f = x.Mpl
         if (not(x.completed)):
             print("You need to RunGEF or LoadGEF first")
-            return
+            pass
         if (x.units):
             x.vals["t"] = x.vals["t"]*omega
             x.vals["phi"] = x.vals["phi"]/f
@@ -574,14 +601,14 @@ class GEF:
             x.units = False
         else:
             print("Already Unitless")
-        return
+        pass
             
     def Unitful(x):
         omega = x.H0
         f = x.Mpl
         if (not(x.completed)):
             print("You need to RunGEF or LoadGEF first")
-            return
+            pass
         if (not(x.units)):
             x.vals["t"] = x.vals["t"]/omega
             x.vals["phi"] = x.vals["phi"]*f
@@ -609,7 +636,7 @@ class GEF:
             x.units = True
         else:
             print("Already Unitful")
-        return
+        pass
                 
     #Whittaker Functions
     def WhittakerApprox(x):
@@ -716,7 +743,7 @@ class GEF:
         E = x.vals["E"]
         B = x.vals["B"]
         f = CubicSpline(N, (dphi**2 - V + 0.5*(E+B)*x.omega**2/x.f**2))
-        res = fsolve(f, 61, 1e-4)[0]
+        res = fsolve(f, max(N), 1e-4)[0]
         
         x.Nend = res
 
