@@ -8,6 +8,12 @@ from src.Tools.timer import Timer
 import math
 from mpmath import whitw
 
+def AddEventFlags(terminal=True, direction=1):
+    def setflags(func):
+        func.terminal = terminal
+        func.direction = direction
+        return func
+    return setflags
 
 class GEF:
     """
@@ -149,6 +155,8 @@ class GEF:
         #Need Unitful Potential once, to compute omega
         x.H0 = np.sqrt( ( 0.5*x.ini["dphi"]**2 + x.V(x.ini["phi"]) )/3 )
         x.Mpl = 1.
+        x.Nend = 61
+        pass
     
     #Potentials and Couplings
     def potential(x):
@@ -285,7 +293,7 @@ class GEF:
     
         return yini
     
-    def ReInitialiseGEF(x):
+    """def ReInitialiseGEF(x):
         yini = np.zeros((x.ntr*3+4))
         
         if (x.units):
@@ -302,7 +310,7 @@ class GEF:
         F[:,2] = x.vals["G"]
         yini[4:] = F.reshape(x.ntr*3)
         
-        return yini
+        return yini"""
     
     def TimeStep(x, t, y):
         x.DefineDictionary(t, y)
@@ -327,7 +335,7 @@ class GEF:
         
         x.vals["phi"] = y[1]
         x.vals["dphi"] = y[2]
-        
+    
         F = y[4:]
         F = F.reshape(x.ntr, 3)
         x.vals["E"] = F[:,0]
@@ -341,32 +349,95 @@ class GEF:
         
         return
     
-    def SolveGEF(x, tend=120., atol=1e-6, rtol=1e-3, restart=False):
+    @AddEventFlags(True, 1)
+    def __CheckAcceleratedExpansion__(x, t, y):
+        dphi = y[2]
+        V = x.V(x.f*y[1])/(x.f*x.omega)**2
+        rhoEB = 0.5*(y[4]+y[5])*x.omega**2/x.f**2
+        val = (dphi**2 - V + rhoEB)
+        return val
+    
+    def __CheckSuccesfulRun__():
+        pass
+
+    def SolveGEF(x, tend=120., atol=1e-6, rtol=1e-3, reachNend=True):
         t = Timer()
-        if restart:
-            #Note for Tuesday: if you only use ReInitialise when continuing a complete run, just use sol.y for initialisation. Simple, easy, elegant...
-            yini = x.ReInitialiseGEF()
-            t0 = x.vals["t"] 
-        else:
-            yini = x.InitialiseGEF()
-            t0 = 0.
+
+        yini = x.InitialiseGEF()
+        t0 = 0.
         
         ODE = lambda t, y: x.TimeStep(t, y)
+
+        if reachNend: event = x.__CheckAcceleratedExpansion__
+        else: event=None
+        
         t.start()
-        teval = np.arange(t0, tend+0.1, 0.1)
-        print(teval)
-        sol = solve_ivp(ODE, [t0,tend+0.05], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
+
+        done=False
+        attempts = 0
+        yvals = np.array([yini]).T
+        tvals = np.array([t0])
+        nfevs = []
+        while not(done) and attempts<10:
+            attempts +=1
+            teval = np.arange(t0, tend, 0.1)
+
+            """
+            except ValueError or AssertionError:
+                increase = 25
+                x.ntr += increase
+                print(rf"Run did not converge. Increasing ntr by {increase} to {x.ntr}.")
+            """
+            try:
+                sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
+                                 method="RK45", atol=atol, rtol=rtol, events=event)
+                #print(sol)
+                assert sol.success
+            except:# not(ValueError or AssertionError):
+                raise RuntimeError
+            else:
+                if reachNend:
+
+                    yvals = np.concatenate([yvals, sol.y[:,1:]], axis=1)
+                    tvals = np.concatenate([tvals, sol.t[1:]])
+                    nfevs.append(sol.nfev)
+
+                    try: x.Nend = sol.y_events[0][0]
+                    except:
+                        t0=sol.t[-1]
+                        yini = sol.y[:,-1]
+
+                        if yini[0] > x.Nend: Ninc = 1
+                        else: Ninc=x.Nend-yini[0]
+
+                        tdiff = np.round(Ninc/x.vals["H"], 1)
+                        tend += tdiff
+
+                        print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
+                    else: done=True
+                else: done=True
+            
         t.stop()
 
-        return sol
-    
-    def RunGEF(x, ntr, tend=120., atol=1e-6, rtol=1e-3, restart=False):
+        if not(done):
+            print(rf"The run failed after {attempts} attempts at solving it. Check the output for further details.")
+            raise RuntimeError
+        else:
+            print(rf"The GEF run was successful.")
+            sol.t = tvals
+            sol.y = yvals
+            sol.attempts = attempts
+            if attempts>1:
+                sol.nfev = nfevs
+            return sol
+
+
+    def RunGEF(x, ntr, tend=120., atol=1e-6, rtol=1e-3, reachNend=True):
         x.ntr = ntr+1
         if not(x.completed):
-            sol = x.SolveGEF(tend, atol=atol, rtol=rtol, restart=restart)
+            sol = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend)
             t = sol.t
             y = sol.y
-            print("success:", sol.success)
             parsold = list(x.vals.keys())
             newpars = ["E1", "B1", "G1", "Edot", "Bdot", "Gdot", "ddphi", "dlnkh"] #, "EdotBdr", "BdotBdr", "GdotBdr"]
             pars = parsold + newpars
@@ -398,7 +469,7 @@ class GEF:
                     print(par)
                     print(res[par])
             x.vals = res
-            x.completed = True
+            #x.completed = True
             return sol
         else:
             print("This run is already completed, access data using GEF.vals")
@@ -638,15 +709,17 @@ class GEF:
             x.Unitless()
         else:
             unitswereon = False
-        print(x.omega)
+
         N = x.vals["N"]
         dphi = x.vals["dphi"]
         V = x.potential()
         E = x.vals["E"]
         B = x.vals["B"]
         f = CubicSpline(N, (dphi**2 - V + 0.5*(E+B)*x.omega**2/x.f**2))
-        res = fsolve(f, 61, 1e-4)
-        print(res)
+        res = fsolve(f, 61, 1e-4)[0]
+        
+        x.Nend = res
+
         if unitswereon:
             x.Unitful()
         return res
