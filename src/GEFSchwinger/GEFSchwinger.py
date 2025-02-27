@@ -3,9 +3,6 @@
 ###Working Version for SEPicture=mix, includes Boundary Corrections and Damping Corrections (properly) for sigmaE and sigmaB
 ###Alt Damp=1 properly implemented
 
-
-
-import os
 import pandas as pd
 import numpy as np
 from scipy.integrate import solve_ivp, quad
@@ -14,6 +11,34 @@ from scipy.optimize import fsolve
 from src.Tools.timer import Timer
 import math
 from mpmath import whitw, whitm, gamma
+
+class TruncationError(Exception):
+    pass
+
+def AddEventFlags(terminal=True, direction=1):
+    def setflags(func):
+        func.terminal = terminal
+        func.direction = direction
+        return func
+    return setflags
+
+def PrintSol(sol):
+    print("The run terminated with the following statistics:")
+    for attr in sol.keys():
+        if attr not in ["y", "t", "y_events", "t_events", "sol", "events"]:
+            print(rf"{attr} : {getattr(sol, attr)}")
+    try:
+        events = sol.events
+        if len(events.keys())==0:
+            print("No events occured during the run")
+        else:
+            print("The following events occured during the run:")
+            for event in events.keys():
+                time = events[event]["t"]
+                efold = events[event]["N"]
+                print(rf"{event} at t={time} or N={efold}")
+    except: pass
+    finally: pass
 
 class GEF:
     def __init__(x, beta: float, ini: dict, V, dV, SEPicture: int|str="mix", SEModel: str="KDep", GEFData: None|str=None, ModeData: None|str=None, approx: bool=True):
@@ -25,12 +50,12 @@ class GEF:
         x.V = V
         x.dV = dV
 
-        x.vals = ini.copy()
-        x.vals["rhoChi"] = 0.
-        x.vals["delta"] = 1.
-        x.vals["sigmaE"] = 0.
-        x.vals["s"] = 0.
-        x.vals["sigmaB"] = 0.
+        x.ini = ini
+        x.ini["rhoChi"] = 0.
+        x.ini["delta"] = 1.
+        x.ini["sigmaE"] = 0.
+        x.ini["s"] = 0.
+        x.ini["sigmaB"] = 0.
 
         x.GEFData = GEFData
         x.ModeData = ModeData
@@ -98,8 +123,10 @@ class GEF:
         x.f = 1.
         x.ratio = 1.
         #Need Unitful Potential once, to compute omega
-        x.H0 = np.sqrt( ( 0.5*x.vals["dphi"]**2 + x.V(x.vals["phi"]) )/3 )
+        x.H0 = np.sqrt( ( 0.5*x.ini["dphi"]**2 + x.V(x.ini["phi"]) )/3 )
         x.Mpl = 1.
+        x.Nend = 61
+        pass
     
     #Potentials and Couplings
     def potential(x):
@@ -111,12 +138,10 @@ class GEF:
         return x.dV(phi)/(x.f*x.omega**2)
 
     def dIdphi(x):
-        phi = x.f*x.vals["phi"]
         dI = x.beta/x.f
         return dI*x.f
 
     def ddIddphi(x):
-        phi = x.f*x.vals["phi"]
         ddI = 0.
         return ddI*x.f**2
     
@@ -209,7 +234,7 @@ class GEF:
         
         xieff = x.vals["xieff"]
         s = x.vals["s"]
-        sb = xieff - x.vals["xi"]
+
         sqrtterm = np.sqrt(xieff**2 + s**2 + s)
         r = (abs(xieff) + sqrtterm)
         
@@ -418,6 +443,9 @@ class GEF:
         else:
             yini = np.zeros((x.ntr*3+x.GaugePos))
 
+        #ini is always in Planck units
+        x.vals = x.ini.copy()
+
         if (x.units):
             x.f = x.Mpl
             x.omega = x.H0
@@ -426,25 +454,25 @@ class GEF:
             x.f = 1.
             x.omega = 1.
             x.units = True
+
         yini[0] = 0
-        yini[1] = x.vals["phi"]/x.f
-        yini[2] = x.vals["dphi"]/(x.f*x.omega)
-        x.vals["kh"] = np.log(abs(yini[2]*x.dIdphi()))
-        yini[3] = x.vals["kh"]
+        yini[1] = x.ini["phi"]/x.f
+        yini[2] = x.ini["dphi"]/(x.f*x.omega)
+        yini[3] = np.log(abs(yini[2]*x.dIdphi()))
         
         if (x.SEPicture != None):
             if (x.SEModel == "Del1"):
                 x.Ferm2=0.
-                yini[4] = x.vals["rhoChi"]
+                yini[4] = x.ini["rhoChi"]
             elif (x.SEModel == "KDep"):
                 #x.FermionEntry = 1
                 x.Ferm2=1
-                yini[4] = x.vals["rhoChi"]
-                x.vals["kS"] = 1e-3*x.vals["kh"]
+                yini[4] = x.ini["rhoChi"]
+                x.vals["kS"] = 1e-3*yini[3]
             else:
-                yini[4] = x.vals["delta"]
-                yini[5] = x.vals["rhoChi"]
-        #print(yini)
+                yini[4] = x.ini["delta"]
+                yini[5] = x.ini["rhoChi"]
+
         x.f = x.Mpl
         x.omega = x.H0
         x.ratio = x.omega/x.f
@@ -475,9 +503,12 @@ class GEF:
                 if x.Ferm2 == 0:
                     dGdt = x.EoMF(dlnkhdt)
                     dFdt = np.zeros((2*x.ntr,3))
+                    #After tferm, both EoMs are the same
                     dFdt[:x.ntr,:] = dGdt
                     dFdt[x.ntr:,:] = dGdt
                 else:
+                    #Before tferm, F[:x.ntr,:] are barless
+                    #Before tferm, F[x.ntr:,:] have bars
                     dFdt = x.EoMFBar(dlnkhdt)
                 dydt[x.GaugePos:] = dFdt.reshape(2*x.ntr*3)
         else:
@@ -558,60 +589,160 @@ class GEF:
                 x.vals["sigmaE"], x.vals["sigmaB"], _ = x.conductivity()
                 x.vals["s"] = x.GetS(x.vals["sigmaE"])
                 x.vals["xi"] = x.GetXi()
-                x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
-                
-        return
+                x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])    
     
-    def SolveGEF(x, t0=0., t1=120., atol=1e-6, rtol=1e-3):
+        pass
+
+    @AddEventFlags(True, 1)
+    def __CheckAcceleratedExpansion__(x, t, y):
+        dphi = y[2]
+        V = x.V(x.f*y[1])/(x.f*x.omega)**2
+        rhoEB = 0.5*(y[x.GaugePos]+y[x.GaugePos+1])*x.ratio**2
+        rhoChi = y[x.GaugePos-1]*x.ratio**2
+        val = (dphi**2 - V + rhoEB)
+        return val
+    
+    def __CheckSuccesfulRun__():
+        pass
+    
+    def SolveGEF(x, tend=120., atol=1e-6, rtol=1e-3, reachNend=True):
         t = Timer()
+
         yini = x.InitialiseGEF()
+        t0 = 0.
+        
         ODE = lambda t, y: x.TimeStep(t, y)
+
+        events = []
+        eventnames = []
+        if reachNend: 
+            events.append(x.__CheckAcceleratedExpansion__)
+            eventnames.append("End of inflation")
+        
         t.start()
-        sol = solve_ivp(ODE, [t0,t1], yini, method="RK45", atol=atol, rtol=rtol)
+
+        done=False
+        attempts = 0
+        yvals = []
+        tvals = []
+        t_events = [[] for event in events]
+        N_events = [[] for event in events]
+        nfevs = []
+        while not(done) and attempts<10:
+            attempts += 1
+            teval = np.arange(10*t0, 10*tend +1)/10 #hotfix to ensure teval[-1] <= tend
+            try:
+                sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
+                                 method="RK45", atol=atol, rtol=rtol, events=events)
+                assert sol.success
+            except not(ValueError or AssertionError):
+                raise RuntimeError
+            except ValueError or AssertionError:
+                raise TruncationError
+            else:
+                if reachNend:
+                    if len(tvals)==0:
+                        yvals.append(sol.y)
+                        tvals.append(sol.t)
+                    else:
+                        #Do not double-count end-points of sub-solutions.
+                        yvals.append(sol.y[:,1:])
+                        tvals.append(sol.t[1:])
+                    nfevs.append(sol.nfev)
+
+                    try: x.Nend = sol.y_events[0][0,0]
+                    except:
+                        t0=sol.t[-1]
+                        yini = sol.y[:,-1]
+
+                        if yini[0] > x.Nend: Ninc = 5
+                        else: Ninc=x.Nend-yini[0]
+
+                        tdiff = np.round(Ninc/x.vals["H"])
+                        #round again, sometimes floats cause problems in t_span and t_eval.
+                        tend  = np.round(tend + tdiff, 1)
+
+                        print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
+                    else:
+                        for i, event in enumerate(events):
+                            t_events[i].append(sol.t_events[i])
+                            N_events[i].append(sol.y_events[i][:,0])
+                        done=True
+                else: done=True
+            
         t.stop()
-        return sol
+
+        sol.t = np.concatenate(tvals)
+        sol.y = np.concatenate(yvals, axis=1)
+        
+        sol.attempts = attempts
+        if attempts>1:
+            sol.nfev = nfevs
+        
+        eventdic = dict(zip(eventnames, [{"t":None, "N":None} for event in eventnames]))
+        for i, event in enumerate(eventdic.keys()):
+            eventdic[event]["t"] = np.round(np.concatenate(t_events[i]), 1)
+            eventdic[event]["N"] = np.round(np.concatenate(N_events[i]), 2)
+
+        sol.events = eventdic
+
+        return sol, done
     
-    def RunGEF(x, ntr, t0=0., t1=120., atol=1e-6, rtol=1e-3):
+    def WriteOutGEFResults(x, sol):
+        t = sol.t
+        y = sol.y
+        parsold = list(x.vals.keys())
+        newpars = ["ddphi", "dlnkh"] #, "E1", "B1", "G1", "Edot", "Bdot", "Gdot", "EdotBdr", "BdotBdr", "GdotBdr"]
+        pars = parsold + newpars
+        res = dict(zip(pars, [[] for par in pars]))
+        if (x.SEModel == "KDep"):
+            #x.FermionEntry = 1
+            res["sigmaEk"] = []
+            res["sigmaBk"] = []
+            res["sk"] = []
+            res["xieffk"] = []
+            x.Ferm2 = 1
+            x.vals["kS"] = x.vals["kh"]*1e-3 
+        for i in range(len(t)):
+            x.DefineDictionary(t[i], y[:,i])
+            if (x.SEModel == "KDep"):
+                x.vals["delta"] = 1*x.Ferm2 + (1-x.Ferm2)*x.deltaf(x.vals["t"])
+                x.vals["sigmaEk"] = (1.-x.Ferm2)*x.vals["sigmaE"]
+                x.vals["sigmaBk"] = (1.-x.Ferm2)*x.vals["sigmaB"]
+                x.vals["s"] = x.GetS(x.vals["sigmaE"])
+                x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
+                x.vals["sk"] = x.GetS(x.vals["sigmaEk"])
+                x.vals["xieffk"] = x.vals["xi"] + x.GetS(x.vals["sigmaBk"])
+            ddphi = x.EoMphi()
+            res["ddphi"].append(ddphi)
+            dlnkhdt = x.EoMlnkh(ddphi)
+            res["dlnkh"].append(dlnkhdt)
+            for par in parsold:
+                if (par in ["E", "B", "G", "EBar", "BBar", "GBar"]):
+                    res[par].append(x.vals[par][0])
+                else:
+                    res[par].append(x.vals[par])
+        for par in pars:
+            res[par] = np.array(res[par])
+        x.vals = res
+        pass
+    
+    def RunGEF(x, ntr, tend=120., atol=1e-6, rtol=1e-3, reachNend=True, printstats=False):
         x.ntr = ntr+1
         if not(x.completed):
-            sol = x.SolveGEF(t0, t1, atol=atol, rtol=rtol)
-            t = sol.t
-            y = sol.y
-            print("success:", sol.success)
-            pars = x.vals.keys()
-            res = dict(zip(pars, [[] for par in pars]))
-            if (x.SEModel == "KDep"):
-                #x.FermionEntry = 1
-                res["sigmaEk"] = []
-                res["sigmaBk"] = []
-                res["sk"] = []
-                res["xieffk"] = []
-                x.Ferm2 = 1
-                x.vals["kS"] = x.vals["kh"]*1e-3 
-            for i in range(len(t)):
-                x.DefineDictionary(t[i], y[:,i])
-                if (x.SEModel == "KDep"):
-                    x.vals["delta"] = 1*x.Ferm2 + (1-x.Ferm2)*x.deltaf(x.vals["t"])
-                    x.vals["sigmaEk"] = (1.-x.Ferm2)*x.vals["sigmaE"]
-                    x.vals["sigmaBk"] = (1.-x.Ferm2)*x.vals["sigmaB"]
-                    x.vals["s"] = x.GetS(x.vals["sigmaE"])
-                    x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
-                    x.vals["sk"] = x.GetS(x.vals["sigmaEk"])
-                    x.vals["xieffk"] = x.vals["xi"] + x.GetS(x.vals["sigmaBk"])
-                for par in pars:
-                    if (par in ["E", "B", "G", "EBar", "BBar", "GBar"]):
-                        res[par].append(x.vals[par][0])
-                    else:
-                        res[par].append(x.vals[par])
-            for par in pars:
-                res[par] = np.array(res[par])
-            x.vals = res
-            x.completed = True
-            return sol
+            sol, done = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend)
+            if printstats:
+                PrintSol(sol)
+            if sol.attempts >= 10 and not(done):
+                print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
+            x.WriteOutGEFResults(sol)
+            x.completed = done
+            pass
         else:
             print("This run is already completed, access data using GEF.vals")
-            return
-    
+            pass
+
+
     def CreateDeltaFunction(x):
         if (x.completed):
             if(x.SEModel != "KDep" or x.SEPicture == None):
@@ -707,11 +838,12 @@ class GEF:
             output_df.to_csv(path)
         else:
             print("You need to RunGEF first")
+        pass
             
     def LoadData(x):
         if x.GEFData == None:
             print("You did not specify the file from which to load the GEF data. Set 'GEFData' to the file's path from which you want to load your data.")
-            return
+            pass
         else:
             file = x.GEFData
             try:
@@ -739,24 +871,30 @@ class GEF:
                 raise ImportError"""
             #Since GEF data is always stored untiless, it is assumed to be untiless when loaded
             x.units = False
+            x.omega = x.H0
+            x.f = x.Mpl
+            x.ratio = x.omega/x.f
             
-            for key in data.keys():
-                x.vals[key] = data[key]
-                
-            if len(x.vals["t"]) == 1:
-                print("It seems your table only contains one data point. This indicates a GEF run which is not yet executed. We suggest you initialise your run anew and use RunGEF")
+            if len(data["t"]) == 1:
+                print("It seems your table only contains one data point. This indicates a GEF run which is not yet executed. We suggest you initialise your run anew and use self.RunGEF")
                 print("the completed-Flag is set to False")
                 x.completed = False
+                
             else:
                 x.completed = True
-            return
+
+            if not(hasattr(x, "vals")): x.vals = x.ini.copy()
+            for key in data.keys():
+                    x.vals[key] = data[key]
+
+            pass
             
     def Unitless(x):
         omega = x.H0
         f = x.Mpl
         if (not(x.completed)):
             print("You need to RunGEF or LoadGEF first")
-            return
+            pass
         if (x.units):
             x.vals["t"] = x.vals["t"]*omega
             #x.vals["tferm"] = x.vals["tferm"]*omega
@@ -783,14 +921,14 @@ class GEF:
             x.units = False
         else:
             print("Already Unitless")
-        return
+        pass
             
     def Unitful(x):
         omega = x.H0
         f = x.Mpl
         if (not(x.completed)):
             print("You need to RunGEF or LoadGEF first")
-            return
+            pass
         if (not(x.units)):
             x.vals["t"] = x.vals["t"]/omega
             #x.vals["tferm"] = x.vals["tferm"]/omega
@@ -817,7 +955,7 @@ class GEF:
             x.units = True
         else:
             print("Already Unitful")
-        return
+        pass
                 
     #Whittaker Functions
     def WhittakerApprox_NoSE(x):
@@ -1045,10 +1183,11 @@ class GEF:
 
     def EndOfInflation(x, tol=1e-4):
         if x.units == True:
-            unitswereoff = False
+            unitswereon = True
+            x.Unitless()
         else:
-            unitswereoff = True
-            x.Unitful()
+            unitswereon = False
+
         N = x.vals["N"]
         dphi = x.vals["dphi"]
         V = x.potential()
@@ -1056,9 +1195,11 @@ class GEF:
         B = x.vals["B"]
         rhoChi = x.vals["rhoChi"]
         f = CubicSpline(N, (dphi**2 - V + (0.5*(E+B) + rhoChi)*x.omega**2/x.f**2))
-        res = fsolve(f, 60, 1e-4)
-        print(res)
-        if unitswereoff:
-            x.Unitless()    
+        res = fsolve(f, max(N), 1e-4)[0]
+        
+        x.Nend = res
+
+        if unitswereon:
+            x.Unitful()
         return res
             

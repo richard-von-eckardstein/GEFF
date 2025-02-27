@@ -1,5 +1,4 @@
 import pandas as pd
-import os
 import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.interpolate import CubicSpline
@@ -189,12 +188,10 @@ class GEF:
         return x.dV(phi)/(x.f*x.omega**2)
 
     def dIdphi(x):
-        phi = x.f*x.vals["phi"]
         dI = x.beta/x.f
         return dI*x.f
 
     def ddIddphi(x):
-        phi = x.f*x.vals["phi"]
         ddI = 0.
         return ddI*x.f**2
     
@@ -292,7 +289,6 @@ class GEF:
         #ini is always in Planck units
         x.vals = x.ini.copy()
         
-        #x.Uniftul() / x.Unitless() may not work yet, since not all keys are present. Need to do by hand.
         if (x.units):
             x.f = x.Mpl
             x.omega = x.H0
@@ -303,8 +299,8 @@ class GEF:
             x.units = True
         
         yini[0] = 0
-        yini[1] = x.vals["phi"]/x.f
-        yini[2] = x.vals["dphi"]/(x.f*x.omega)
+        yini[1] = x.ini["phi"]/x.f
+        yini[2] = x.ini["dphi"]/(x.f*x.omega)
         yini[3] = np.log(abs(yini[2]*x.dIdphi()))
         
         x.f = x.Mpl
@@ -313,25 +309,6 @@ class GEF:
         x.units = False
     
         return yini
-    
-    """def ReInitialiseGEF(x):
-        yini = np.zeros((x.ntr*3+4))
-        
-        if (x.units):
-            x.Unitless()
-
-        yini[0] = x.vals["N"]
-        yini[1] = x.vals["phi"]
-        yini[2] = x.vals["dphi"]
-        yini[3] = np.log(x.vals["kh"])
-
-        F = np.zeros( (x.ntr, 3) )
-        F[:,0] = x.vals["E"]
-        F[:,1] = x.vals["B"]
-        F[:,2] = x.vals["G"]
-        yini[4:] = F.reshape(x.ntr*3)
-        
-        return yini"""
     
     def TimeStep(x, t, y):
         x.DefineDictionary(t, y)
@@ -367,19 +344,16 @@ class GEF:
         x.vals["H"] = x.FriedmannEq()
         x.vals["Hprime"] = x.FriedmannEq2()
         x.vals["xi"] = x.GetXi()
-        
+
         pass
     
     @AddEventFlags(True, 1)
     def __CheckAcceleratedExpansion__(x, t, y):
         dphi = y[2]
         V = x.V(x.f*y[1])/(x.f*x.omega)**2
-        rhoEB = 0.5*(y[4]+y[5])*x.omega**2/x.f**2
+        rhoEB = 0.5*(y[4]+y[5])*x.ratio**2
         val = (dphi**2 - V + rhoEB)
         return val
-    
-    def __CheckSuccesfulRun__():
-        pass
 
     def SolveGEF(x, tend=120., atol=1e-6, rtol=1e-3, reachNend=True):
         t = Timer()
@@ -394,14 +368,15 @@ class GEF:
         if reachNend: 
             events.append(x.__CheckAcceleratedExpansion__)
             eventnames.append("End of inflation")
-        else: event=None
         
         t.start()
 
         done=False
         attempts = 0
-        yvals = np.array([yini]).T
-        tvals = np.array([t0])
+        yvals = []
+        tvals = []
+        t_events = [[] for event in events]
+        N_events = [[] for event in events]
         nfevs = []
         while not(done) and attempts<10:
             attempts += 1
@@ -416,9 +391,13 @@ class GEF:
                 raise TruncationError
             else:
                 if reachNend:
-
-                    yvals = np.concatenate([yvals, sol.y[:,1:]], axis=1)
-                    tvals = np.concatenate([tvals, sol.t[1:]])
+                    if len(tvals)==0:
+                        yvals.append(sol.y)
+                        tvals.append(sol.t)
+                    else:
+                        #Do not double-count end-points of sub-solutions.
+                        yvals.append(sol.y[:,1:])
+                        tvals.append(sol.t[1:])
                     nfevs.append(sol.nfev)
 
                     try: x.Nend = sol.y_events[0][0,0]
@@ -426,7 +405,7 @@ class GEF:
                         t0=sol.t[-1]
                         yini = sol.y[:,-1]
 
-                        if yini[0] > x.Nend: Ninc = 1
+                        if yini[0] > x.Nend: Ninc = 5
                         else: Ninc=x.Nend-yini[0]
 
                         tdiff = np.round(Ninc/x.vals["H"])
@@ -434,19 +413,28 @@ class GEF:
                         tend  = np.round(tend + tdiff, 1)
 
                         print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
-                    else: done=True
+                    else:
+                        for i, event in enumerate(events):
+                            t_events[i].append(sol.t_events[i])
+                            N_events[i].append(sol.y_events[i][:,0])
+                        done=True
                 else: done=True
             
         t.stop()
 
-        sol.t = tvals
-        sol.y = yvals
+        sol.t = np.concatenate(tvals)
+        sol.y = np.concatenate(yvals, axis=1)
+        
         sol.attempts = attempts
         if attempts>1:
             sol.nfev = nfevs
-        sol.events = dict(zip(eventnames,
-                               [{"t":np.round(sol.t_events[i],1), "N":np.round(sol.y_events[i][:,0],1)} for i, event in enumerate(eventnames)]
-                               ))
+        
+        eventdic = dict(zip(eventnames, [{"t":None, "N":None} for event in eventnames]))
+        for i, event in enumerate(eventdic.keys()):
+            eventdic[event]["t"] = np.round(np.concatenate(t_events[i]), 1)
+            eventdic[event]["N"] = np.round(np.concatenate(N_events[i]), 2)
+
+        sol.events = eventdic
 
         return sol, done
         
@@ -478,11 +466,7 @@ class GEF:
                 else:
                     res[par].append(x.vals[par])
         for par in pars:
-            try:
-                res[par] = np.array(res[par])
-            except:
-                print(par)
-                print(res[par])
+            res[par] = np.array(res[par])
         x.vals = res
         pass
 
@@ -520,7 +504,7 @@ class GEF:
     def LoadData(x):
         if x.GEFData == None:
             print("You did not specify the file from which to load the GEF data. Set 'GEFData' to the file's path from which you want to load your data.")
-            return
+            pass
         else:
             file = x.GEFData
             try:
@@ -565,7 +549,7 @@ class GEF:
                 x.vals["EdotBdr"] = data["Edot"]
                 x.vals["BdotBdr"] = data["Bdot"]
                 x.vals["GdotBdr"] = data["Gdot"]
-            
+
         pass
             
     def Unitless(x):
