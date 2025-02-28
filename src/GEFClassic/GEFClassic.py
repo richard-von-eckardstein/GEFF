@@ -9,11 +9,15 @@ from mpmath import whitw
 
 class TruncationError(Exception):
     pass
+class UnknownEventError(Exception):
+    pass
 
-def AddEventFlags(terminal=True, direction=1):
+def AddEventFlags(name, terminal=True, direction=1, final=True):
     def setflags(func):
+        func.name = name
         func.terminal = terminal
         func.direction = direction
+        func.final = final
         return func
     return setflags
 
@@ -32,8 +36,8 @@ def PrintSol(sol):
                 time = events[event]["t"]
                 efold = events[event]["N"]
                 print(rf"{event} at t={time} or N={efold}")
-    except: pass
-    finally: pass
+    except: return
+    finally: return
 
 class GEF:
     """
@@ -176,7 +180,7 @@ class GEF:
         x.H0 = np.sqrt( ( 0.5*x.ini["dphi"]**2 + x.V(x.ini["phi"]) )/3 )
         x.Mpl = 1.
         x.Nend = 61
-        pass
+        return
     
     #Potentials and Couplings
     def potential(x):
@@ -345,10 +349,10 @@ class GEF:
         x.vals["Hprime"] = x.FriedmannEq2()
         x.vals["xi"] = x.GetXi()
 
-        pass
+        return
     
-    @AddEventFlags(True, 1)
-    def __CheckAcceleratedExpansion__(x, t, y):
+    @AddEventFlags("End of inflation", True, 1, True)
+    def __EndOfInflation__(x, t, y):
         dphi = y[2]
         V = x.V(x.f*y[1])/(x.f*x.omega)**2
         rhoEB = 0.5*(y[4]+y[5])*x.ratio**2
@@ -366,8 +370,8 @@ class GEF:
         events = []
         eventnames = []
         if reachNend: 
-            events.append(x.__CheckAcceleratedExpansion__)
-            eventnames.append("End of inflation")
+            events.append(x.__EndOfInflation__)
+            eventnames.append(x.__EndOfInflation__.name)
         
         t.start()
 
@@ -468,7 +472,7 @@ class GEF:
         for par in pars:
             res[par] = np.array(res[par])
         x.vals = res
-        pass
+        return
 
 
     def RunGEF(x, ntr, tend=120., atol=1e-6, rtol=1e-3, reachNend=True, printstats=False):
@@ -481,10 +485,10 @@ class GEF:
                 print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
             x.WriteOutGEFResults(sol)
             x.completed = done
-            pass
+            return
         else:
             print("This run is already completed, access data using GEF.vals")
-            pass
+            return
         
     def SaveData(x):
         if (x.completed):
@@ -499,12 +503,12 @@ class GEF:
             output_df.to_csv(path)
         else:
             print("You need to RunGEF first")
-        pass
+        return
             
     def LoadData(x):
         if x.GEFData == None:
             print("You did not specify the file from which to load the GEF data. Set 'GEFData' to the file's path from which you want to load your data.")
-            pass
+            return
         else:
             file = x.GEFData
             try:
@@ -550,14 +554,14 @@ class GEF:
                 x.vals["BdotBdr"] = data["Bdot"]
                 x.vals["GdotBdr"] = data["Gdot"]
 
-        pass
+        return
             
     def Unitless(x):
         omega = x.H0
         f = x.Mpl
         if (not(x.completed)):
             print("You need to RunGEF or LoadGEF first")
-            pass
+            return
         if (x.units):
             x.vals["t"] = x.vals["t"]*omega
             x.vals["phi"] = x.vals["phi"]/f
@@ -585,14 +589,14 @@ class GEF:
             x.units = False
         else:
             print("Already Unitless")
-        pass
+        return
             
     def Unitful(x):
         omega = x.H0
         f = x.Mpl
         if (not(x.completed)):
             print("You need to RunGEF or LoadGEF first")
-            pass
+            return
         if (not(x.units)):
             x.vals["t"] = x.vals["t"]/omega
             x.vals["phi"] = x.vals["phi"]*f
@@ -620,7 +624,7 @@ class GEF:
             x.units = True
         else:
             print("Already Unitful")
-        pass
+        return
                 
     #Whittaker Functions
     def WhittakerApprox(x):
