@@ -202,12 +202,12 @@ class GEF:
     #Useful Quantities
     def FriedmannEq(x):
         Hsq = (1/3) * (0.5 * x.vals["dphi"]**2 + x.vals["a"]**(2*x.alpha)*
-                       (x.potential() + x.ratio**2*( 0.5*(x.vals["E"]+x.vals["B"]) ) ) )
+                       (x.potential() + x.ratio**2*( 0.5*(x.vals["E"][0]+x.vals["B"][0]) ) ) )
         return np.sqrt(Hsq)
 
     def FriedmannEq2(x):
         Hprime = -(x.vals["dphi"]**2/3 - x.vals["a"]**(2*x.alpha)*
-                       (x.potential()/3 - x.ratio**2*(x.vals["E"]+x.vals["B"])/6) ) - (1-x.alpha)*x.vals["H"]**2
+                       (x.potential()/3 - x.ratio**2*(x.vals["E"][0]+x.vals["B"][0])/6) ) - (1-x.alpha)*x.vals["H"]**2
         return Hprime
     
     def GetXi(x):
@@ -219,7 +219,7 @@ class GEF:
         a = x.vals["a"]
         
         ddphiddt = ((alpha-3)*x.vals["H"] * x.vals["dphi"]
-                - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"]*x.ratio**2)
+                - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"][0]*x.ratio**2)
         return ddphiddt
     
     def EoMlnkh(x, ddphiddt):
@@ -249,11 +249,13 @@ class GEF:
         return dlnkhdt
 
     def EoMF(x, dlnkhdt):
-        FE = x.vals["F"][:,0]
-        FB = x.vals["F"][:,1]
-        FG = x.vals["F"][:,2]
-        aAlpha = x.vals["a"]**x.alpha
+        prefac = dlnkhdt / (4*np.pi**2)
 
+        aAlpha = x.vals["a"]**x.alpha
+        H = x.vals["H"]
+        E = x.vals["E"]
+        B = x.vals["B"]
+        G = x.vals["G"]
         kh = x.vals["kh"]
         a = x.vals["a"]
         scale = kh/a
@@ -262,25 +264,26 @@ class GEF:
 
         Whitt[2,1] = -Whitt[2,1]
 
-        bdrF = dlnkhdt*np.array([[(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
-                                    for i in range(x.ntr)]) / (4*np.pi**2)
+        #print(scale)
+        bdrF = prefac*np.array([[(scale)**(i+4)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
+                                    for i in range(x.ntr)])
 
         ScalarCpl = (x.dIdphi()*x.vals["dphi"])
 
         dFdt = np.zeros(bdrF.shape)
 
         for n in range(x.ntr-1):
-            dFdt[n,0] = (bdrF[n, 0] - (4+n)*dlnkhdt*FE[n] - 2*aAlpha*scale*FG[n+1] + 2*ScalarCpl*FG[n])
+            dFdt[n,0] = (bdrF[n, 0] - (4+n)*H*E[n] - 2*aAlpha*G[n+1] + 2*ScalarCpl*G[n])
 
-            dFdt[n,1] = (bdrF[n, 1] - (4+n)*dlnkhdt*FB[n] + 2*aAlpha*scale*FG[n+1])
+            dFdt[n,1] = bdrF[n, 1] - (4+n)*H*B[n] + 2*aAlpha*G[n+1]
 
-            dFdt[n,2] = (bdrF[n, 2] - (4+n)*dlnkhdt*FG[n] + aAlpha*scale*(FE[n+1] - FB[n+1]) + ScalarCpl*FB[n])
+            dFdt[n,2] = (bdrF[n, 2] - (4+n)*H*G[n] + aAlpha*(E[n+1] - B[n+1]) + ScalarCpl*B[n])
 
-        dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*dlnkhdt*FE[-1]- 2*aAlpha*scale*FG[-2] + 2*ScalarCpl*FG[-1])
+        dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*H*E[-1]- 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1])
 
-        dFdt[-1,1] = (bdrF[-1,1] - (4+x.ntr-1)*dlnkhdt*FB[-1] + 2*aAlpha*scale*FG[-2]) 
+        dFdt[-1,1] = bdrF[-1,1] - (4+x.ntr-1)*H*B[-1] + 2*scale**2 * aAlpha*G[-2]
 
-        dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*dlnkhdt*FG[-1] + aAlpha*scale*(FE[-2] - FB[-2]) + ScalarCpl*FB[-1])
+        dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*H*G[-1] + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1])
 
         return dFdt
             
@@ -307,6 +310,7 @@ class GEF:
         
         x.f = x.Mpl
         x.omega = x.H0
+        print(x.omega)
         x.ratio = x.omega/x.f
         x.units = False
     
@@ -323,7 +327,7 @@ class GEF:
         dydt[3] = dlnkhdt
                 
         dFdt = x.EoMF(dlnkhdt)
-        dydt[4:] = dFdt.reshape(x.ntr*3) 
+        dydt[4:] = dFdt.reshape(x.ntr*3)
         
         return dydt
     
@@ -335,16 +339,14 @@ class GEF:
         
         x.vals["phi"] = y[1]
         x.vals["dphi"] = y[2]
-
-        x.vals["kh"] = np.exp(y[3])
-
+    
         F = y[4:]
-        x.vals["F"] = F.reshape(x.ntr, 3)
-
-        x.vals["E"] = x.vals["F"][0,0]*np.exp(4*(y[3]-y[0]))
-        x.vals["B"] = x.vals["F"][0,1]*np.exp(4*(y[3]-y[0]))
-        x.vals["G"] = x.vals["F"][0,2]*np.exp(4*(y[3]-y[0]))
-
+        F = F.reshape(x.ntr, 3)
+        x.vals["E"] = F[:,0]
+        x.vals["B"] = F[:,1]
+        x.vals["G"] = F[:,2]
+        
+        x.vals["kh"] = np.exp(y[3])
         x.vals["H"] = x.FriedmannEq()
         x.vals["Hprime"] = x.FriedmannEq2()
         x.vals["xi"] = x.GetXi()
@@ -355,7 +357,7 @@ class GEF:
     def __EndOfInflation__(x, t, y):
         dphi = y[2]
         V = x.V(x.f*y[1])/(x.f*x.omega)**2
-        rhoEB = 0.5*(y[4]+y[5])*x.ratio**2*np.exp(4*(y[3]-y[0]))
+        rhoEB = 0.5*(y[4]+y[5])*x.ratio**2
         val = (dphi**2 - V + rhoEB)
         return val
 
@@ -386,20 +388,15 @@ class GEF:
             attempts += 1
             teval = np.arange(10*t0, 10*tend +1)/10 #hotfix to ensure teval[-1] <= tend
             try:
-                mp.dps = int(abs(np.log10(atol)))+1 #ensure that whittaker functions are computed with the desired absolute tolerance.
+                mp.dps = int(-np.log10(atol))
                 sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
                                  method="RK45", atol=atol, rtol=rtol, events=events)
                 assert sol.success
-            except AssertionError: #not(ValueError or AssertionError):
+            
+            except ValueError or AssertionError:
+                raise TruncationError
+            except:
                 raise RuntimeError
-            except ValueError:
-                print(abs(rtol*x.vals["F"][-1,0]/atol))
-                print(abs(rtol*x.vals["F"][-1,1]/atol))
-                print(abs(rtol*x.vals["F"][-1,2]/atol))
-                print(max((x.ntr+4)*x.vals["F"][-1,:]))
-                print(x.vals["t"])
-                
-                raise ValueError
             else:
                 if reachNend:
                     if len(tvals)==0:
@@ -429,10 +426,7 @@ class GEF:
                             t_events[i].append(sol.t_events[i])
                             N_events[i].append(sol.y_events[i][:,0])
                         done=True
-                else:
-                    yvals.append(sol.y)
-                    tvals.append(sol.t)
-                    done=True
+                else: done=True
             
         t.stop()
 
@@ -450,21 +444,13 @@ class GEF:
 
         sol.events = eventdic
 
-        if done:
-            print(abs(rtol*x.vals["F"][-1,0]/atol))
-            print(abs(rtol*x.vals["F"][-1,1]/atol))
-            print(abs(rtol*x.vals["F"][-1,2]/atol))
-            print(max((x.ntr+4)*x.vals["F"][-1,:]))
-            print(x.vals["t"])
-            
-
         return sol, done
         
     def WriteOutGEFResults(x, sol):
         t = sol.t
         y = sol.y
         parsold = list(x.vals.keys())
-        newpars = ["ddphi", "dlnkh"] #"E1", "B1", "G1", "Edot", "Bdot", "Gdot", "EdotBdr", "BdotBdr", "GdotBdr"]
+        newpars = ["E1", "B1", "G1", "Edot", "Bdot", "Gdot", "ddphi", "dlnkh"] #, "EdotBdr", "BdotBdr", "GdotBdr"]
         pars = parsold + newpars
         res = dict(zip(pars, [[] for par in pars]))
         for i in range(len(t)):
@@ -473,9 +459,20 @@ class GEF:
             res["ddphi"].append(ddphi)
             dlnkhdt = x.EoMlnkh(ddphi)
             res["dlnkh"].append(dlnkhdt)
+            dFdt = x.EoMF(0)
+            res["Edot"].append(dFdt[0,0])
+            res["Bdot"].append(dFdt[0,1])
+            res["Gdot"].append(dFdt[0,2])
+            #dFdt = x.EoMF(dlnkhdt)
+            #res["EdotBdr"].append(dFdt[0,0])
+            #res["BdotBdr"].append(dFdt[0,1])
+            #res["GdotBdr"].append(dFdt[0,2])
             for par in parsold:
-                res[par].append(x.vals[par])
-
+                if (par in ["E", "B", "G"]):
+                    res[par].append(x.vals[par][0])
+                    res[par+"1"].append(x.vals[par][1])
+                else:
+                    res[par].append(x.vals[par])
         for par in pars:
             res[par] = np.array(res[par])
         x.vals = res
@@ -487,14 +484,21 @@ class GEF:
         if not(x.completed):
             try:
                 sol, done = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend)
-            except ValueError: return None
+            except TruncationError:
+                print("Truncation Error")
+            except RuntimeError:
+                raise RuntimeError
+            finally:
+                print(abs(x.vals["E"][-1])*rtol/atol)
+                print(abs(x.vals["B"][-1])*rtol/atol)
+                print(abs(x.vals["G"][-1])*rtol/atol)
             if printstats:
                 PrintSol(sol)
             if sol.attempts >= 10 and not(done):
                 print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
             x.WriteOutGEFResults(sol)
             x.completed = done
-            return sol
+            return
         else:
             print("This run is already completed, access data using GEF.vals")
             return
