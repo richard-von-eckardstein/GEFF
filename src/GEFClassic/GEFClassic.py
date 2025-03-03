@@ -5,7 +5,7 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 from src.Tools.timer import Timer
 import math
-from mpmath import whitw
+from mpmath import whitw, mp
 
 class TruncationError(Exception):
     pass
@@ -386,6 +386,7 @@ class GEF:
             attempts += 1
             teval = np.arange(10*t0, 10*tend +1)/10 #hotfix to ensure teval[-1] <= tend
             try:
+                mp.dps = int(-np.log10(atol))
                 sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
                                  method="RK45", atol=atol, rtol=rtol, events=events)
                 assert sol.success
@@ -478,7 +479,16 @@ class GEF:
     def RunGEF(x, ntr, tend=120., atol=1e-6, rtol=1e-3, reachNend=True, printstats=False):
         x.ntr = ntr+1
         if not(x.completed):
-            sol, done = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend)
+            try:
+                sol, done = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend)
+            except TruncationError:
+                print("Truncation Error")
+            except RuntimeError:
+                raise RuntimeError
+            finally:
+                print(abs(x.vals["E"][-1])*rtol/atol)
+                print(abs(x.vals["B"][-1])*rtol/atol)
+                print(abs(x.vals["G"][-1])*rtol/atol)
             if printstats:
                 PrintSol(sol)
             if sol.attempts >= 10 and not(done):
