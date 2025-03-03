@@ -467,7 +467,7 @@ class GEF:
             dlnkhdt = x.EoMlnkh(ddphi)
             res["dlnkh"].append(dlnkhdt)
             for par in parsold:
-                if par==["F"]: continue 
+                if par=="F": continue 
                 else: res[par].append(x.vals[par])
         for par in pars:
             res[par] = np.array(res[par])

@@ -177,7 +177,7 @@ class ModeByMode:
 
         x.__etaf = CubicSpline(x.__t, soleta.y[0,:])
 
-        Nend = G.EndOfInflation()[0]
+        Nend = G.EndOfInflation()
 
         maxN = min(max(x.__N), Nend+1)
         
