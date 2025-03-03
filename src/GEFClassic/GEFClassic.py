@@ -5,7 +5,7 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 from src.Tools.timer import Timer
 import math
-from mpmath import whitw
+from mpmath import whitw, mp
 
 class TruncationError(Exception):
     pass
@@ -233,7 +233,7 @@ class GEF:
         
         fc = a**(1-alpha) * H * r
         
-        dHdt = 0#x.vals["Hprime"]# #approximation  dHdt = alphaH**2  (slow-roll)
+        dHdt = x.vals["Hprime"]# #approximation  dHdt = alphaH**2  (slow-roll)
         xiprime = (-dHdt * xi + (x.ddIddphi()*x.vals["dphi"]**2 + x.dIdphi()*ddphiddt)/2)/H
         rprime = 2*np.sign(xi)*xiprime
         fcprime = (1-alpha)*H*fc + dHdt*a**(1-alpha)*r + a**(1-alpha)*H*rprime
@@ -383,16 +383,17 @@ class GEF:
         N_events = [[] for event in events]
         nfevs = []
         while not(done) and attempts<10:
+            #mp.dps = int(abs(np.log10(atol)))+1
             attempts += 1
             teval = np.arange(10*t0, 10*tend +1)/10 #hotfix to ensure teval[-1] <= tend
             try:
                 sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
                                  method="RK45", atol=atol, rtol=rtol, events=events)
                 assert sol.success
-            except not(ValueError or AssertionError):
-                raise RuntimeError
             except ValueError or AssertionError:
                 raise TruncationError
+            except:
+                raise RuntimeError
             else:
                 if reachNend:
                     if len(tvals)==0:
@@ -478,14 +479,23 @@ class GEF:
     def RunGEF(x, ntr, tend=120., atol=1e-6, rtol=1e-3, reachNend=True, printstats=False):
         x.ntr = ntr+1
         if not(x.completed):
-            sol, done = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend)
+            try:
+                sol, done = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend)
+            except TruncationError:
+                print("Truncation error")
+            except RuntimeError:
+                raise RuntimeError
+            finally:
+                print(rtol*abs(x.vals["E"][-1])/atol)
+                print(rtol*abs(x.vals["B"][-1])/atol)
+                print(rtol*abs(x.vals["G"][-1])/atol)
             if printstats:
                 PrintSol(sol)
             if sol.attempts >= 10 and not(done):
                 print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
             x.WriteOutGEFResults(sol)
             x.completed = done
-            return
+            return sol
         else:
             print("This run is already completed, access data using GEF.vals")
             return
