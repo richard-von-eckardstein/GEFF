@@ -468,11 +468,8 @@ class GEF:
             #res["BdotBdr"].append(dFdt[0,1])
             #res["GdotBdr"].append(dFdt[0,2])
             for par in parsold:
-                if (par in ["E", "B", "G"]):
-                    res[par].append(x.vals[par][0])
-                    res[par+"1"].append(x.vals[par][1])
-                else:
-                    res[par].append(x.vals[par])
+                if par=="F": continue 
+                else: res[par].append(x.vals[par])
         for par in pars:
             res[par] = np.array(res[par])
         x.vals = res
