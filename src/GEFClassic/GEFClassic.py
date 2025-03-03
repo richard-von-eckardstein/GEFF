@@ -264,6 +264,7 @@ class GEF:
 
         Whitt[2,1] = -Whitt[2,1]
 
+        #print(scale)
         bdrF = prefac*np.array([[(scale)**(i+4)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
                                     for i in range(x.ntr)])
 
@@ -309,6 +310,7 @@ class GEF:
         
         x.f = x.Mpl
         x.omega = x.H0
+        print(x.omega)
         x.ratio = x.omega/x.f
         x.units = False
     
@@ -390,7 +392,7 @@ class GEF:
                 sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
                                  method="RK45", atol=atol, rtol=rtol, events=events)
                 assert sol.success
-            except not(ValueError or AssertionError):
+            except not(ValueError) and not(AssertionError):
                 raise RuntimeError
             except ValueError or AssertionError:
                 raise TruncationError
