@@ -5,7 +5,7 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 from src.Tools.timer import Timer
 import math
-from mpmath import whitw
+from mpmath import whitw, mp
 
 class TruncationError(Exception):
     pass
@@ -386,6 +386,7 @@ class GEF:
             attempts += 1
             teval = np.arange(10*t0, 10*tend +1)/10 #hotfix to ensure teval[-1] <= tend
             try:
+                mp.dps = int(abs(np.log10(atol)))+1 #ensure that whittaker functions are computed with the desired absolute tolerance.
                 sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
                                  method="RK45", atol=atol, rtol=rtol, events=events)
                 assert sol.success
@@ -395,6 +396,9 @@ class GEF:
                 print(abs(rtol*x.vals["F"][-1,0]/atol))
                 print(abs(rtol*x.vals["F"][-1,1]/atol))
                 print(abs(rtol*x.vals["F"][-1,2]/atol))
+                print(max((x.ntr+4)*x.vals["F"][-1,:]))
+                print(x.vals["t"])
+                
                 raise ValueError
             else:
                 if reachNend:
@@ -450,6 +454,9 @@ class GEF:
             print(abs(rtol*x.vals["F"][-1,0]/atol))
             print(abs(rtol*x.vals["F"][-1,1]/atol))
             print(abs(rtol*x.vals["F"][-1,2]/atol))
+            print(max((x.ntr+4)*x.vals["F"][-1,:]))
+            print(x.vals["t"])
+            
 
         return sol, done
         
@@ -467,8 +474,8 @@ class GEF:
             dlnkhdt = x.EoMlnkh(ddphi)
             res["dlnkh"].append(dlnkhdt)
             for par in parsold:
-                if par==["F"]: continue 
-                else: res[par].append(x.vals[par])
+                res[par].append(x.vals[par])
+
         for par in pars:
             res[par] = np.array(res[par])
         x.vals = res
