@@ -10,6 +10,11 @@ from ptarcade.models_utils import g_rho, g_rho_0, g_s, g_s_0, T_0, M_pl, gev_to_
 from typing import Tuple
 from numpy.typing import ArrayLike
 
+def IntegrateGW(f, h2OmegaGW):
+    h2OmegaGW = np.where(np.log(f/1e-12) > 0, h2OmegaGW, 0)
+    val = trapezoid(h2OmegaGW, np.log(f))
+    return val
+
 def TensorModeEoM(y : ArrayLike, k : float, H : float, a : float) -> ArrayLike:
     """
     Compute the time derivative of a vacuum tensor mode and its derivative for a fixed comoving wavenumber at a given moment of time t (in Hubble units)
@@ -155,13 +160,13 @@ class PowSpecT:
         a = G.vals["a"]
         H = G.vals["H"]
         
-        Nend = G.EndOfInflation()[0]
+        Nend = G.EndOfInflation()
         N = G.vals["N"]
 
         x.__omega = G.omega
         
         #Assess if the end of inflation is reached for this run
-        if max(N) < Nend:
+        if np.log10(abs(max(N) - Nend)) > -2:
             print("This GEF run has not run reached the end of inflation. The code will assume Nend = max(N). Proceed with caution!")
         maxN = min(max(N), Nend)
         x.maxN = maxN

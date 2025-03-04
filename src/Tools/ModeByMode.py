@@ -179,7 +179,7 @@ class ModeByMode:
 
         Nend = G.EndOfInflation()
 
-        maxN = min(max(x.__N), Nend+1)
+        maxN = min(max(x.__N), Nend)
         
         #Define suitable range of wavenumbers which can be considered given the background dynamics. mink might still change
         x.maxk = CubicSpline(x.__N, kh)(maxN)

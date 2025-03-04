@@ -5,7 +5,7 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 from src.Tools.timer import Timer
 import math
-from mpmath import whitw
+from mpmath import whitw, mp
 
 class TruncationError(Exception):
     pass
@@ -222,7 +222,7 @@ class GEF:
                 - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"]*x.ratio**2)
         return ddphiddt
     
-    def EoMlnkh(x, ddphiddt):
+    def EoMlnkh(x, ddphiddt, rtol=1e-6):
         kh = x.vals["kh"]
         alpha = x.alpha
         a = x.vals["a"]
@@ -239,7 +239,7 @@ class GEF:
         fcprime = (1-alpha)*H*fc + dHdt*a**(1-alpha)*r + a**(1-alpha)*H*rprime
                    
         if (fcprime >= 0):
-            if((kh-fc)/kh <=1e-3):
+            if(1-np.log(fc)/np.log(kh) < rtol):
                 dlnkhdt = fcprime/kh
             else:
                 dlnkhdt = 0
@@ -312,7 +312,7 @@ class GEF:
     
         return yini
     
-    def TimeStep(x, t, y):
+    def TimeStep(x, t, y, rtol=1e-6):
         x.DefineDictionary(t, y)
         dydt = np.zeros(y.shape)
         dydt[0] = x.vals["H"]
@@ -358,43 +358,55 @@ class GEF:
         rhoEB = 0.5*(y[4]+y[5])*x.ratio**2*np.exp(4*(y[3]-y[0]))
         val = (dphi**2 - V + rhoEB)
         return val
-
-    def SolveGEF(x, tend=120., atol=1e-6, rtol=1e-3, reachNend=True):
-        t = Timer()
-
+    
+    def IncreaseNtr(x, val=10):
+        x.ntr+=val
+        print(f"Increasing ntr by {val} to {x.ntr}.")
+        return
+    
+    def SetupSolver(x, events):
+        yvals = []
+        tvals = []
+        t_events = [[] for event in events]
+        N_events = [[] for event in events]
+        nfevs = []
         yini = x.InitialiseGEF()
         t0 = 0.
-        
-        ODE = lambda t, y: x.TimeStep(t, y)
+        return t0, yini, nfevs, yvals, tvals, t_events, N_events
+
+
+    def SolveGEF(x, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, Ntol=-1):
+        mp.dps = 8
+        t = Timer()
 
         events = []
         eventnames = []
         if reachNend: 
             events.append(x.__EndOfInflation__)
             eventnames.append(x.__EndOfInflation__.name)
+
+        t0, yini, nfevs, yvals, tvals, t_events, N_events = x.SetupSolver(events)
         
+        ODE = lambda t, y: x.TimeStep(t, y, rtol)
+
         t.start()
 
         done=False
         attempts = 0
-        yvals = []
-        tvals = []
-        t_events = [[] for event in events]
-        N_events = [[] for event in events]
-        nfevs = []
-        while not(done) and attempts<10:
+        
+        print(f"Attempting first run with ntr={x.ntr}")
+        while not(done) and attempts<25:
             attempts += 1
             teval = np.arange(10*t0, 10*tend +1)/10 #hotfix to ensure teval[-1] <= tend
             try:
                 sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
                                  method="RK45", atol=atol, rtol=rtol, events=events)
                 assert sol.success
-            except ValueError:
-                raise TruncationError
-            except AssertionError: #not(ValueError or AssertionError):
-                print(f"The run failed, tend={sol.t[-1]}, Nend={sol.y[0,-1]}")
-                t.stop()
-                return sol, False
+            except ValueError or AssertionError:
+                print(f"The run failed at t={x.vals['t']}, N={x.vals['N']}.")
+
+                x.IncreaseNtr(10)
+                t0, yini, nfevs, yvals, tvals, t_events, N_events = x.SetupSolver(events)
             except RuntimeError:
                 raise RuntimeError
             else:
@@ -408,10 +420,11 @@ class GEF:
                         tvals.append(sol.t[1:])
                     nfevs.append(sol.nfev)
 
-                    try: x.Nend = sol.y_events[0][0,0]
+                    try: 
+                        NendNew = sol.y_events[0][0,0]
                     except:
-                        t0=sol.t[-1]
-                        yini = sol.y[:,-1]
+                        t0=sol.t[-5]
+                        yini = sol.y[:,-5]
 
                         if yini[0] > x.Nend: Ninc = 5
                         else: Ninc=x.Nend-yini[0]
@@ -425,7 +438,22 @@ class GEF:
                         for i, event in enumerate(events):
                             t_events[i].append(sol.t_events[i])
                             N_events[i].append(sol.y_events[i][:,0])
-                        done=True
+                        print(f"The end of inflation was reached at t={np.round(sol.t_events[i][-1], 1)} and N={np.round(NendNew, abs(Ntol))}.")
+                        if np.log10(abs(NendNew-x.Nend)) < Ntol:
+                            done=True
+                        else:
+                            print(f"To ensure a convergent run, check stability against increasing ntr.")
+                            x.IncreaseNtr(10)
+
+                            Ninc = abs(NendNew - x.Nend)
+                            tdiff = np.round(Ninc/x.vals["H"])
+                            tend = min(np.round(sol.t[-1] + tdiff, 1), tend)
+                            print(f"The solver aims at reaching t={tend}")
+                            
+                            t0, yini, nfevs, yvals, tvals, t_events, N_events = x.SetupSolver(events)
+
+                            done=False
+                        x.Nend = NendNew
                 else:
                     yvals.append(sol.y)
                     tvals.append(sol.t)
@@ -442,8 +470,9 @@ class GEF:
         
         eventdic = dict(zip(eventnames, [{"t":None, "N":None} for event in eventnames]))
         for i, event in enumerate(eventdic.keys()):
+
             eventdic[event]["t"] = np.round(np.concatenate(t_events[i]), 1)
-            eventdic[event]["N"] = np.round(np.concatenate(N_events[i]), 2)
+            eventdic[event]["N"] = np.round(np.concatenate(N_events[i]), 3)
 
         sol.events = eventdic
 
@@ -453,6 +482,7 @@ class GEF:
         t = sol.t
         y = sol.y
         parsold = list(x.vals.keys())
+        parsold.remove("F")
         newpars = ["ddphi", "dlnkh"] #"E1", "B1", "G1", "Edot", "Bdot", "Gdot", "EdotBdr", "BdotBdr", "GdotBdr"]
         pars = parsold + newpars
         res = dict(zip(pars, [[] for par in pars]))
@@ -463,38 +493,30 @@ class GEF:
             dlnkhdt = x.EoMlnkh(ddphi)
             res["dlnkh"].append(dlnkhdt)
             for par in parsold:
-                if par==["F"]: continue 
-                else: res[par].append(x.vals[par])
+                res[par].append(x.vals[par])
         for par in pars:
             res[par] = np.array(res[par])
         x.vals = res
         return
 
 
-    def RunGEF(x, ntr, tend=120., atol=1e-6, rtol=1e-3, reachNend=True, printstats=False):
+    def RunGEF(x, ntr, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, printstats=False, Ntol=-1):
         x.ntr = ntr+1
         if not(x.completed):
             try:
-                sol, done = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend)
+                sol, done = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend, Ntol=Ntol)
                 
                 if printstats:
                     PrintSol(sol)
                 if sol.attempts >= 10 and not(done):
                     print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
                 x.completed = done
-                print(abs(x.vals["F"][-1,0]/x.vals["F"][-3,0]))
-                print(abs(x.vals["F"][-1,1]/x.vals["F"][-3,1]))
-                print(abs(x.vals["F"][-1,2]/x.vals["F"][-3,2]))
                 x.WriteOutGEFResults(sol)
             except TruncationError:
                 print("A truncation error occured")
-                print(abs(x.vals["F"][-1,0]/x.vals["F"][-3,0]))
-                print(abs(x.vals["F"][-1,1]/x.vals["F"][-3,1]))
-                print(abs(x.vals["F"][-1,2]/x.vals["F"][-3,2]))
                 sol = None
             except:
                 raise RuntimeError    
-                
             return sol
         else:
             print("This run is already completed, access data using GEF.vals")
@@ -530,8 +552,7 @@ class GEF:
         data = dict(zip(input_df.columns[1:],input_df.values[1:,1:].T))
         
         names = ["t", "phi", "dphi", "ddphi", "a", "H",
-                 "E", "B", "G", "E1", "B1", "G1", "Edot", "Bdot", "Gdot",
-                 "kh", "dlnkh"]
+                 "E", "B", "G", "kh", "dlnkh"]# "E1", "B1", "G1", "Edot", "Bdot", "Gdot",]
         #Check if data file is in order:
         for name in names:
             if name not in data.keys():
@@ -557,12 +578,12 @@ class GEF:
         for key in data.keys():
                 x.vals[key] = data[key]
 
-        Bdrnames = ["EdotBdr","BdotBdr","GdotBdr"]
+        """Bdrnames = ["EdotBdr","BdotBdr","GdotBdr"]
         for bdrname in Bdrnames:
             if bdrname not in data.keys():
                 x.vals["EdotBdr"] = data["Edot"]
                 x.vals["BdotBdr"] = data["Bdot"]
-                x.vals["GdotBdr"] = data["Gdot"]
+                x.vals["GdotBdr"] = data["Gdot"]"""
 
         return
             
@@ -584,7 +605,7 @@ class GEF:
             x.vals["G"] = x.vals["G"]/(omega)**4
             x.vals["kh"] = x.vals["kh"]/omega
             x.vals["dlnkh"] = x.vals["dlnkh"]/omega
-            x.vals["E1"] = x.vals["E1"]/(omega)**5
+            """x.vals["E1"] = x.vals["E1"]/(omega)**5
             x.vals["B1"] = x.vals["B1"]/(omega)**5
             x.vals["G1"] = x.vals["G1"]/(omega)**5
             x.vals["Edot"] = x.vals["Edot"]/(omega)**5
@@ -592,7 +613,7 @@ class GEF:
             x.vals["Gdot"] = x.vals["Gdot"]/(omega)**5
             x.vals["EdotBdr"] = x.vals["EdotBdr"]/(omega)**5
             x.vals["BdotBdr"] = x.vals["BdotBdr"]/(omega)**5
-            x.vals["GdotBdr"] = x.vals["GdotBdr"]/(omega)**5
+            x.vals["GdotBdr"] = x.vals["GdotBdr"]/(omega)**5"""
             x.omega = omega
             x.f = f
             x.ratio = x.omega/x.f
@@ -619,7 +640,7 @@ class GEF:
             x.vals["G"] = x.vals["G"]*(omega)**4
             x.vals["kh"] = x.vals["kh"]*omega
             x.vals["dlnkh"] = x.vals["dlnkh"]*omega
-            x.vals["E1"] = x.vals["E1"]*(omega)**5
+            """x.vals["E1"] = x.vals["E1"]*(omega)**5
             x.vals["B1"] = x.vals["B1"]*(omega)**5
             x.vals["G1"] = x.vals["G1"]*(omega)**5
             x.vals["Edot"] = x.vals["Edot"]*(omega)**5
@@ -627,7 +648,7 @@ class GEF:
             x.vals["Gdot"] = x.vals["Gdot"]*(omega)**5
             x.vals["EdotBdr"] = x.vals["EdotBdr"]*(omega)**5
             x.vals["BdotBdr"] = x.vals["BdotBdr"]*(omega)**5
-            x.vals["GdotBdr"] = x.vals["GdotBdr"]*(omega)**5
+            x.vals["GdotBdr"] = x.vals["GdotBdr"]*(omega)**5"""
             x.omega = 1.
             x.f = 1.
             x.ratio = 1.
