@@ -356,7 +356,7 @@ class GEF:
         dphi = y[2]
         V = x.V(x.f*y[1])/(x.f*x.omega)**2
         rhoEB = 0.5*(y[4]+y[5])*x.ratio**2*np.exp(4*(y[3]-y[0]))
-        val = (dphi**2 - V + rhoEB)
+        val = np.log((dphi**2 + rhoEB)/V)
         return val
     
     def IncreaseNtr(x, val=10):
@@ -364,64 +364,56 @@ class GEF:
         print(f"Increasing ntr by {val} to {x.ntr}.")
         return
     
-    def SetupSolver(x, events):
-        yvals = []
-        tvals = []
-        t_events = [[] for event in events]
-        N_events = [[] for event in events]
-        nfevs = []
-        yini = x.InitialiseGEF()
-        t0 = 0.
-        return t0, yini, nfevs, yvals, tvals, t_events, N_events
-
-
-    def SolveGEF(x, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, Ntol=-1):
-        mp.dps = 8
-        t = Timer()
-
+    def SetupSolver(x, reachNend):
         events = []
         eventnames = []
         if reachNend: 
             events.append(x.__EndOfInflation__)
             eventnames.append(x.__EndOfInflation__.name)
 
-        t0, yini, nfevs, yvals, tvals, t_events, N_events = x.SetupSolver(events)
-        
+        eventdic = dict(zip(eventnames, [{"t":[], "N":[]} for event in eventnames]))
+
+        yini = x.InitialiseGEF()
+        t0 = 0.
+        return t0, yini, events, eventdic
+    
+    def ObtainSolution(x, t0, tend, yini, atol, rtol, events):
         ODE = lambda t, y: x.TimeStep(t, y, rtol)
+
+        teval = np.arange(10*t0, 10*tend +1)/10
+
+        sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
+                                 method="RK45", atol=atol, rtol=rtol, events=events)
+        assert sol.success
+        return sol
+
+    def SolveGEF(x, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, Ntol=-1):
+        mp.dps = 8
+        t = Timer()
+
+        print(f"The solver aims at reaching t={tend}")
+
+        t0, yini, events, eventdic = x.SetupSolver(reachNend=True)
 
         t.start()
 
         done=False
         attempts = 0
         
-        print(f"Attempting first run with ntr={x.ntr}")
-        while not(done) and attempts<25:
+        print(f"Attempting run with ntr={x.ntr}")
+        while not(done) and attempts<10:
             attempts += 1
-            teval = np.arange(10*t0, 10*tend +1)/10 #hotfix to ensure teval[-1] <= tend
             try:
-                sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
-                                 method="RK45", atol=atol, rtol=rtol, events=events)
-                assert sol.success
+                sol = x.ObtainSolution(t0, tend, yini, atol, rtol, events)
             except ValueError or AssertionError:
                 print(f"The run failed at t={x.vals['t']}, N={x.vals['N']}.")
-
-                x.IncreaseNtr(10)
-                t0, yini, nfevs, yvals, tvals, t_events, N_events = x.SetupSolver(events)
+                raise TruncationError
             except RuntimeError:
                 raise RuntimeError
             else:
                 if reachNend:
-                    if len(tvals)==0:
-                        yvals.append(sol.y)
-                        tvals.append(sol.t)
-                    else:
-                        #Do not double-count end-points of sub-solutions.
-                        yvals.append(sol.y[:,1:])
-                        tvals.append(sol.t[1:])
-                    nfevs.append(sol.nfev)
-
                     try: 
-                        NendNew = sol.y_events[0][0,0]
+                        Ninf = sol.y_events[0][0,0]
                     except:
                         t0=sol.t[-5]
                         yini = sol.y[:,-5]
@@ -435,48 +427,66 @@ class GEF:
 
                         print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
                     else:
-                        for i, event in enumerate(events):
-                            t_events[i].append(sol.t_events[i])
-                            N_events[i].append(sol.y_events[i][:,0])
-                        print(f"The end of inflation was reached at t={np.round(sol.t_events[i][-1], 1)} and N={np.round(NendNew, abs(Ntol))}.")
-                        if np.log10(abs(NendNew-x.Nend)) < Ntol:
-                            done=True
-                        else:
-                            print(f"To ensure a convergent run, check stability against increasing ntr.")
-                            x.IncreaseNtr(10)
-
-                            Ninc = abs(NendNew - x.Nend)
-                            tdiff = np.round(Ninc/x.vals["H"])
-                            tend = min(np.round(sol.t[-1] + tdiff, 1), tend)
-                            print(f"The solver aims at reaching t={tend}")
-                            
-                            t0, yini, nfevs, yvals, tvals, t_events, N_events = x.SetupSolver(events)
-
-                            done=False
-                        x.Nend = NendNew
+                        done = True
+                        for i, eventname in enumerate(eventdic.keys()):
+                            eventdic[eventname]["t"].append(sol.t_events[i])
+                            eventdic[eventname]["N"].append(sol.y_events[i][:,0])
+                        print(f"The end of inflation was reached at t={np.round(sol.t_events[i][-1], 1)} and N={np.round(Ninf, abs(Ntol))}.")
+                        if attempts > 1:
+                            order="repeat"
+                        else: order="proceed"
                 else:
-                    yvals.append(sol.y)
-                    tvals.append(sol.t)
                     done=True
             
         t.stop()
 
-        sol.t = np.concatenate(tvals)
-        sol.y = np.concatenate(yvals, axis=1)
-        
-        sol.attempts = attempts
-        if attempts>1:
-            sol.nfev = nfevs
-        
-        eventdic = dict(zip(eventnames, [{"t":None, "N":None} for event in eventnames]))
-        for i, event in enumerate(eventdic.keys()):
-
-            eventdic[event]["t"] = np.round(np.concatenate(t_events[i]), 1)
-            eventdic[event]["N"] = np.round(np.concatenate(N_events[i]), 3)
+        print(eventdic)
+        for eventname in (eventdic.keys()):
+            eventdic[eventname]["t"] = np.round(np.concatenate(eventdic[eventname]["t"]), 1)
+            eventdic[eventname]["N"] = np.round(np.concatenate(eventdic[eventname]["N"]), 3)
 
         sol.events = eventdic
 
-        return sol, done
+        if attempts != 1 and not(done):
+            print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
+            raise RuntimeError
+
+        return sol, tend, Ninf, order
+    
+    def RunGEF(x, ntr, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, printstats=False, Ntol=-1):
+        x.ntr = ntr+1
+        if not(x.completed):
+            finished= False
+            attempts=0
+            while not(finished) and attempts<10:
+                attempts+=1
+                try:
+                    sol, tend, Ninf, order = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend, Ntol=Ntol)
+                    if order=="repeat":
+                        print("Multiple iterations where necessary to estimate tend. Repeating the same run to check consistency.")
+                    if order=="proceed":
+                        if np.log10(abs(Ninf-x.Nend)) < Ntol: 
+                            finished=True
+                        else:
+                            Ninc = abs(Ninf - x.Nend)
+                            tdiff = np.round(Ninc/x.vals["H"])
+                            tend = min(np.round(sol.t[-1] + tdiff, 1), tend)
+                            print("To verify a consistent run, checking stability against increasing ntr.")
+                            x.IncreaseNtr(5)
+                        x.Nend = Ninf
+                except TruncationError:
+                    print("A truncation error occured")
+                    x.IncreaseNtr(10)  
+            if attempts==10:
+                print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
+                raise RuntimeError
+            if printstats:
+                PrintSol(sol)
+            x.WriteOutGEFResults(sol)
+            return sol
+        else:
+            print("This run is already completed, access data using GEF.vals")
+            return
         
     def WriteOutGEFResults(x, sol):
         t = sol.t
@@ -500,27 +510,7 @@ class GEF:
         return
 
 
-    def RunGEF(x, ntr, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, printstats=False, Ntol=-1):
-        x.ntr = ntr+1
-        if not(x.completed):
-            try:
-                sol, done = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend, Ntol=Ntol)
-                
-                if printstats:
-                    PrintSol(sol)
-                if sol.attempts >= 10 and not(done):
-                    print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
-                x.completed = done
-                x.WriteOutGEFResults(sol)
-            except TruncationError:
-                print("A truncation error occured")
-                sol = None
-            except:
-                raise RuntimeError    
-            return sol
-        else:
-            print("This run is already completed, access data using GEF.vals")
-            return
+    
         
     def SaveData(x):
         if (x.completed):
