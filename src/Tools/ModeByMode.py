@@ -212,7 +212,7 @@ class ModeByMode:
 
         elif mode=="k":
             k = init
-            x0 = np.log(k[0]) - np.log(x.__khf(0.)) - 5/2*np.log(10)
+            x0 = np.log(k[0]) - np.log(x.__khf(0.1)) - 5/2*np.log(10)
             tstart = []
             for i, l in enumerate(k):
                 f = lambda t: np.log(l) - np.log(x.__khf(t)) - 5/2*np.log(10)

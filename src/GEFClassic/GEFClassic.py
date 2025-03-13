@@ -356,7 +356,7 @@ class GEF:
         dphi = y[2]
         V = x.V(x.f*y[1])/(x.f*x.omega)**2
         rhoEB = 0.5*(y[4]+y[5])*x.ratio**2*np.exp(4*(y[3]-y[0]))
-        val = np.log((dphi**2 + rhoEB)/V)
+        val = np.log(abs((dphi**2 + rhoEB)/V))
         return val
     
     def IncreaseNtr(x, val=10):
@@ -440,7 +440,6 @@ class GEF:
             
         t.stop()
 
-        print(eventdic)
         for eventname in (eventdic.keys()):
             eventdic[eventname]["t"] = np.round(np.concatenate(eventdic[eventname]["t"]), 1)
             eventdic[eventname]["N"] = np.round(np.concatenate(eventdic[eventname]["N"]), 3)
@@ -458,7 +457,7 @@ class GEF:
         if not(x.completed):
             finished= False
             attempts=0
-            while not(finished) and attempts<10:
+            while not(finished):
                 attempts+=1
                 try:
                     sol, tend, Ninf, order = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend, Ntol=Ntol)
@@ -477,12 +476,13 @@ class GEF:
                 except TruncationError:
                     print("A truncation error occured")
                     x.IncreaseNtr(10)  
-            if attempts==10:
-                print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
-                raise RuntimeError
+            """if attempts==10:
+                print(f"The run did not finish after {attempts} attempts. Check the output for more information.")
+                raise RuntimeError"""
             if printstats:
                 PrintSol(sol)
             x.WriteOutGEFResults(sol)
+            x.completed = True
             return sol
         else:
             print("This run is already completed, access data using GEF.vals")
