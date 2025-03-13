@@ -10,6 +10,11 @@ from ptarcade.models_utils import g_rho, g_rho_0, g_s, g_s_0, T_0, M_pl, gev_to_
 from typing import Tuple
 from numpy.typing import ArrayLike
 
+def IntegrateGW(f, h2OmegaGW):
+    h2OmegaGW = np.where(np.log(f/1e-12) > 0, h2OmegaGW, 0)
+    val = trapezoid(h2OmegaGW, np.log(f))
+    return val
+
 def TensorModeEoM(y : ArrayLike, k : float, H : float, a : float) -> ArrayLike:
     """
     Compute the time derivative of a vacuum tensor mode and its derivative for a fixed comoving wavenumber at a given moment of time t (in Hubble units)
@@ -155,13 +160,13 @@ class PowSpecT:
         a = G.vals["a"]
         H = G.vals["H"]
         
-        Nend = G.EndOfInflation()[0]
+        Nend = G.EndOfInflation()
         N = G.vals["N"]
 
         x.__omega = G.omega
         
         #Assess if the end of inflation is reached for this run
-        if max(N) < Nend:
+        if np.log10(abs(max(N) - Nend)) > -2:
             print("This GEF run has not run reached the end of inflation. The code will assume Nend = max(N). Proceed with caution!")
         maxN = min(max(N), Nend)
         x.maxN = maxN
@@ -296,7 +301,7 @@ class PowSpecT:
 
         return phik, dphik
 
-    def _GreenFunc_(x, k : float, phik : ArrayLike, ind : int, tstart : float, teval : ArrayLike|list=[], atol : float=1e-3, rtol : float=1e-4) -> ArrayLike:
+    def _GreenFunc_(x, k : float, phik : ArrayLike, ind : int, tstart : float, teval : ArrayLike|list=[], atol : float=1e-30, rtol : float=1e-4) -> ArrayLike:
         """
         Input
         -----
@@ -331,6 +336,7 @@ class PowSpecT:
 
         # G(k, t, t) = 0 by definition
         Aini = np.array([0, 1])
+    
 
         # Solve the EoM for G backwards in time starting from G(k, t, t)
         Aode = lambda t, y: -GreenEoM(y, k, x.__Hf(-t), x.__af(-t))
@@ -450,7 +456,7 @@ class PowSpecT:
 
     
     def ComputePowSpec(x, k : ArrayLike, N : float|None=None, ModePath : str|None=None, FastGW : bool=True,
-                       atol : float=1e-3, rtol : float=1e-4, momgrid : int=100) -> dict:
+                       atols : list=[1e-3,1e-20], rtols : list=[1e-4,1e-4], momgrid : int=100) -> dict:
         """
         Input
         -----
@@ -465,10 +471,10 @@ class PowSpecT:
             If FastGW = True, only those contributions to the induce power spectrum coming from the most amplified mode-functions is computed.
             I.e., if xi>0, then only the PT_ind^+/i(++) contributions are computed.
             Else, compute all contributions to the power spectrum.
-        atol : float
-            the absolute precision of the numerical intergrator used to compute the vacuum tensor mode functions and the Green function.
-        rtol : float
-             the relative precision of the numerical intergrator used to compute the vacuum tensor mode functions and the Green function.
+        atols : list
+            the absolute precision of the numerical intergrator used to compute the vacuum tensor mode functions (index 0) and the Green function (index 1).
+        rtols : list
+             the relative precision of the numerical intergrator used to compute the vacuum tensor mode functions (index 0) and the Green function (index 1).
         momgrid : int
             the internal momentum integral for the induced power spectrum over p and k-p is performed using a momgrid x momgrid grid
 
@@ -511,8 +517,8 @@ class PowSpecT:
                 for key in PT.keys():
                     PT[key].append(0)
             else:
-                f, _ = x._GetHomSol_(k, tstart, tgrid, atol=atol, rtol=rtol)
-                Green = x._GreenFunc_(k, f, indend, tstart, tgrid, atol=atol, rtol=rtol)
+                f, _ = x._GetHomSol_(k, tstart, tgrid, atol=atols[0], rtol=rtols[0])
+                Green = x._GreenFunc_(k, f, indend, tstart, tgrid, atol=atols[1], rtol=rtols[1])
                 
                 PT["vac"].append(x._VacuumPowSpec_(k, f[indend]))
 
