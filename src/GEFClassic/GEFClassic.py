@@ -9,8 +9,6 @@ from mpmath import whitw, mp
 
 class TruncationError(Exception):
     pass
-class UnknownEventError(Exception):
-    pass
 
 def AddEventFlags(name, terminal=True, direction=1, final=True):
     def setflags(func):
@@ -179,7 +177,7 @@ class GEF:
         #Need Unitful Potential once, to compute omega
         x.H0 = np.sqrt( ( 0.5*x.ini["dphi"]**2 + x.V(x.ini["phi"]) )/3 )
         x.Mpl = 1.
-        x.Nend = 61
+        x.Nend = 60
         return
     
     #Potentials and Couplings
@@ -252,6 +250,7 @@ class GEF:
         FE = x.vals["F"][:,0]
         FB = x.vals["F"][:,1]
         FG = x.vals["F"][:,2]
+
         aAlpha = x.vals["a"]**x.alpha
 
         kh = x.vals["kh"]
@@ -290,36 +289,29 @@ class GEF:
 
         #ini is always in Planck units
         x.vals = x.ini.copy()
-        
-        if (x.units):
-            x.f = x.Mpl
-            x.omega = x.H0
-            x.units = False
-        else:
-            x.f = 1.
-            x.omega = 1.
-            x.units = True
+
+        x.f = x.Mpl
+        x.omega = x.H0
+        x.ratio = x.omega/x.f
+        x.units = False
         
         yini[0] = 0
         yini[1] = x.ini["phi"]/x.f
         yini[2] = x.ini["dphi"]/(x.f*x.omega)
         yini[3] = np.log(abs(yini[2]*x.dIdphi()))
-        
-        x.f = x.Mpl
-        x.omega = x.H0
-        x.ratio = x.omega/x.f
-        x.units = False
     
         return yini
     
     def TimeStep(x, t, y, rtol=1e-6):
         x.DefineDictionary(t, y)
+
         dydt = np.zeros(y.shape)
+
         dydt[0] = x.vals["H"]
         dydt[1] = x.vals["dphi"]
         dydt[2] = x.EoMphi()
         
-        dlnkhdt = x.EoMlnkh(dydt[2])
+        dlnkhdt = x.EoMlnkh(dydt[2], rtol=rtol)
         dydt[3] = dlnkhdt
                 
         dFdt = x.EoMF(dlnkhdt)
@@ -457,9 +449,8 @@ class GEF:
         x.ntr = ntr+1
         if not(x.completed):
             finished= False
-            attempts=0
-            while not(finished):
-                attempts+=1
+            attempts=1
+            while not(finished) and attempts<=5:
                 try:
                     sol, tend, Ninf, order = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend, Ntol=Ntol)
                     if order=="repeat":
@@ -475,11 +466,12 @@ class GEF:
                             x.IncreaseNtr(5)
                         x.Nend = Ninf
                 except TruncationError:
+                    attempts+=1
                     print("A truncation error occured")
                     x.IncreaseNtr(10)  
-            """if attempts==10:
+            if attempts==10:
                 print(f"The run did not finish after {attempts} attempts. Check the output for more information.")
-                raise RuntimeError"""
+                raise RuntimeError
             if printstats:
                 PrintSol(sol)
             x.WriteOutGEFResults(sol)

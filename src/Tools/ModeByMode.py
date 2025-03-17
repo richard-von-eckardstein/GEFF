@@ -182,7 +182,7 @@ class ModeByMode:
         maxN = min(max(x.__N), Nend)
         
         #Define suitable range of wavenumbers which can be considered given the background dynamics. mink might still change
-        x.maxk = CubicSpline(x.__N, kh)(maxN)
+        x.maxk = x.__khf(maxN)
         x.mink = 10**4*kh[0]
         
         return
@@ -212,7 +212,8 @@ class ModeByMode:
 
         elif mode=="k":
             k = init
-            x0 = np.log(k[0]) - np.log(x.__khf(0.1)) - 5/2*np.log(10)
+            t0 = 0#4*np.log(10)
+            x0 = np.log(k[0]) - np.log(x.__khf(t0)) - 5/2*np.log(10)
             tstart = []
             for i, l in enumerate(k):
                 f = lambda t: np.log(l) - np.log(x.__khf(t)) - 5/2*np.log(10)
@@ -265,6 +266,7 @@ class ModeByMode:
         if x.__SE == None:
             #Initial conditions for y and dydt for both helicities (rescaled appropriately)
             yini = np.array([1., 0, 0, -1., 1, 0, 0, -1.])
+            deltaf  = lambda x: 1.0
             
             #Define ODE to solve (sigmaE=0, sigmaB=0)
             ode = lambda t, y: ModeEoM(y, k, x.__af(t), x.__SclrCplf(t))
@@ -284,10 +286,11 @@ class ModeByMode:
                 sigmaEf = CubicSpline(x.__t, x.__sigmaE)
                 sigmaBf = CubicSpline(x.__t, x.__sigmaB)
                 deltaf  = CubicSpline(x.__t, x.__delta)
+                
 
             #Initial conditions for y and dydt for both helicities (rescaled appropriately)
-            yini = np.array([1., -1/2*sigmaEf(tstart)/k, 0, -1.,
-                            1., -1/2*sigmaEf(tstart)/k, 0, -1.])*np.sqrt( deltaf(tstart) )
+            yini = np.array([1., -1/2*sigmaEf(tstart)*x.__af(tstart)/k, 0, -1.,
+                             1., -1/2*sigmaEf(tstart)*x.__af(tstart)/k, 0, -1.])*np.sqrt( deltaf(tstart) )
             
             #Define ODE to solve
             ode = lambda t, y: ModeEoM( y, k, x.__af(t), x.__SclrCplf(t), sigmaEf(t), sigmaBf(t) )
@@ -299,7 +302,8 @@ class ModeByMode:
         
         #conformal time needed for relative phases
         eta = x.__etaf(teval)
-
+        delta = deltaf(teval)
+        
         istart = 0
         while teval[istart]<tstart:
             istart+=1
@@ -309,8 +313,8 @@ class ModeByMode:
         sol = solve_ivp(ode, [tstart, tmax], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
         
         #the mode was in vacuum before tstart
-        vac = list( np.exp(-1j*eta[:istart]*k) )
-        dvac = list( -1j*np.exp(-1j*eta[:istart]*k) )
+        vac = list( np.exp(-1j*eta[:istart]*k)*np.sqrt( delta[:istart] ) )
+        dvac = list( -1j*np.exp(-1j*eta[:istart]*k)*np.sqrt( delta[:istart] ) )
 
         #Create array of mode evolution stringing together vacuum and non-vacuum time evolutions to get evolution from t0 to tend
         yp = np.array( vac + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )
