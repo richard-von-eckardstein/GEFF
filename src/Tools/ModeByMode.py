@@ -182,7 +182,7 @@ class ModeByMode:
         maxN = min(max(x.__N), Nend)
         
         #Define suitable range of wavenumbers which can be considered given the background dynamics. mink might still change
-        x.maxk = x.__khf(maxN)
+        x.maxk = CubicSpline(x.__N, kh)(maxN)
         x.mink = 10**4*kh[0]
         
         return
