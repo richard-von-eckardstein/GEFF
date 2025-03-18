@@ -64,65 +64,41 @@ class GEF:
         x.ModeData = ModeData
 
         x.SEModel = SEModel
-        x.SEPicture = SEPicture
-        if (SEPicture==None):
-            x.GaugePos = 4
-            x.conductivity = lambda y: 0., 0.
-            if(approx):
-                x.Whittaker = x.WhittakerApprox_NoSE
+        if x.SEModel=="Old":
+            x.GaugePos = 6
+            if(approx): x.Whittaker = x.WhittakerApprox_WithSE
+            else: x.Whittaker=x.WhittakerExact
+        elif x.SEModel=="Del1":
+            x.GaugePos = 5
+            if(approx): x.Whittaker = x.WhittakerApprox_NoSE
+            else: x.Whittaker=x.WhittakerExact
+        elif x.SEModel=="KDep":
+            x.GaugePos = 5
+            x.deltaf = x.ApproxDeltaf
+            if approx:
+                x.WhittakerNoFerm = x.WhittakerApprox_NoSE
+                x.WhittakerWithFerm = x.WhittakerApprox_WithSE
             else:
-                x.Whittaker = x.WhittakerExact
+                x.WhittakerNoFerm = x.WhittakerExact
+                x.WhittakerWithFerm = x.WhittakerExact
+            x.EoMlnkS = x.EoMlnkSMixed
         else:
-            if(approx):
-                x.Whittaker = x.WhittakerApprox_WithSE
-            else:
-                x.Whittaker = x.WhittakerExact
-            
-            if (SEPicture=="mix"):
-                if (x.SEModel == "Del1"):
-                    x.GaugePos = 5
-                    x.conductivity = x.ComputeImprovedSigma
-                elif (x.SEModel == "KDep"):
-                    x.GaugePos = 5
-                    x.deltaf = x.ApproxDeltaf
-                    if approx:
-                        x.WhittakerNoFerm = x.WhittakerApprox_NoSE
-                        x.WhittakerWithFerm = x.WhittakerApprox_WithSE
-                    else:
-                        x.WhittakerNoFerm = x.WhittakerExact
-                        x.WhittakerWithFerm = x.WhittakerExact
-                    x.conductivity = x.ComputeImprovedSigma
-                    x.EoMlnkS = x.EoMlnkSMixed
-                else:
-                    x.GaugePos = 6
-                    x.conductivity = x.ComputeImprovedSigma
-            
-            elif (-1. <= SEPicture <=1.):
-                if (x.SEModel == "Del1"):
-                    x.GaugePos = 5
-                    x.conductivity = x.ComputeSigmaCollinear
-                elif (x.SEModel == "KDep"):
-                    x.DeltaFunc = False
-                    x.GaugePos = 5
-                    x.deltaf = x.ApproxDeltaf
-                    #x.tferm = lambda t: t
-                    if approx:
-                        x.WhittakerNoFerm = x.WhittakerApprox_NoSE
-                        x.WhittakerWithFerm = x.WhittakerApprox_WithSE
-                    else:
-                        x.WhittakerNoFerm = x.WhittakerExact
-                        x.WhittakerWithFerm = x.WhittakerExact
-                    x.conductivity = x.ComputeSigmaCollinear
-                    x.EoMlnkS = x.EoMlnkSFrac
-                else:
-                    x.GaugePos = 6
-                    x.conductivity = x.ComputeSigmaCollinear
-                if(SEPicture == 1. and approx):
-                    x.Whittaker = x.WhittakerApprox_NoSE
-                    x.WhittakerWithFerm = x.WhittakerApprox_NoSE
-                    x.deltaf = lambda x: 1.
-            else:
-                print(SEPicture, "is not a valid choice for SEPicture")
+            x.GaugePos = 4
+            if(approx): x.Whittaker = x.WhittakerApprox_NoSE
+            else: x.Whittaker = x.WhittakerExact
+
+        x.SEPicture = SEPicture
+        if (SEPicture=="mix"):
+            x.conductivity = x.ComputeImprovedSigma
+        elif (-1 <= SEPicture <=1):
+            x.conductivity = x.ComputeSigmaCollinear
+            if SEPicture==1 and approx:
+                x.Whittaker = x.WhittakerApprox_NoSE
+                x.WhittakerWithFerm = x.WhittakerApprox_NoSE
+                x.deltaf = lambda x: 1.
+        else:
+            x.conductivity = lambda y: 0., 0., 0.
+
 
         x.approx = approx
         x.omega = 1.
@@ -154,7 +130,7 @@ class GEF:
     #Useful Quantities
     def FriedmannEq(x):
         Hsq = (1/3) * (0.5 * x.vals["dphi"]**2 + x.vals["a"]**(2*x.alpha)*
-                       (x.potential() + x.ratio**2*(0.5*(x.vals["E"][0]+x.vals["B"][0]) + x.vals["rhoChi"])))
+                       (x.potential() + x.ratio**2*(0.5*(x.vals["E"]+x.vals["B"]) + x.vals["rhoChi"])))
         return np.sqrt(Hsq)
     
     def GetXi(x):
@@ -164,9 +140,9 @@ class GEF:
         return (x.vals["a"]**(x.alpha) * sigma)/(2* x.vals["H"])
             
     def ComputeSigmaCollinear(x):
-        E0 = x.vals["E"][0]
-        B0 = x.vals["B"][0]
-        G0 = x.vals["G"][0]
+        E0 = x.vals["E"]
+        B0 = x.vals["B"]
+        G0 = x.vals["G"]
         mu = (E0+B0)
         if mu<=0:
             return 0., 0., 1e-2*x.vals["kh"]
@@ -189,9 +165,9 @@ class GEF:
             return sigmaE, sigmaB, ks
 
     def ComputeImprovedSigma(x):
-        E0 = x.vals["E"][0]
-        B0 = x.vals["B"][0]
-        G0 = x.vals["G"][0]
+        E0 = x.vals["E"]
+        B0 = x.vals["B"]
+        G0 = x.vals["G"]
         Sigma = np.sqrt((E0 - B0)**2 + 4*G0**2)
         if Sigma<=0:
             x.vals["sigmaE"] = 0.
@@ -223,7 +199,7 @@ class GEF:
         a = x.vals["a"]
         
         ddphiddt = ((alpha-3)*x.vals["H"] * x.vals["dphi"]
-                - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"][0]*x.ratio**2)
+                - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"]*x.ratio**2)
         return ddphiddt
     
     def EoMlnkh(x, ddphiddt, rtol=1e-6):
@@ -250,13 +226,17 @@ class GEF:
         sEprime = (-dHdt * s + a**(1-alpha)*(alpha*H*x.vals["sigmaE"]+ dsigmaEdt)/2)/H
         rprime = (np.sign(xieff)+xieff/sqrtterm)*xieffprime + sEprime*(s+1/2)/sqrtterm
         fcprime = (1-alpha)*H*fc + dHdt*a**(1-alpha)*r + a**(1-alpha)*H*rprime
-        
+    
+        #return np.heaviside(fcprime/kh, rtol)*np.heaviside((fc/kh-1+rtol), rtol)*fcprime/kh
         if (fcprime >= 0):
             if((kh-fc)/kh <=1e-3):
+            #if ( (1-np.log(fc)/np.log(kh)) < rtol):
                 dlnkhdt = fcprime/kh
             else:
+                #print("c2",x.vals["t"])
                 dlnkhdt = 0
         else:
+            #print("c1",x.vals["t"])
             dlnkhdt = 0
     
         return dlnkhdt
@@ -265,9 +245,9 @@ class GEF:
         alpha = x.alpha
         H = x.vals["H"]
 
-        E0 = x.vals["E"][0]
-        B0 = x.vals["B"][0]
-        G0 = x.vals["G"][0]
+        E0 = x.vals["E"]
+        B0 = x.vals["B"]
+        G0 = x.vals["G"]
         Sigma = np.sqrt((E0 - B0)**2 + 4*G0**2)
         if Sigma==0:
             return (1-alpha)*H
@@ -286,8 +266,8 @@ class GEF:
         alpha = x.alpha
         H = x.vals["H"]
 
-        E0 = x.vals["E"][0]
-        B0 = x.vals["B"][0]
+        E0 = x.vals["E"]
+        B0 = x.vals["B"]
         mu = (E0+B0)
         if mu<=0:
             return (1-alpha)*H
@@ -307,23 +287,23 @@ class GEF:
         return -x.vals["a"]**(x.alpha)*x.vals["sigmaE"]*x.vals["delta"]
                 
     def EoMrhoChi(x):    
-        return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["E"][0]
-                                        - x.vals["sigmaB"]*x.vals["G"][0]- 4*x.vals["H"]*x.vals["rhoChi"])
+        return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["E"]/x.vals["rhoChi"]
+                                        - x.vals["sigmaB"]*x.vals["G"]/x.vals["rhoChi"]- 4*x.vals["H"])
         
     def EoMrhoChiBar(x):    
-        return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["EBar"][0]
-                                        - x.vals["sigmaB"]*x.vals["GBar"][0]- 4*x.vals["H"]*x.vals["rhoChi"])
+        return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["EBar"]
+                                        - x.vals["sigmaB"]*x.vals["GBar"]- 4*x.vals["H"]*x.vals["rhoChi"])
 
     def EoMF(x, dlnkhdt):
-        prefac = dlnkhdt * x.vals["delta"] / (4*np.pi**2)
+        FE = x.vals["F"][:,0]
+        FB = x.vals["F"][:,1]
+        FG = x.vals["F"][:,2]
 
         aAlpha = x.vals["a"]**x.alpha
-        H = x.vals["H"]
-        E = x.vals["E"]
-        B = x.vals["B"]
-        G = x.vals["G"]
+
         sigmaE = x.vals["sigmaE"]
         sigmaB = x.vals["sigmaB"]
+
         kh = x.vals["kh"]
         a = x.vals["a"]
         scale = kh/a
@@ -332,29 +312,28 @@ class GEF:
 
         Whitt[2,1] = -Whitt[2,1]
 
-        bdrF = prefac*np.array([[(scale)**(i+4)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
-                                    for i in range(x.ntr)])
+        bdrF = dlnkhdt*x.vals["delta"]*np.array([[(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
+                                    for i in range(x.ntr)]) / (4*np.pi**2)
         
-        ScalarCpl = (x.dIdphi()*x.vals["dphi"])
+        ScalarCpl = (x.dIdphi()*x.vals["dphi"] + aAlpha*sigmaB)
         
         dFdt = np.zeros(bdrF.shape)
 
         for n in range(x.ntr-1):
-            dFdt[n,0] = (bdrF[n, 0] - (4+n)*H*E[n] - 2*aAlpha * sigmaE*E[n] 
-                             - 2*aAlpha*G[n+1] + 2*ScalarCpl*G[n] + 2*aAlpha*G[n]*sigmaB)
+            dFdt[n,0] = (bdrF[n, 0] - (4+n)*dlnkhdt*FE[n] - 2*aAlpha * sigmaE*FE[n] 
+                             - 2*aAlpha*scale*FG[n+1] + 2*ScalarCpl*FG[n])
+            dFdt[n,1] = (bdrF[n, 1] - (4+n)*dlnkhdt*FB[n] + 2*aAlpha*scale*FG[n+1])
 
-            dFdt[n,1] = bdrF[n, 1] - (4+n)*H*B[n] + 2*aAlpha*G[n+1]
+            dFdt[n,2] = (bdrF[n, 2] - (4+n)*dlnkhdt*FG[n] - aAlpha*FG[n]*sigmaE
+                             + aAlpha*scale*(FE[n+1] - FB[n+1]) + ScalarCpl*FB[n])
 
-            dFdt[n,2] = (bdrF[n, 2] - (4+n)*H*G[n] - aAlpha*G[n]*sigmaE
-                             + aAlpha*(E[n+1] - B[n+1]) + ScalarCpl*B[n] + aAlpha*B[n]*sigmaB)
+        dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*dlnkhdt*FE[-1] - 2*aAlpha*FE[-1]*sigmaE
+                            - 2*aAlpha*scale*FG[-2] + 2*ScalarCpl*FG[-1])
 
-        dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*H*E[-1] - 2*aAlpha*E[n]*sigmaE
-                            - 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1] + 2*aAlpha*G[-1]*sigmaB)
+        dFdt[-1,1] = (bdrF[-1,1] - (4+x.ntr-1)*dlnkhdt*FB[-1] + 2*aAlpha*scale*FG[-2]) 
 
-        dFdt[-1,1] = bdrF[-1,1] - (4+x.ntr-1)*H*B[-1] + 2*scale**2 * aAlpha*G[-2]
-
-        dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*H *G[-1] - aAlpha*G[-1]*sigmaE
-                             + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] + aAlpha*B[-1]*sigmaB)
+        dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*dlnkhdt*FG[-1] - aAlpha*FG[-1]*sigmaE
+                             + aAlpha*scale*(FE[-2] - FB[-2]) + ScalarCpl*FB[-1])
 
         return dFdt
 
@@ -472,7 +451,7 @@ class GEF:
                 x.vals["kS"] = 1e-3*yini[3]
             else:
                 yini[4] = x.ini["delta"]
-                yini[5] = x.ini["rhoChi"]
+                yini[5] = -10#x.ini["rhoChi"]
         
         return yini
     
@@ -516,7 +495,7 @@ class GEF:
                 
         return dydt
     
-    def DefineDictionary(x, t, y):
+    def DefineDictionary(x, t, y, atol=1e-6):
         x.vals["t"] = t
         x.vals["N"] = y[0]
         
@@ -527,11 +506,12 @@ class GEF:
 
         x.vals["kh"] = np.exp(y[3])
 
-        F = y[x.GaugePos:]
-        F = F.reshape(x.ntr, 3)
-        x.vals["E"] = F[:,0]
-        x.vals["B"] = F[:,1]
-        x.vals["G"] = F[:,2]
+        F = y[x.GaugePos:x.GaugePos+3*x.ntr]
+        x.vals["F"] = F.reshape(x.ntr, 3)
+
+        x.vals["E"] = x.vals["F"][0,0]*np.exp(4*(y[3]-y[0]))
+        x.vals["B"] = x.vals["F"][0,1]*np.exp(4*(y[3]-y[0]))
+        x.vals["G"] = x.vals["F"][0,2]*np.exp(4*(y[3]-y[0]))
         
         if (x.SEPicture == None):
             s = 0.
@@ -580,9 +560,12 @@ class GEF:
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])*(1-x.Ferm2)
             else:
                 x.vals["delta"] = y[4]
-                x.vals["rhoChi"] = y[5]
+                x.vals["rhoChi"] = np.exp(y[5])
                 x.vals["H"] = x.FriedmannEq()
-                x.vals["sigmaE"], x.vals["sigmaB"], _ = x.conductivity()
+                x.vals["sigmaE"], x.vals["sigmaB"], ks = x.conductivity()
+                """if np.log(ks/(x.vals["a"]*x.vals["H"])) < atol:
+                    x.vals["sigmaE"] = 0.
+                    x.vals["sigmaB"] = 0."""
                 x.vals["s"] = x.GetS(x.vals["sigmaE"])
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])    
@@ -593,7 +576,7 @@ class GEF:
     def __EndOfInflation__(x, t, y):
         dphi = y[2]
         V = x.V(x.f*y[1])/(x.f*x.omega)**2
-        rhoEB = 0.5*(y[x.GaugePos]+y[x.GaugePos+1])*x.ratio**2#*np.exp(4*(y[3]-y[0]))
+        rhoEB = 0.5*(y[x.GaugePos]+y[x.GaugePos+1])*x.ratio**2*np.exp(4*(y[3]-y[0]))
         rhoChi = y[x.GaugePos-1]*x.ratio**2
         val = np.log(abs((dphi**2 + rhoEB + rhoChi)/V))
         return val
@@ -611,7 +594,6 @@ class GEF:
             eventnames.append(x.__EndOfInflation__.name)
 
         eventdic = dict(zip(eventnames, [{"t":[], "N":[]} for event in eventnames]))
-
         yini = x.InitialiseGEF()
         t0 = 0.
         return t0, yini, events, eventdic
@@ -737,7 +719,7 @@ class GEF:
         t = sol.t
         y = sol.y
         parsold = list(x.vals.keys())
-        #parsold.remove("F")
+        parsold.remove("F")
         newpars = ["ddphi", "dlnkh"] #, "E1", "B1", "G1", "Edot", "Bdot", "Gdot", "EdotBdr", "BdotBdr", "GdotBdr"]
         pars = parsold + newpars
         res = dict(zip(pars, [[] for par in pars]))
@@ -764,9 +746,7 @@ class GEF:
             dlnkhdt = x.EoMlnkh(ddphi)
             res["dlnkh"].append(dlnkhdt)
             for par in parsold:
-                if (par in ["E", "B", "G", "EBar", "BBar", "GBar"]):
-                        res[par].append(x.vals[par][0])
-                else: res[par].append(x.vals[par])
+                res[par].append(x.vals[par])
         for par in pars:
             res[par] = np.array(res[par])
         x.vals = res
@@ -991,6 +971,7 @@ class GEF:
     def WhittakerApprox_NoSE(x):
         xi = x.vals["xieff"]
         if (abs(xi) >= 3):
+            #print("halo")
             Fterm = np.zeros((3, 2))
             sgnsort = int((1-np.sign(xi))/2)
 
@@ -1055,6 +1036,7 @@ class GEF:
     def WhittakerApprox_WithSE(x):
         xieff = x.vals["xieff"]
         if (abs(xieff) >= 4):
+            #print("ola")
             Fterm = np.zeros((3, 2))
             sgnsort = int((1-np.sign(xieff))/2)
 
@@ -1099,6 +1081,7 @@ class GEF:
         return Fterm
     
     def WhittakerExact(x):
+        #print("mahalo", end='\r')
         xieff = x.vals["xieff"]
         s = x.vals["s"]
         r = (abs(xieff) + np.sqrt(xieff**2 + s**2 + s))
@@ -1200,7 +1183,7 @@ class GEF:
 
         return Fterm
                   
-    def Whittaker_Interp(x):
+    """def Whittaker_Interp(x):
         t = x.vals["t"]
         F = np.zeros((3, 2))
         F[0,0] = x.Epf(t)
@@ -1209,7 +1192,7 @@ class GEF:
         F[1,1] = x.Bmf(t)
         F[2,0] = x.Gpf(t)
         F[2,1] = x.Gmf(t)
-        return F
+        return F"""
 
     def EndOfInflation(x, tol=1e-4):
         if x.units == True:

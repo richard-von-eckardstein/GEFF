@@ -212,7 +212,7 @@ class ModeByMode:
 
         elif mode=="k":
             k = init
-            t0 = 0#4*np.log(10)
+            t0 = 3/2*np.log(10)
             x0 = np.log(k[0]) - np.log(x.__khf(t0)) - 5/2*np.log(10)
             tstart = []
             for i, l in enumerate(k):
