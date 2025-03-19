@@ -443,11 +443,11 @@ class GEF:
         if (x.SEPicture != None):
             if (x.SEModel == "Del1"):
                 x.Ferm2=0.
-                yini[4] = x.ini["rhoChi"]
+                yini[4] = -10#x.ini["rhoChi"]
             elif (x.SEModel == "KDep"):
                 #x.FermionEntry = 1
                 x.Ferm2=1
-                yini[4] = x.ini["rhoChi"]
+                yini[4] = -10#x.ini["rhoChi"]
                 x.vals["kS"] = 1e-3*yini[3]
             else:
                 yini[4] = x.ini["delta"]
@@ -521,15 +521,15 @@ class GEF:
         else:
             if (x.SEModel == "Del1"):
                 x.vals["kS"] = x.vals["kh"]
-                x.vals["rhoChi"] = y[4]
+                x.vals["rhoChi"] = np.exp(y[4])
                 x.vals["H"] = x.FriedmannEq()
                 x.vals["sigmaE"], x.vals["sigmaB"], _ = x.conductivity()
                 if np.log(x.vals["kh"]/(x.vals["a"]*x.vals["H"]))<0:
                     x.vals["sigmaE"] = 0.
                     x.vals["sigmaB"] = 0.
-                x.vals["s"] = x.GetS(x.vals["sigmaE"])
+                x.vals["s"] = 0
                 x.vals["xi"] = x.GetXi()
-                x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
+                x.vals["xieff"] = x.vals["xi"]
             elif (x.SEModel == "KDep"):
                 x.vals["rhoChi"] = y[4]
                 x.vals["H"] = x.FriedmannEq()
@@ -741,6 +741,10 @@ class GEF:
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
                 x.vals["sk"] = x.GetS(x.vals["sigmaEk"])
                 x.vals["xieffk"] = x.vals["xi"] + x.GetS(x.vals["sigmaBk"])
+            elif (x.SEModel == "Del1"):
+                x.vals["delta"] = 1.
+                x.vals["s"] = x.GetS(x.vals["sigmaE"])
+                x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
             ddphi = x.EoMphi()
             res["ddphi"].append(ddphi)
             dlnkhdt = x.EoMlnkh(ddphi)

@@ -167,6 +167,8 @@ class ModeByMode:
             
             if x.__SE=="KDep":
                 x.__kFerm = G.vals["kS"]
+            elif x.__SE=="Del1":
+                x.__kFerm = G.vals["kh"]
 
         else:
             x.__SE = None
@@ -272,16 +274,16 @@ class ModeByMode:
             ode = lambda t, y: ModeEoM(y, k, x.__af(t), x.__SclrCplf(t))
         else:
             #Treat sigma's depending on KDep or not
-            if x.__SE=="KDep":
+            if x.__SE in ["KDep", "Del1"]:
                 tcross = x.__t[np.where(x.__kFerm/k < 1)][-1]
                 if tstart > tcross: tstart = tcross
-                sigmaEk = np.where( x.__kFerm < k, 0, x.__sigmaE )
-                sigmaBk = np.where( x.__kFerm < k, 0, x.__sigmaB )
+                sigmaEk = np.heaviside( x.__kFerm - k, 0.5)*x.__sigmaE
+                sigmaBk = np.heaviside( x.__kFerm - k, 0.5)*x.__sigmaB
 
                 sigmaEf = CubicSpline(x.__t, sigmaEk)
                 sigmaBf = CubicSpline(x.__t, sigmaBk)
 
-                deltaf  = lambda x: 1.0 #we always initialse modes while k > kFerm
+                deltaf  = np.vectorize(lambda x: 1.0) #we always initialse modes while k > kFerm
             elif x.__SE=="Old":
                 sigmaEf = CubicSpline(x.__t, x.__sigmaE)
                 sigmaBf = CubicSpline(x.__t, x.__sigmaB)
@@ -303,7 +305,7 @@ class ModeByMode:
         #conformal time needed for relative phases
         eta = x.__etaf(teval)
         delta = deltaf(teval)
-        
+
         istart = 0
         while teval[istart]<tstart:
             istart+=1
