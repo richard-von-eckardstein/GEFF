@@ -167,6 +167,8 @@ class ModeByMode:
             
             if x.__SE=="KDep":
                 x.__kFerm = G.vals["kS"]
+            elif x.__SE=="Del1":
+                x.__kFerm = G.vals["kh"]
 
         else:
             x.__SE = None
@@ -212,7 +214,8 @@ class ModeByMode:
 
         elif mode=="k":
             k = init
-            x0 = np.log(k[0]) - np.log(x.__khf(0.1)) - 5/2*np.log(10)
+            t0 = 3/2*np.log(10)
+            x0 = np.log(k[0]) - np.log(x.__khf(t0)) - 5/2*np.log(10)
             tstart = []
             for i, l in enumerate(k):
                 f = lambda t: np.log(l) - np.log(x.__khf(t)) - 5/2*np.log(10)
@@ -265,29 +268,31 @@ class ModeByMode:
         if x.__SE == None:
             #Initial conditions for y and dydt for both helicities (rescaled appropriately)
             yini = np.array([1., 0, 0, -1., 1, 0, 0, -1.])
+            deltaf  = lambda x: 1.0
             
             #Define ODE to solve (sigmaE=0, sigmaB=0)
             ode = lambda t, y: ModeEoM(y, k, x.__af(t), x.__SclrCplf(t))
         else:
             #Treat sigma's depending on KDep or not
-            if x.__SE=="KDep":
+            if x.__SE in ["KDep", "Del1"]:
                 tcross = x.__t[np.where(x.__kFerm/k < 1)][-1]
                 if tstart > tcross: tstart = tcross
-                sigmaEk = np.where( x.__kFerm < k, 0, x.__sigmaE )
-                sigmaBk = np.where( x.__kFerm < k, 0, x.__sigmaB )
+                sigmaEk = np.heaviside( x.__kFerm - k, 0.5)*x.__sigmaE
+                sigmaBk = np.heaviside( x.__kFerm - k, 0.5)*x.__sigmaB
 
                 sigmaEf = CubicSpline(x.__t, sigmaEk)
                 sigmaBf = CubicSpline(x.__t, sigmaBk)
 
-                deltaf  = lambda x: 1.0 #we always initialse modes while k > kFerm
+                deltaf  = np.vectorize(lambda x: 1.0) #we always initialse modes while k > kFerm
             elif x.__SE=="Old":
                 sigmaEf = CubicSpline(x.__t, x.__sigmaE)
                 sigmaBf = CubicSpline(x.__t, x.__sigmaB)
                 deltaf  = CubicSpline(x.__t, x.__delta)
+                
 
             #Initial conditions for y and dydt for both helicities (rescaled appropriately)
-            yini = np.array([1., -1/2*sigmaEf(tstart)/k, 0, -1.,
-                            1., -1/2*sigmaEf(tstart)/k, 0, -1.])*np.sqrt( deltaf(tstart) )
+            yini = np.array([1., -1/2*sigmaEf(tstart)*x.__af(tstart)/k, 0, -1.,
+                             1., -1/2*sigmaEf(tstart)*x.__af(tstart)/k, 0, -1.])*np.sqrt( deltaf(tstart) )
             
             #Define ODE to solve
             ode = lambda t, y: ModeEoM( y, k, x.__af(t), x.__SclrCplf(t), sigmaEf(t), sigmaBf(t) )
@@ -299,6 +304,7 @@ class ModeByMode:
         
         #conformal time needed for relative phases
         eta = x.__etaf(teval)
+        delta = deltaf(teval)
 
         istart = 0
         while teval[istart]<tstart:
@@ -309,8 +315,8 @@ class ModeByMode:
         sol = solve_ivp(ode, [tstart, tmax], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
         
         #the mode was in vacuum before tstart
-        vac = list( np.exp(-1j*eta[:istart]*k) )
-        dvac = list( -1j*np.exp(-1j*eta[:istart]*k) )
+        vac = list( np.exp(-1j*eta[:istart]*k)*np.sqrt( delta[:istart] ) )
+        dvac = list( -1j*np.exp(-1j*eta[:istart]*k)*np.sqrt( delta[:istart] ) )
 
         #Create array of mode evolution stringing together vacuum and non-vacuum time evolutions to get evolution from t0 to tend
         yp = np.array( vac + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )

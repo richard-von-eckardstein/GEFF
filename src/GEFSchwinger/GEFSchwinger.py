@@ -10,13 +10,17 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 from src.Tools.timer import Timer
 import math
-from mpmath import whitw, whitm, gamma
+from mpmath import whitw, whitm, gamma, mp
+
+def Heaviside(x, eps):
+    return 1/(1+np.exp(-x/eps))
 
 class TruncationError(Exception):
     pass
 
-def AddEventFlags(terminal=True, direction=1):
+def AddEventFlags(name, terminal=True, direction=1):
     def setflags(func):
+        func.name = name
         func.terminal = terminal
         func.direction = direction
         return func
@@ -45,6 +49,7 @@ class GEF:
         x.units = True
         x.completed = False
         x.alpha = 0 # artifcat of previous attempt, may be reinstated at later times
+
         x.beta = beta
 
         x.V = V
@@ -61,63 +66,42 @@ class GEF:
         x.ModeData = ModeData
 
         x.SEModel = SEModel
-        x.SEPicture = SEPicture
-        if (SEPicture==None):
-            x.GaugePos = 4
-            x.conductivity = lambda y: 0., 0.
-            if(approx):
-                x.Whittaker = x.WhittakerApprox_NoSE
+        if x.SEModel=="Old":
+            x.GaugePos = 6
+            if(approx): x.Whittaker = x.WhittakerApprox_WithSE
+            else: x.Whittaker=x.WhittakerExact
+        elif x.SEModel=="Del1":
+            x.GaugePos = 5
+            if(approx): x.Whittaker = x.WhittakerApprox_NoSE
+            else: x.Whittaker=x.WhittakerExact
+        elif x.SEModel=="KDep":
+            x.GaugePos = 5
+            x.deltaf = x.ApproxDeltaf
+            if approx:
+                x.WhittakerNoFerm = x.WhittakerApprox_NoSE
+                x.WhittakerWithFerm = x.WhittakerApprox_WithSE
             else:
-                x.Whittaker = x.WhittakerExact
+                x.WhittakerNoFerm = x.WhittakerExact
+                x.WhittakerWithFerm = x.WhittakerExact
+            x.EoMlnkS = x.EoMlnkSMixed
         else:
-            if(approx):
-                x.Whittaker = x.WhittakerApprox_WithSE
-            else:
-                x.Whittaker = x.WhittakerExact
-            if (SEPicture=="mix"):
-                if (x.SEModel == "Del1"):
-                    x.GaugePos = 5
-                    x.conductivity = x.ComputeImprovedSigma
-                elif (x.SEModel == "KDep"):
-                    x.GaugePos = 5
-                    x.deltaf = x.ApproxDeltaf
-                    if approx:
-                        x.WhittakerNoFerm = x.WhittakerApprox_NoSE
-                        x.WhittakerWithFerm = x.WhittakerApprox_WithSE
-                    else:
-                        x.WhittakerNoFerm = x.WhittakerExact
-                        x.WhittakerWithFerm = x.WhittakerExact
-                    x.conductivity = x.ComputeImprovedSigma
-                    x.EoMlnkS = x.EoMlnkSMixed
-                else:
-                    x.GaugePos = 6
-                    x.conductivity = x.ComputeImprovedSigma
-            elif (-1. <= SEPicture <=1.):
-                if (x.SEModel == "Del1"):
-                    x.GaugePos = 5
-                    x.conductivity = x.ComputeSigmaCollinear
-                elif (x.SEModel == "KDep"):
-                    x.DeltaFunc = False
-                    x.GaugePos = 5
-                    x.deltaf = x.ApproxDeltaf
-                    #x.tferm = lambda t: t
-                    if approx:
-                        x.WhittakerNoFerm = x.WhittakerApprox_NoSE
-                        x.WhittakerWithFerm = x.WhittakerApprox_WithSE
-                    else:
-                        x.WhittakerNoFerm = x.WhittakerExact
-                        x.WhittakerWithFerm = x.WhittakerExact
-                    x.conductivity = x.ComputeSigmaCollinear
-                    x.EoMlnkS = x.EoMlnkSFrac
-                else:
-                    x.GaugePos = 6
-                    x.conductivity = x.ComputeSigmaCollinear
-                if(SEPicture == 1. and approx):
-                    x.Whittaker = x.WhittakerApprox_NoSE
-                    x.WhittakerWithFerm = x.WhittakerApprox_NoSE
-                    x.deltaf = lambda x: 1.
-            else:
-                print(SEPicture, "is not a valid choice for SEPicture")
+            x.GaugePos = 4
+            if(approx): x.Whittaker = x.WhittakerApprox_NoSE
+            else: x.Whittaker = x.WhittakerExact
+
+        x.SEPicture = SEPicture
+        if (SEPicture=="mix"):
+            x.conductivity = x.ComputeImprovedSigma
+        elif (-1 <= SEPicture <=1):
+            x.conductivity = x.ComputeSigmaCollinear
+            if SEPicture==1 and approx:
+                x.Whittaker = x.WhittakerApprox_NoSE
+                x.WhittakerWithFerm = x.WhittakerApprox_NoSE
+                x.deltaf = lambda x: 1.
+        else:
+            x.conductivity = lambda y: 0., 0., 0.
+
+
         x.approx = approx
         x.omega = 1.
         x.f = 1.
@@ -125,7 +109,7 @@ class GEF:
         #Need Unitful Potential once, to compute omega
         x.H0 = np.sqrt( ( 0.5*x.ini["dphi"]**2 + x.V(x.ini["phi"]) )/3 )
         x.Mpl = 1.
-        x.Nend = 61
+        x.Nend = 60
         return
     
     #Potentials and Couplings
@@ -148,7 +132,7 @@ class GEF:
     #Useful Quantities
     def FriedmannEq(x):
         Hsq = (1/3) * (0.5 * x.vals["dphi"]**2 + x.vals["a"]**(2*x.alpha)*
-                       (x.potential() + x.ratio**2*(0.5*(x.vals["E"][0]+x.vals["B"][0]) + x.vals["rhoChi"])))
+                       (x.potential() + x.ratio**2*(0.5*(x.vals["E"]+x.vals["B"]) + x.vals["rhoChi"])))
         return np.sqrt(Hsq)
     
     def GetXi(x):
@@ -158,8 +142,9 @@ class GEF:
         return (x.vals["a"]**(x.alpha) * sigma)/(2* x.vals["H"])
             
     def ComputeSigmaCollinear(x):
-        E0 = x.vals["E"][0]
-        B0 = x.vals["B"][0]
+        E0 = x.vals["E"]
+        B0 = x.vals["B"]
+        G0 = x.vals["G"]
         mu = (E0+B0)
         if mu<=0:
             return 0., 0., 1e-2*x.vals["kh"]
@@ -174,22 +159,19 @@ class GEF:
 
             frac = x.SEPicture
             sigma = ((a**x.alpha) * (41.*gmu**3/(72.*np.pi**2 * H * np.tanh(np.pi*np.sqrt(B0/E0)))))
-            sigmaE =  np.sqrt(B0) * (min(1., 1.- frac)*E0 + max(-frac, 0.)*B0) * sigma / (E0+B0)         
-            sigmaB = -np.sign(x.vals["G"][0]) * np.sqrt(E0)*(min(1., 1.+ frac)*B0 + max(frac,0.)*E0)* sigma/(E0+B0)
+            sigmaE =  np.sqrt(B0) * (min(1., (1.- frac))*E0 + max(-frac, 0.)*B0) * sigma / (E0+B0)         
+            sigmaB = -np.sign(G0) * np.sqrt(E0)*(min(1., (1.+ frac))*B0 + max(frac,0.)*E0)* sigma/(E0+B0)
             
             ks = gmu**(1/2)*E0**(1/4)*a**(1-x.alpha)
-            if (ks < (a*H)):
-                sigmaE = 0.
-                sigmaB = 0.
             
             return sigmaE, sigmaB, ks
 
     def ComputeImprovedSigma(x):
-        E0 = x.vals["E"][0]
-        B0 = x.vals["B"][0]
-        G0 = x.vals["G"][0]
+        E0 = x.vals["E"]
+        B0 = x.vals["B"]
+        G0 = x.vals["G"]
         Sigma = np.sqrt((E0 - B0)**2 + 4*G0**2)
-        if Sigma==0:
+        if Sigma<=0:
             x.vals["sigmaE"] = 0.
             x.vals["sigmaB"] = 0.
             return 0., 0., 1e-2*x.vals["kh"]
@@ -210,10 +192,6 @@ class GEF:
                      /(np.sqrt(Sigma*Sum)*H * np.tanh(np.pi*Bprime/Eprime)))
             
             ks = gmu**(1/2)*Eprime**(1/2)*a**(1-x.alpha)
-            
-            if (ks < (a*H)):
-                sigmaE = 0.
-                sigmaB = 0.
 
             return abs(G0)*Eprime*sigma, -G0*Bprime*sigma, ks
             
@@ -223,10 +201,10 @@ class GEF:
         a = x.vals["a"]
         
         ddphiddt = ((alpha-3)*x.vals["H"] * x.vals["dphi"]
-                - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"][0]*x.ratio**2)
+                - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"]*x.ratio**2)
         return ddphiddt
     
-    def EoMlnkh(x, ddphiddt):
+    def EoMlnkh(x, ddphiddt, rtol=1e-6):
         alpha = x.alpha
         a = x.vals["a"]
         H = x.vals["H"]
@@ -250,25 +228,16 @@ class GEF:
         sEprime = (-dHdt * s + a**(1-alpha)*(alpha*H*x.vals["sigmaE"]+ dsigmaEdt)/2)/H
         rprime = (np.sign(xieff)+xieff/sqrtterm)*xieffprime + sEprime*(s+1/2)/sqrtterm
         fcprime = (1-alpha)*H*fc + dHdt*a**(1-alpha)*r + a**(1-alpha)*H*rprime
-        
-        if (fcprime >= 0):
-            if((kh-fc)/kh <=1e-3):
-                dlnkhdt = fcprime/kh
-            else:
-                dlnkhdt = 0
-        else:
-            dlnkhdt = 0
     
-        return dlnkhdt
+        return fcprime/kh
 
     def EoMlnkSMixed(x, dEdt, dBdt, dGdt):
         alpha = x.alpha
-        a = x.vals["a"]
         H = x.vals["H"]
 
-        E0 = x.vals["E"][0]
-        B0 = x.vals["B"][0]
-        G0 = x.vals["G"][0]
+        E0 = x.vals["E"]
+        B0 = x.vals["B"]
+        G0 = x.vals["G"]
         Sigma = np.sqrt((E0 - B0)**2 + 4*G0**2)
         if Sigma==0:
             return (1-alpha)*H
@@ -285,11 +254,10 @@ class GEF:
         
     def EoMlnkSFrac(x, dEdt, dBdt, dGdt):
         alpha = x.alpha
-        a = x.vals["a"]
         H = x.vals["H"]
 
-        E0 = x.vals["E"][0]
-        B0 = x.vals["B"][0]
+        E0 = x.vals["E"]
+        B0 = x.vals["B"]
         mu = (E0+B0)
         if mu<=0:
             return (1-alpha)*H
@@ -309,23 +277,23 @@ class GEF:
         return -x.vals["a"]**(x.alpha)*x.vals["sigmaE"]*x.vals["delta"]
                 
     def EoMrhoChi(x):    
-        return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["E"][0]
-                                        - x.vals["sigmaB"]*x.vals["G"][0]- 4*x.vals["H"]*x.vals["rhoChi"])
+        return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["E"]/x.vals["rhoChi"]
+                                        - x.vals["sigmaB"]*x.vals["G"]/x.vals["rhoChi"]- 4*x.vals["H"])
         
     def EoMrhoChiBar(x):    
-        return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["EBar"][0]
-                                        - x.vals["sigmaB"]*x.vals["GBar"][0]- 4*x.vals["H"]*x.vals["rhoChi"])
+        return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["EBar"]/x.vals["rhoChi"]
+                                        - x.vals["sigmaB"]*x.vals["GBar"]/x.vals["rhoChi"]- 4*x.vals["H"])
 
     def EoMF(x, dlnkhdt):
-        prefac = dlnkhdt * x.vals["delta"] / (4*np.pi**2)
+        FE = x.vals["F"][:,0]
+        FB = x.vals["F"][:,1]
+        FG = x.vals["F"][:,2]
 
         aAlpha = x.vals["a"]**x.alpha
-        H = x.vals["H"]
-        E = x.vals["E"]
-        B = x.vals["B"]
-        G = x.vals["G"]
+
         sigmaE = x.vals["sigmaE"]
         sigmaB = x.vals["sigmaB"]
+
         kh = x.vals["kh"]
         a = x.vals["a"]
         scale = kh/a
@@ -334,126 +302,136 @@ class GEF:
 
         Whitt[2,1] = -Whitt[2,1]
 
-        bdrF = prefac*np.array([[(scale)**(i+4)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
-                                    for i in range(x.ntr)])
+        bdrF = dlnkhdt*x.vals["delta"]*np.array([[(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
+                                    for i in range(x.ntr)]) / (4*np.pi**2)
         
-        ScalarCpl = (x.dIdphi()*x.vals["dphi"])
+        ScalarCpl = (x.dIdphi()*x.vals["dphi"] + aAlpha*sigmaB)
         
         dFdt = np.zeros(bdrF.shape)
 
         for n in range(x.ntr-1):
-            dFdt[n,0] = (bdrF[n, 0] - (4+n)*H*E[n] - 2*aAlpha * sigmaE*E[n] 
-                             - 2*aAlpha*G[n+1] + 2*ScalarCpl*G[n] + 2*aAlpha*G[n]*sigmaB)
+            dFdt[n,0] = (bdrF[n, 0] - (4+n)*dlnkhdt*FE[n] - 2*aAlpha * sigmaE*FE[n] 
+                             - 2*aAlpha*scale*FG[n+1] + 2*ScalarCpl*FG[n])
+            dFdt[n,1] = (bdrF[n, 1] - (4+n)*dlnkhdt*FB[n] + 2*aAlpha*scale*FG[n+1])
 
-            dFdt[n,1] = bdrF[n, 1] - (4+n)*H*B[n] + 2*aAlpha*G[n+1]
+            dFdt[n,2] = (bdrF[n, 2] - (4+n)*dlnkhdt*FG[n] - aAlpha*FG[n]*sigmaE
+                             + aAlpha*scale*(FE[n+1] - FB[n+1]) + ScalarCpl*FB[n])
 
-            dFdt[n,2] = (bdrF[n, 2] - (4+n)*H*G[n] - aAlpha*G[n]*sigmaE
-                             + aAlpha*(E[n+1] - B[n+1]) + ScalarCpl*B[n] + aAlpha*B[n]*sigmaB)
+        dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*dlnkhdt*FE[-1] - 2*aAlpha*FE[-1]*sigmaE
+                            - 2*aAlpha*scale*FG[-2] + 2*ScalarCpl*FG[-1])
 
-        dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*H*E[-1] - 2*aAlpha*E[n]*sigmaE
-                            - 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1] + 2*aAlpha*G[-1]*sigmaB)
+        dFdt[-1,1] = (bdrF[-1,1] - (4+x.ntr-1)*dlnkhdt*FB[-1] + 2*aAlpha*scale*FG[-2]) 
 
-        dFdt[-1,1] = bdrF[-1,1] - (4+x.ntr-1)*H*B[-1] + 2*scale**2 * aAlpha*G[-2]
-
-        dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*H *G[-1] - aAlpha*G[-1]*sigmaE
-                             + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] + aAlpha*B[-1]*sigmaB)
+        dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*dlnkhdt*FG[-1] - aAlpha*FG[-1]*sigmaE
+                             + aAlpha*scale*(FE[-2] - FB[-2]) + ScalarCpl*FB[-1])
 
         return dFdt
 
     def EoMFBar(x, dlnkhdt):
-        prefac = x.vals["delta"] / (4*np.pi**2)
+        FE = x.vals["F"][:,0]
+        FB = x.vals["F"][:,1]
+        FG = x.vals["F"][:,2]
+
+        GE = x.vals["FBar"][:,0]
+        GB = x.vals["FBar"][:,1]
+        GG = x.vals["FBar"][:,2]
 
         aAlpha = x.vals["a"]**x.alpha
-        H = x.vals["H"]
-        E = x.vals["E"]
-        B = x.vals["B"]
-        G = x.vals["G"]
-        EBar = x.vals["EBar"]
-        BBar = x.vals["BBar"]
-        GBar = x.vals["GBar"]
+
         sigmaE = x.vals["sigmaE"]
         sigmaB = x.vals["sigmaB"]
+
+        kh = x.vals["kh"]
+        kS = x.vals["kS"]
         a = x.vals["a"]
-        scale = x.vals["kh"]/a
+        scale = kh/a
+        scaleR = kS/kh
+        scaleS = kS/a
 
         Whitt = x.Whittaker()
 
         Whitt[2,1] = -Whitt[2,1]
 
-        bdrF = dlnkhdt * prefac*np.array([[(scale)**(i+4)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
-                                    for i in range(x.ntr)])
+        bdrF = dlnkhdt*x.vals["delta"]*np.array([[(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
+                                    for i in range(x.ntr)]) / (4*np.pi**2)
         
         ScalarCpl = (x.dIdphi()*x.vals["dphi"])
         
         dFdt = np.zeros(bdrF.shape)
 
+        #Damped+Undamped Modes
         for n in range(x.ntr-1):
-            dFdt[n,0] = (bdrF[n, 0] - (4+n)*H*E[n] - 2*aAlpha * sigmaE*min(EBar[n],E[n]) 
-                             - 2*aAlpha*G[n+1] + 2*ScalarCpl*G[n] + 2*aAlpha*min(GBar[n],G[n])*sigmaB)
+            dampE = np.sign(FE[n])*min(abs(GE[n]), abs(FE[n])) 
+            dampB = np.sign(FB[n])*min(abs(GB[n]), abs(FB[n])) 
+            dampG = np.sign(FG[n])*min(abs(GG[n]), abs(FG[n])) 
 
-            dFdt[n,1] = bdrF[n, 1] - (4+n)*H*B[n] + 2*aAlpha*G[n+1]
+            dFdt[n,0] = (bdrF[n, 0] - (4+n)*dlnkhdt*FE[n] - 2*aAlpha * (scaleR)**(n+4) * sigmaE*dampE
+                             - 2*aAlpha*scale*FG[n+1] + 2*ScalarCpl*FG[n] + 2*aAlpha *  sigmaB*dampG)
 
-            dFdt[n,2] = (bdrF[n, 2] - (4+n)*H*G[n] - aAlpha*min(GBar[n],G[n])*sigmaE
-                             + aAlpha*(E[n+1] - B[n+1]) + ScalarCpl*B[n] + aAlpha*min(BBar[n],B[n])*sigmaB)
+            dFdt[n,1] = (bdrF[n, 1] - (4+n)*dlnkhdt*FB[n] + 2*aAlpha*scale*FG[n+1])
 
-        dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*H*E[-1] - 2*aAlpha*min(EBar[-1],E[-1])*sigmaE
-                            - 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1] + 2*aAlpha*min(GBar[-1],G[-1])*sigmaB)
+            dFdt[n,2] = (bdrF[n, 2] - (4+n)*dlnkhdt*FG[n] - aAlpha * sigmaE*dampG
+                             + aAlpha*scale*(FE[n+1] - FB[n+1]) + ScalarCpl*FB[n] + aAlpha *  sigmaB*dampB )
 
-        dFdt[-1,1] = bdrF[-1,1] - (4+x.ntr-1)*H*B[-1] + 2*scale**2 * aAlpha*G[-2]
+        dampE = np.sign(FE[-1])*min(abs(GE[-1]), abs(FE[-1])) 
+        dampB = np.sign(FB[-1])*min(abs(GB[-1]), abs(FB[-1])) 
+        dampG = np.sign(FG[-1])*min(abs(GG[-1]), abs(FG[-1])) 
+        dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*dlnkhdt*FE[-1] - 2*aAlpha  * sigmaE*dampE
+                            - 2*aAlpha*scale*FG[-2] + 2*ScalarCpl*FG[-1] + 2*aAlpha* sigmaB*dampG)
 
-        dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*H *G[-1] - aAlpha*min(GBar[-1],G[-1])*sigmaE
-                             + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] + aAlpha*min(BBar[-1],B[-1])*sigmaB)
+        dFdt[-1,1] = (bdrF[-1,1] - (4+x.ntr-1)*dlnkhdt*FB[-1] + 2*aAlpha*scale*FG[-2]) 
 
-        scaleS = x.vals["kS"]/a
-        WhittBar = x.WhittakerExactkS()
-        WhittBar[2,1] = -WhittBar[2,1]
-        dlnkSdt = x.EoMlnkS(dFdt[0,0], dFdt[0,1], dFdt[0,2])
-        bdrFBar = dlnkSdt * prefac*np.array([[(scaleS)**(i+4)*(WhittBar[j,0] + (-1)**i*WhittBar[j,1]) for j in range(3)]
-                                    for i in range(x.ntr)])
+        dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*dlnkhdt*FG[-1] - aAlpha * sigmaE*dampG
+                             + aAlpha*scale*(FE[-2] - FB[-2]) + ScalarCpl*FB[-1] + aAlpha *sigmaB*dampB)
         
-        dFBardt = np.zeros(bdrFBar.shape)
+        #Damped Modes only
+        WhittBar = x.WhittakerExactkS()
+
+        WhittBar[2,1] = -WhittBar[2,1]
+
+        dlnkSdt = x.EoMlnkS(dFdt[0,0], dFdt[0,1], dFdt[0,2])
+        bdrG = dlnkSdt*x.vals["delta"]*np.array([[(scaleR)**(i+4)*(WhittBar[j,0] + (-1)**i*WhittBar[j,1]) for j in range(3)]
+                                    for i in range(x.ntr)]) / (4*np.pi**2)
+        
+        dGdt = np.zeros(bdrG.shape)
 
         for n in range(x.ntr-1):
-            dFBardt[n,0] = (bdrFBar[n, 0] - (4+n)*H*EBar[n] - 2*aAlpha * sigmaE*EBar[n] 
-                             - 2*aAlpha*GBar[n+1] + 2*ScalarCpl*GBar[n] + 2*aAlpha*GBar[n]*sigmaB)
+            dGdt[n,0] = (bdrG[n, 0] - (4+n)*dlnkhdt*GE[n] - 2*aAlpha * sigmaE*GE[n] 
+                             - 2*aAlpha*scale*scaleR*GG[n+1] + 2*ScalarCpl*GG[n] + 2*aAlpha*GG[n]*sigmaB)
 
-            dFBardt[n,1] = bdrFBar[n, 1] - (4+n)*H*BBar[n] + 2*aAlpha*GBar[n+1]
+            dGdt[n,1] = (bdrG[n, 1] - (4+n)*dlnkhdt*GB[n] + 2*aAlpha*scale*GG[n+1])
 
-            dFBardt[n,2] = (bdrFBar[n, 2] - (4+n)*H*GBar[n] - aAlpha*GBar[n]*sigmaE
-                             + aAlpha*(EBar[n+1] - BBar[n+1]) + ScalarCpl*BBar[n] + aAlpha*BBar[n]*sigmaB)
+            dGdt[n,2] = (bdrG[n, 2] - (4+n)*dlnkhdt*GG[n] - aAlpha*GG[n]*sigmaE
+                             + aAlpha*scale*(GE[n+1] - GB[n+1]) + ScalarCpl*GB[n] + aAlpha*GB[n]*sigmaB)
+            
+        dGdt[-1,0] = (bdrG[-1,0] -  (4+x.ntr-1)*dlnkhdt*GE[-1] - 2*aAlpha*GE[-1]*sigmaE
+                            - 2*aAlpha*scaleS*scaleR*GG[-2] + 2*ScalarCpl*GG[-1] + 2*aAlpha*GG[-1]*sigmaB)
 
-        dFBardt[-1,0] = (bdrFBar[-1,0] -  (4+x.ntr-1)*H*EBar[-1] - 2*aAlpha*EBar[-1]*sigmaE
-                            - 2*scaleS**2 * aAlpha*GBar[-2] + 2*ScalarCpl*GBar[-1] + 2*aAlpha*GBar[-1]*sigmaB)
+        dGdt[-1,1] = (bdrG[-1,1] - (4+x.ntr-1)*dlnkhdt*GB[-1] + 2*aAlpha*scaleS*scaleR*GG[-2]) 
 
-        dFBardt[-1,1] = bdrFBar[-1,1] - (4+x.ntr-1)*H*BBar[-1] + 2*scaleS**2 * aAlpha*GBar[-2]
+        dGdt[-1,2] = (bdrG[-1,2] - (4+x.ntr-1)*dlnkhdt*GG[-1] - aAlpha*GG[-1]*sigmaE
+                             + aAlpha*scaleS*scaleR*(GE[-2] - GB[-2]) + ScalarCpl*GB[-1] + aAlpha*GB[-1]*sigmaB)
 
-        dFBardt[-1,2] = (bdrFBar[-1,2] - (4+x.ntr-1)*H *GBar[-1] - aAlpha*GBar[-1]*sigmaE
-                             + scaleS**2 * aAlpha*(EBar[-2] - BBar[-2]) + ScalarCpl*BBar[-1] + aAlpha*BBar[-1]*sigmaB)
+        dFtotdt = np.zeros((2*x.ntr,3))
+        dFtotdt[:x.ntr,:] = dFdt
+        dFtotdt[x.ntr:,:] = dGdt
 
-        dGdt = np.zeros((2*x.ntr,3))
-        dGdt[:x.ntr,:] = dFdt
-        dGdt[x.ntr:,:] = dFBardt
-
-        return dGdt
+        return dFtotdt
             
     #Run GEF
-    def InitialiseGEF(x):
+    def InitialiseGEF(x, atol):
         if (x.SEPicture != None and x.SEModel == "KDep"):
             yini = np.zeros((2*x.ntr*3+x.GaugePos))
         else:
-            yini = np.zeros((x.ntr*3+x.GaugePos))
+            yini = np.zeros((  x.ntr*3+x.GaugePos))
 
         #ini is always in Planck units
         x.vals = x.ini.copy()
 
-        if (x.units):
-            x.f = x.Mpl
-            x.omega = x.H0
-            x.units = False
-        else:
-            x.f = 1.
-            x.omega = 1.
-            x.units = True
+        x.f = x.Mpl
+        x.omega = x.H0
+        x.ratio = x.omega/x.f
+        x.units = False
 
         yini[0] = 0
         yini[1] = x.ini["phi"]/x.f
@@ -462,32 +440,37 @@ class GEF:
         
         if (x.SEPicture != None):
             if (x.SEModel == "Del1"):
-                x.Ferm2=0.
-                yini[4] = x.ini["rhoChi"]
+                yini[4] = np.log(atol)#x.ini["rhoChi"]
             elif (x.SEModel == "KDep"):
-                #x.FermionEntry = 1
                 x.Ferm2=1
-                yini[4] = x.ini["rhoChi"]
+                x.Whittaker = x.WhittakerNoFerm
+                yini[4] = np.log(atol)#x.ini["rhoChi"]
                 x.vals["kS"] = 1e-3*yini[3]
             else:
                 yini[4] = x.ini["delta"]
-                yini[5] = x.ini["rhoChi"]
-
-        x.f = x.Mpl
-        x.omega = x.H0
-        x.ratio = x.omega/x.f
-        x.units = False
+                yini[5] = np.log(atol)#x.ini["rhoChi"]
         
         return yini
     
-    def TimeStep(x, t, y):
-        x.DefineDictionary(t, y)
+    def TimeStep(x, t, y, rtol=1e-6, atol=1e-20):
+        x.DefineDictionary(t, y, rtol=rtol, atol=atol)
+
         dydt = np.zeros(y.shape)
+
         dydt[0] = x.vals["H"]
         dydt[1] = x.vals["dphi"]
         dydt[2] = x.EoMphi()
-        dlnkhdt = x.EoMlnkh(dydt[2])
+
+        eps=max(abs(y[3])*rtol, atol)
+        dlnkhdt = x.EoMlnkh(dydt[2], rtol=rtol)
+        xieff = x.vals["xieff"]
+        s = x.vals["s"]
+        sqrtterm = np.sqrt(xieff**2 + s**2 + s)
+        r = (abs(xieff) + sqrtterm)
+        logfc = y[0] + np.log(r*dydt[0]) 
+        dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-y[3]+10*eps, eps)
         dydt[3] = dlnkhdt       
+        
         if (x.SEPicture != None):
             if (x.SEModel == "Old"):
                 dydt[4] = x.EoMDelta()
@@ -516,7 +499,7 @@ class GEF:
                 
         return dydt
     
-    def DefineDictionary(x, t, y):
+    def DefineDictionary(x, t, y, rtol=1e-6, atol=1e-20):
         x.vals["t"] = t
         x.vals["N"] = y[0]
         
@@ -524,224 +507,334 @@ class GEF:
         
         x.vals["phi"] = y[1]
         x.vals["dphi"] = y[2]
+
+        x.vals["kh"] = np.exp(y[3])
+
+        F = y[x.GaugePos:x.GaugePos+3*x.ntr]
+        x.vals["F"] = F.reshape(x.ntr, 3)
+
+        x.vals["E"] = x.vals["F"][0,0]*np.exp(4*(y[3]-y[0]))
+        x.vals["B"] = x.vals["F"][0,1]*np.exp(4*(y[3]-y[0]))
+        x.vals["G"] = x.vals["F"][0,2]*np.exp(4*(y[3]-y[0]))
         
         if (x.SEPicture == None):
-            F = y[x.GaugePos:]
-            F = F.reshape(x.ntr, 3)
-            x.vals["E"] = F[:,0]
-            x.vals["B"] = F[:,1]
-            x.vals["G"] = F[:,2]
             s = 0.
-            x.vals["xieff"] = x.vals["xi"]
-            x.vals["kh"] = np.exp(y[3])
             x.vals["H"] = x.FriedmannEq()
             x.vals["xi"] = x.GetXi()
             x.vals["xieff"] = x.vals["xi"]
         else:
             if (x.SEModel == "Del1"):
-                F = y[x.GaugePos:]
-                F = F.reshape(x.ntr, 3)
-                x.vals["E"] = F[:,0]
-                x.vals["B"] = F[:,1]
-                x.vals["G"] = F[:,2]
-                x.vals["kh"] = np.exp(y[3])
                 x.vals["kS"] = x.vals["kh"]
-                x.vals["rhoChi"] = y[4]
+                x.vals["rhoChi"] = np.exp(y[4])
                 x.vals["H"] = x.FriedmannEq()
-                x.vals["sigmaE"], x.vals["sigmaB"], _ = x.conductivity()
-                x.vals["s"] = x.GetS(x.vals["sigmaE"])
+
+                sigmaE, sigmaB, ks = x.conductivity()
+                eps = max(abs(y[0])*rtol, atol)
+                GlobalFerm = Heaviside(np.log(ks/(x.vals["a"]*x.vals["H"])), eps)
+                x.vals["sigmaE"] = GlobalFerm*sigmaE
+                x.vals["sigmaB"] = GlobalFerm*sigmaB
+
+                x.vals["s"] = 0
                 x.vals["xi"] = x.GetXi()
-                x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
+                x.vals["xieff"] = x.vals["xi"]
             elif (x.SEModel == "KDep"):
-                F = y[x.GaugePos:]
-                F = F.reshape(2*x.ntr, 3)
-                x.vals["E"] = F[:x.ntr,0]
-                x.vals["B"] = F[:x.ntr,1]
-                x.vals["G"] = F[:x.ntr,2]
-                x.vals["EBar"] = F[x.ntr:,0]
-                x.vals["BBar"] = F[x.ntr:,1]
-                x.vals["GBar"] = F[x.ntr:,2]
-                x.vals["kh"] = np.exp(y[3])
-                x.vals["rhoChi"] = y[4]
+                x.vals["rhoChi"] = np.exp(y[4])
                 x.vals["H"] = x.FriedmannEq()
-                x.vals["sigmaE"], x.vals["sigmaB"], x.vals["kS"] = x.conductivity()
-                if (np.log(x.vals["kS"]/x.vals["kh"]) > 1e-3 or x.Ferm2==0):
-                    x.Whittaker = x.WhittakerWithFerm
-                    x.Ferm2 = 0
-                    x.vals["delta"] = x.deltaf(t)
-                else:
-                    x.Whittaker = x.WhittakerNoFerm
-                    x.Ferm2 = 1
-                    x.vals["delta"] = 1.
+                sigmaE, sigmaB, x.vals["kS"] = x.conductivity()
+                logkS = np.log(x.vals["kS"])
+
+                G = y[x.GaugePos+3*x.ntr:]
+                x.vals["FBar"] = G.reshape(x.ntr, 3)
+
+                EBar = x.vals["FBar"][0,0]*np.exp(4*(y[3]-y[0]))
+                x.vals["EBar"] = np.sign(EBar)*min(abs(EBar), abs(x.vals["E"]))
+                BBar = x.vals["FBar"][0,1]*np.exp(4*(y[3]-y[0]))
+                x.vals["BBar"] = np.sign(BBar)*min(abs(BBar), abs(x.vals["B"]))
+                GBar = x.vals["FBar"][0,2]*np.exp(4*(y[3]-y[0]))
+                x.vals["GBar"] = np.sign(GBar)*min(abs(GBar), abs(x.vals["G"]))
+
+                eps = max(abs(y[0])*rtol, atol)
+                GlobalFerm = Heaviside(logkS - np.log(x.vals["a"]*x.vals["H"]), eps)
+
+                x.vals["sigmaE"] = GlobalFerm*sigmaE
+                x.vals["sigmaB"] = GlobalFerm*sigmaB
+
+                x.vals["delta"] = x.Ferm2 + x.deltaf(t)*(1-x.Ferm2)
                 x.vals["s"] = x.GetS(x.vals["sigmaE"])*(1-x.Ferm2)
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])*(1-x.Ferm2)
             else:
-                F = y[x.GaugePos:]
-                F = F.reshape(x.ntr, 3)
-                x.vals["E"] = F[:,0]
-                x.vals["B"] = F[:,1]
-                x.vals["G"] = F[:,2]
-                x.vals["kh"] = np.exp(y[3])
                 x.vals["delta"] = y[4]
-                x.vals["rhoChi"] = y[5]
+                x.vals["rhoChi"] = np.exp(y[5])
                 x.vals["H"] = x.FriedmannEq()
-                x.vals["sigmaE"], x.vals["sigmaB"], _ = x.conductivity()
+
+                sigmaE, sigmaB, ks = x.conductivity()
+                eps = max(abs(y[0])*rtol, atol)
+                GlobalFerm = Heaviside(np.log(ks/(x.vals["a"]*x.vals["H"])), eps)
+                x.vals["sigmaE"] = GlobalFerm*sigmaE
+                x.vals["sigmaB"] = GlobalFerm*sigmaB
+
                 x.vals["s"] = x.GetS(x.vals["sigmaE"])
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])    
     
         return
 
-    @AddEventFlags(True, 1)
-    def __CheckAcceleratedExpansion__(x, t, y):
+    @AddEventFlags("End of inflation", True, 1)
+    def __EndOfInflation__(x, t, y):
         dphi = y[2]
         V = x.V(x.f*y[1])/(x.f*x.omega)**2
-        rhoEB = 0.5*(y[x.GaugePos]+y[x.GaugePos+1])*x.ratio**2
+        rhoEB = 0.5*(y[x.GaugePos]+y[x.GaugePos+1])*x.ratio**2*np.exp(4*(y[3]-y[0]))
         rhoChi = y[x.GaugePos-1]*x.ratio**2
-        val = (dphi**2 - V + rhoEB)
+        val = np.log(abs((dphi**2 + rhoEB + rhoChi)/V))
         return val
     
-    def __CheckSuccesfulRun__():
+    @AddEventFlags("Fermion crossing", True, 1)
+    def __FermCrossingColl__(x, t, y):
+        if x.Ferm2==1:
+            E0 = y[x.GaugePos]*np.exp(4*(y[3]-y[0]))
+            B0 = y[x.GaugePos+1]*np.exp(4*(y[3]-y[0]))
+            mu = max((E0+B0), 1e-20)
+            mu = (mu/2)**(1/4)
+            mz = 91.2/(2.43536e18)
+            gmz = 0.35
+            gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*x.ratio))))
+                
+            logkS = np.log(gmu**(1/2)*E0**(1/4))+y[0]
+            eps = max(abs(y[3])*1e-3, 1e-20)
+            val = Heaviside(logkS - y[3], eps) - 0.5
+        else: val=1.0
+        return val
+    
+    @AddEventFlags("Fermion crossing", True, 1)
+    def __FermCrossingMix__(x, t, y):
+        if x.Ferm2==1:
+            E0 = y[x.GaugePos]*np.exp(4*(y[3]-y[0]))
+            B0 = y[x.GaugePos+1]*np.exp(4*(y[3]-y[0]))
+            G0 = y[x.GaugePos+2]*np.exp(4*(y[3]-y[0]))
+
+            Sigma = np.sqrt(max((E0 - B0)**2 + 4*G0**2, 1e-20))
+            mz = 91.2/(2.43536e18)
+            mu = ((Sigma)/2)**(1/4)
+            gmz = 0.35
+            gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*x.ratio))))
+
+            Eprime = np.sqrt(E0 - B0 + Sigma)
+                
+            logkS = np.log(gmu**(1/2)*Eprime**(1/2))+y[0]
+
+            eps = max(abs(y[3])*1e-3, 1e-20)
+            val = Heaviside(logkS - y[3], eps) - 0.5
+        else: val=1.0
+        return val
+    
+    def IncreaseNtr(x, val=10):
+        x.ntr+=val
+        print(f"Increasing ntr by {val} to {x.ntr}.")
         return
     
-    def SolveGEF(x, tend=120., atol=1e-6, rtol=1e-3, reachNend=True):
-        t = Timer()
-
-        yini = x.InitialiseGEF()
-        t0 = 0.
-        
-        ODE = lambda t, y: x.TimeStep(t, y)
-
+    def SetupSolver(x, reachNend, atol=1e-20):
         events = []
         eventnames = []
         if reachNend: 
-            events.append(x.__CheckAcceleratedExpansion__)
-            eventnames.append("End of inflation")
-        
+            events.append(x.__EndOfInflation__)
+            eventnames.append(x.__EndOfInflation__.name)
+
+        if x.SEModel=="KDep":
+            if x.SEPicture=="mix":
+                events.append(x.__FermCrossingMix__)
+                eventnames.append(x.__FermCrossingMix__.name)
+            else:
+                events.append(x.__FermCrossingColl__)
+                eventnames.append(x.__FermCrossingColl__.name)
+
+        eventdic = dict(zip(eventnames, [{"t":[], "N":[]} for event in eventnames]))
+        yini = x.InitialiseGEF(atol)
+        t0 = 0.
+        return t0, yini, events, eventdic
+    
+    def ObtainSolution(x, t0, tend, yini, atol, rtol, events):
+        ODE = lambda t, y: x.TimeStep(t, y, rtol)
+
+        teval = np.arange(np.ceil(10*t0), np.floor(10*tend) +1)/10
+
+        sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
+                                 method="RK45", atol=atol, rtol=rtol, events=events)
+        return sol
+    
+    def SolveGEF(x, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, Ntol=-1):
+        mp.dps = 8
+        t = Timer()
+
+        print(f"The solver aims at reaching t={tend}")
+
+        t0, yini, events, eventdic = x.SetupSolver(reachNend=True, atol=atol)
+
         t.start()
 
         done=False
         attempts = 0
-        yvals = []
-        tvals = []
-        t_events = [[] for event in events]
-        N_events = [[] for event in events]
-        nfevs = []
-        while not(done) and attempts<10:
-            attempts += 1
-            teval = np.arange(10*t0, 10*tend +1)/10 #hotfix to ensure teval[-1] <= tend
+
+        order="stop"
+
+        sols = []
+        
+        print(f"Attempting run with ntr={x.ntr}")
+        while not(done) and attempts<3:
             try:
-                sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
-                                 method="RK45", atol=atol, rtol=rtol, events=events)
-                assert sol.success
-            except not(ValueError or AssertionError):
-                raise RuntimeError
-            except ValueError or AssertionError:
+                sol = x.ObtainSolution(t0, tend, yini, atol, rtol, events)
+                if not(sol.success): raise ValueError
+                    #return sol, tend, "stop"
+            except ValueError:
+                print(f"The run failed at t={x.vals['t']}, N={x.vals['N']}.")
                 raise TruncationError
-            else:
-                if reachNend:
-                    if len(tvals)==0:
-                        yvals.append(sol.y)
-                        tvals.append(sol.t)
-                    else:
-                        #Do not double-count end-points of sub-solutions.
-                        yvals.append(sol.y[:,1:])
-                        tvals.append(sol.t[1:])
-                    nfevs.append(sol.nfev)
-
-                    try: x.Nend = sol.y_events[0][0,0]
+            except RuntimeError:
+                raise RuntimeError
+            
+            done=True
+            for i, event in enumerate(events):
+                eventname = event.name
+                if (event.terminal):
+                    try: N =  sol.y_events[i][0,0]
                     except:
-                        t0=sol.t[-1]
-                        yini = sol.y[:,-1]
+                        if event.name=="End of inflation":
+                            done=False
+                            attempts += 1
+                            t0=sol.t[-1]
+                            yini = sol.y[:,-1]
 
-                        if yini[0] > x.Nend: Ninc = 5
-                        else: Ninc=x.Nend-yini[0]
+                            if yini[0] > x.Nend: Ninc = 5
+                            else: Ninc=x.Nend-yini[0]
 
-                        tdiff = np.round(Ninc/x.vals["H"])
-                        #round again, sometimes floats cause problems in t_span and t_eval.
-                        tend  = np.round(tend + tdiff, 1)
+                            tdiff = np.round(Ninc/x.vals["H"])
+                            #round again, sometimes floats cause problems in t_span and t_eval.
+                            tend  = np.round(tend + tdiff, 1)
 
-                        print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
+                            print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
                     else:
-                        for i, event in enumerate(events):
-                            t_events[i].append(sol.t_events[i])
-                            N_events[i].append(sol.y_events[i][:,0])
-                        done=True
-                else: done=True
+                        sols.append(sol)
+                        eventdic[eventname]["t"].append(sol.t_events[i])
+                        eventdic[eventname]["N"].append(sol.y_events[i][:,0])
+                        print(f"{eventname} at t={np.round(sol.t_events[i][-1], 1)} and N={np.round(sol.y_events[i][-1,0], abs(Ntol))}.")
+                        if eventname=="End of inflation": 
+                            done =True
+                            order="proceed"
+                        elif eventname=="Fermion crossing":
+                            t0 = sol.t_events[i][-1]
+                            yini = sol.y_events[i][-1,:]
+                            x.tferm = t0
+                            x.Ferm2=0
+                            x.Whittaker = x.WhittakerWithFerm
+                            print(rf"Switching EoM.")
+                            done=False
             
         t.stop()
+        nfevs = 0
+        y = []
+        t = []
+        for s in sols:
+            t.append(s.t)
+            y.append(s.y)
+            nfevs +=sol.nfev
 
-        sol.t = np.concatenate(tvals)
-        sol.y = np.concatenate(yvals, axis=1)
-        
-        sol.attempts = attempts
-        if attempts>1:
-            sol.nfev = nfevs
-        
-        eventdic = dict(zip(eventnames, [{"t":None, "N":None} for event in eventnames]))
-        for i, event in enumerate(eventdic.keys()):
-            eventdic[event]["t"] = np.round(np.concatenate(t_events[i]), 1)
-            eventdic[event]["N"] = np.round(np.concatenate(N_events[i]), 2)
+        t = np.concatenate(t)
+        y = np.concatenate(y, axis=1)
+
+        sol.t = t
+        sol.y = y
+        sol.nfev = nfevs
+
+        for eventname in (eventdic.keys()):
+            try:
+                eventdic[eventname]["t"] = np.round(np.concatenate(eventdic[eventname]["t"]), 1)
+                eventdic[eventname]["N"] = np.round(np.concatenate(eventdic[eventname]["N"]), 3)
+            except ValueError:
+                eventdic[eventname]["t"] = np.array(eventdic[eventname]["t"])
+                eventdic[eventname]["N"] = np.array(eventdic[eventname]["N"])
+
 
         sol.events = eventdic
 
-        return sol, done
+        if attempts != 1 and not(done):
+            print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
+            raise RuntimeError
+
+        return sol, tend, order
+    
+    def RunGEF(x, ntr, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, printstats=False, Ntol=-1, maxattempts=5):
+        x.ntr = ntr+1
+        if not(x.completed):
+            finished= False
+            attempts=1
+            while not(finished) and attempts<=maxattempts:
+                try:
+                    sol, tend, order = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend, Ntol=Ntol)
+                    if order=="proceed":
+                        Ninf = sol.events["End of inflation"]["N"][-1]
+                        if np.log10(abs(Ninf-x.Nend)) < Ntol: 
+                            finished=True
+                        else:
+                            Ninc = abs(Ninf - x.Nend)
+                            tdiff = np.round(Ninc/x.vals["H"])
+                            tend = min(np.round(sol.t[-1] + tdiff, 1), tend)
+                            print("To verify a consistent run, checking stability against increasing ntr.")
+                            x.IncreaseNtr(5)
+                        x.Nend = Ninf
+                    elif order=="stop":
+                        if printstats: PrintSol(sol)
+                        x.WriteOutGEFResults(sol)
+                        return sol
+                except TruncationError:
+                    attempts+=1
+                    print("A truncation error occured")
+                    x.IncreaseNtr(10)
+            if attempts>maxattempts:
+                print(f"The run did not finish after {attempts} attempts. Check the output for more information.")
+                raise RuntimeError
+            if printstats: PrintSol(sol)
+            x.WriteOutGEFResults(sol)
+            x.completed = True
+            return sol
+        else:
+            print("This run is already completed, access data using GEF.vals")
+            return
     
     def WriteOutGEFResults(x, sol):
-        t = sol.t
-        y = sol.y
+        ts = sol.t
+        ys = sol.y
         parsold = list(x.vals.keys())
+        unwantedkeys = ["F", "FBar"]
+        for key in unwantedkeys:
+            if key in parsold:
+                parsold.remove(key)
         newpars = ["ddphi", "dlnkh"] #, "E1", "B1", "G1", "Edot", "Bdot", "Gdot", "EdotBdr", "BdotBdr", "GdotBdr"]
         pars = parsold + newpars
         res = dict(zip(pars, [[] for par in pars]))
-        if (x.SEModel == "KDep"):
-            #x.FermionEntry = 1
-            res["sigmaEk"] = []
-            res["sigmaBk"] = []
-            res["sk"] = []
-            res["xieffk"] = []
-            x.Ferm2 = 1
-            x.vals["kS"] = x.vals["kh"]*1e-3 
-        for i in range(len(t)):
-            x.DefineDictionary(t[i], y[:,i])
-            if (x.SEModel == "KDep"):
-                x.vals["delta"] = 1*x.Ferm2 + (1-x.Ferm2)*x.deltaf(x.vals["t"])
-                x.vals["sigmaEk"] = (1.-x.Ferm2)*x.vals["sigmaE"]
-                x.vals["sigmaBk"] = (1.-x.Ferm2)*x.vals["sigmaB"]
+
+        for i, t in enumerate(ts):
+            if x.SEModel=="KDep":
+                if hasattr(x, "tferm"):
+                    if t < x.tferm: x.Ferm2=1
+                    else: x.Ferm2 = 0
+
+            x.DefineDictionary(t, ys[:,i])
+
+            if (x.SEModel == "Del1"):
+                x.vals["delta"] = 1.
                 x.vals["s"] = x.GetS(x.vals["sigmaE"])
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])
-                x.vals["sk"] = x.GetS(x.vals["sigmaEk"])
-                x.vals["xieffk"] = x.vals["xi"] + x.GetS(x.vals["sigmaBk"])
+
             ddphi = x.EoMphi()
             res["ddphi"].append(ddphi)
             dlnkhdt = x.EoMlnkh(ddphi)
             res["dlnkh"].append(dlnkhdt)
+
             for par in parsold:
-                if (par in ["E", "B", "G", "EBar", "BBar", "GBar"]):
-                    res[par].append(x.vals[par][0])
-                else:
-                    res[par].append(x.vals[par])
+                res[par].append(x.vals[par])
         for par in pars:
             res[par] = np.array(res[par])
         x.vals = res
         return
-    
-    def RunGEF(x, ntr, tend=120., atol=1e-6, rtol=1e-3, reachNend=True, printstats=False):
-        x.ntr = ntr+1
-        if not(x.completed):
-            sol, done = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend)
-            if printstats:
-                PrintSol(sol)
-            if sol.attempts >= 10 and not(done):
-                print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
-            x.WriteOutGEFResults(sol)
-            x.completed = done
-            return
-        else:
-            print("This run is already completed, access data using GEF.vals")
-            return
-
 
     def CreateDeltaFunction(x):
         if (x.completed):
@@ -799,7 +892,8 @@ class GEF:
             print("You first need to RunGEF")
         return
     
-    def IterateGEF(x, t0=0., t1=120.):
+    ### RETHINK THIS FUNCTION!
+    """def IterateGEF(x, t0=0., t1=120.):
         if (x.completed):
             x.Unitless()
             if (x.SEModel == "KDep"):
@@ -822,7 +916,7 @@ class GEF:
                 return sol
         else:
             print("You first need to RunGEF")
-            return
+            return"""
         
     def SaveData(x):
         if (x.completed):
@@ -951,7 +1045,7 @@ class GEF:
                 x.vals["GBar"] = x.vals["GBar"]*(omega)**4
             x.omega = 1.
             x.f = 1.
-            x.ratio=x.f/x.omega
+            x.ratio= 1.
             x.units = True
         else:
             print("Already Unitful")
@@ -961,6 +1055,7 @@ class GEF:
     def WhittakerApprox_NoSE(x):
         xi = x.vals["xieff"]
         if (abs(xi) >= 3):
+            #print("halo")
             Fterm = np.zeros((3, 2))
             sgnsort = int((1-np.sign(xi))/2)
 
@@ -1069,6 +1164,7 @@ class GEF:
         return Fterm
     
     def WhittakerExact(x):
+        #print("mahalo", end='\r')
         xieff = x.vals["xieff"]
         s = x.vals["s"]
         r = (abs(xieff) + np.sqrt(xieff**2 + s**2 + s))
@@ -1169,17 +1265,6 @@ class GEF:
         Fterm[2,1] = pre[1]*(Dk[1]*Ak[1].conjugate()).real
 
         return Fterm
-                  
-    def Whittaker_Interp(x):
-        t = x.vals["t"]
-        F = np.zeros((3, 2))
-        F[0,0] = x.Epf(t)
-        F[0,1] = x.Epf(t)
-        F[1,0] = x.Bpf(t)
-        F[1,1] = x.Bmf(t)
-        F[2,0] = x.Gpf(t)
-        F[2,1] = x.Gmf(t)
-        return F
 
     def EndOfInflation(x, tol=1e-4):
         if x.units == True:

@@ -130,7 +130,8 @@ def CreateGEF(GEFFile: str, approx=True):
         elif GEFconfig.SEPicture=="mixed":
             SE="mix"
 
-        G = GEFSchwinger(beta, InitialConditions, V, dV, SEPicture=SE, SEModel=GEFconfig.SEModel, GEFData=GEFconfig.GEFFile, ModeData=GEFconfig.MbMFile, approx=approx)
+        G = GEFSchwinger(beta, InitialConditions, V, dV, SEPicture=SE, SEModel=GEFconfig.SEModel,
+                          GEFData=GEFconfig.GEFFile, ModeData=GEFconfig.MbMFile, approx=approx)
     else:
         G = GEFClassic(beta, InitialConditions, V, dV, GEFData=GEFconfig.GEFFile, ModeData=GEFconfig.MbMFile, approx=approx)
 

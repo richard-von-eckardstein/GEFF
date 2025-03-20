@@ -1,0 +1,242 @@
+67,82c67,71
+<         x.SEPicture = SEPicture
+<         if (SEPicture==None):
+<             x.GaugePos = 4
+<             x.conductivity = lambda y: 0., 0.
+<             if(approx):
+<                 x.Whittaker = x.WhittakerApprox_NoSE
+<             else:
+<                 x.Whittaker = x.WhittakerExact
+<         else:
+<             if(approx):
+<                 x.Whittaker = x.WhittakerApprox_WithSE
+<             else:
+<                 x.Whittaker = x.WhittakerExact
+<             
+<             if (SEPicture=="mix"):
+<                 if (x.SEModel == "Del1"):
+---
+>         if x.SEModel=="Old":
+>             x.GaugePos = 6
+>             if(approx): x.Whittaker = x.WhittakerApprox_WithSE
+>             else: x.Whittaker=x.WhittakerExact
+>         elif x.SEModel=="Del1":
+84,85c73,75
+<                     x.conductivity = x.ComputeImprovedSigma
+<                 elif (x.SEModel == "KDep"):
+---
+>             if(approx): x.Whittaker = x.WhittakerApprox_NoSE
+>             else: x.Whittaker=x.WhittakerExact
+>         elif x.SEModel=="KDep":
+94d83
+<                     x.conductivity = x.ComputeImprovedSigma
+97,98c86,88
+<                     x.GaugePos = 6
+<                     x.conductivity = x.ComputeImprovedSigma
+---
+>             x.GaugePos = 4
+>             if(approx): x.Whittaker = x.WhittakerApprox_NoSE
+>             else: x.Whittaker = x.WhittakerExact
+100,118c90,93
+<             elif (-1. <= SEPicture <=1.):
+<                 if (x.SEModel == "Del1"):
+<                     x.GaugePos = 5
+<                     x.conductivity = x.ComputeSigmaCollinear
+<                 elif (x.SEModel == "KDep"):
+<                     x.DeltaFunc = False
+<                     x.GaugePos = 5
+<                     x.deltaf = x.ApproxDeltaf
+<                     #x.tferm = lambda t: t
+<                     if approx:
+<                         x.WhittakerNoFerm = x.WhittakerApprox_NoSE
+<                         x.WhittakerWithFerm = x.WhittakerApprox_WithSE
+<                     else:
+<                         x.WhittakerNoFerm = x.WhittakerExact
+<                         x.WhittakerWithFerm = x.WhittakerExact
+<                     x.conductivity = x.ComputeSigmaCollinear
+<                     x.EoMlnkS = x.EoMlnkSFrac
+<                 else:
+<                     x.GaugePos = 6
+---
+>         x.SEPicture = SEPicture
+>         if (SEPicture=="mix"):
+>             x.conductivity = x.ComputeImprovedSigma
+>         elif (-1 <= SEPicture <=1):
+120c95
+<                 if(SEPicture == 1. and approx):
+---
+>             if SEPicture==1 and approx:
+125c100,101
+<                 print(SEPicture, "is not a valid choice for SEPicture")
+---
+>             x.conductivity = lambda y: 0., 0., 0.
+> 
+157c133
+<                        (x.potential() + x.ratio**2*(0.5*(x.vals["E"][0]+x.vals["B"][0]) + x.vals["rhoChi"])))
+---
+>                        (x.potential() + x.ratio**2*(0.5*(x.vals["E"]+x.vals["B"]) + x.vals["rhoChi"])))
+167,169c143,145
+<         E0 = x.vals["E"][0]
+<         B0 = x.vals["B"][0]
+<         G0 = x.vals["G"][0]
+---
+>         E0 = x.vals["E"]
+>         B0 = x.vals["B"]
+>         G0 = x.vals["G"]
+192,194c168,170
+<         E0 = x.vals["E"][0]
+<         B0 = x.vals["B"][0]
+<         G0 = x.vals["G"][0]
+---
+>         E0 = x.vals["E"]
+>         B0 = x.vals["B"]
+>         G0 = x.vals["G"]
+226c202
+<                 - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"][0]*x.ratio**2)
+---
+>                 - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"]*x.ratio**2)
+255c231,232
+<             if((kh-fc)/kh <=1e-3):
+---
+>             #if((kh-fc)/kh <=1e-3):
+>             if ( (1-np.log(fc)/np.log(kh)) < rtol):
+257a235
+>                 #print("c2",x.vals["t"])
+259a238
+>             #print("c1",x.vals["t"])
+268,270c247,249
+<         E0 = x.vals["E"][0]
+<         B0 = x.vals["B"][0]
+<         G0 = x.vals["G"][0]
+---
+>         E0 = x.vals["E"]
+>         B0 = x.vals["B"]
+>         G0 = x.vals["G"]
+289,290c268,269
+<         E0 = x.vals["E"][0]
+<         B0 = x.vals["B"][0]
+---
+>         E0 = x.vals["E"]
+>         B0 = x.vals["B"]
+310,311c289,290
+<         return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["E"][0]
+<                                         - x.vals["sigmaB"]*x.vals["G"][0]- 4*x.vals["H"]*x.vals["rhoChi"])
+---
+>         return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["E"]
+>                                         - x.vals["sigmaB"]*x.vals["G"]- 4*x.vals["H"]*x.vals["rhoChi"])
+314,315c293,294
+<         return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["EBar"][0]
+<                                         - x.vals["sigmaB"]*x.vals["GBar"][0]- 4*x.vals["H"]*x.vals["rhoChi"])
+---
+>         return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["EBar"]
+>                                         - x.vals["sigmaB"]*x.vals["GBar"]- 4*x.vals["H"]*x.vals["rhoChi"])
+318c297,299
+<         prefac = dlnkhdt * x.vals["delta"] / (4*np.pi**2)
+---
+>         FE = x.vals["F"][:,0]
+>         FB = x.vals["F"][:,1]
+>         FG = x.vals["F"][:,2]
+321,324c302
+<         H = x.vals["H"]
+<         E = x.vals["E"]
+<         B = x.vals["B"]
+<         G = x.vals["G"]
+---
+> 
+326a305
+> 
+335,336c314,315
+<         bdrF = prefac*np.array([[(scale)**(i+4)*(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
+<                                     for i in range(x.ntr)])
+---
+>         bdrF = dlnkhdt*x.vals["delta"]*np.array([[(Whitt[j,0] + (-1)**i*Whitt[j,1]) for j in range(3)]
+>                                     for i in range(x.ntr)]) / (4*np.pi**2)
+338c317
+<         ScalarCpl = (x.dIdphi()*x.vals["dphi"])
+---
+>         ScalarCpl = (x.dIdphi()*x.vals["dphi"] + aAlpha*sigmaB)
+343,346c322,324
+<             dFdt[n,0] = (bdrF[n, 0] - (4+n)*H*E[n] - 2*aAlpha * sigmaE*E[n] 
+<                              - 2*aAlpha*G[n+1] + 2*ScalarCpl*G[n] + 2*aAlpha*G[n]*sigmaB)
+< 
+<             dFdt[n,1] = bdrF[n, 1] - (4+n)*H*B[n] + 2*aAlpha*G[n+1]
+---
+>             dFdt[n,0] = (bdrF[n, 0] - (4+n)*dlnkhdt*FE[n] - 2*aAlpha * sigmaE*FE[n] 
+>                              - 2*aAlpha*scale*FG[n+1] + 2*ScalarCpl*FG[n])
+>             dFdt[n,1] = (bdrF[n, 1] - (4+n)*dlnkhdt*FB[n] + 2*aAlpha*scale*FG[n+1])
+348,349c326,327
+<             dFdt[n,2] = (bdrF[n, 2] - (4+n)*H*G[n] - aAlpha*G[n]*sigmaE
+<                              + aAlpha*(E[n+1] - B[n+1]) + ScalarCpl*B[n] + aAlpha*B[n]*sigmaB)
+---
+>             dFdt[n,2] = (bdrF[n, 2] - (4+n)*dlnkhdt*FG[n] - aAlpha*FG[n]*sigmaE
+>                              + aAlpha*scale*(FE[n+1] - FB[n+1]) + ScalarCpl*FB[n])
+351,352c329,330
+<         dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*H*E[-1] - 2*aAlpha*E[-1]*sigmaE
+<                             - 2*scale**2 * aAlpha*G[-2] + 2*ScalarCpl*G[-1] + 2*aAlpha*G[-1]*sigmaB)
+---
+>         dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*dlnkhdt*FE[-1] - 2*aAlpha*FE[-1]*sigmaE
+>                             - 2*aAlpha*scale*FG[-2] + 2*ScalarCpl*FG[-1])
+354c332
+<         dFdt[-1,1] = bdrF[-1,1] - (4+x.ntr-1)*H*B[-1] + 2*scale**2 * aAlpha*G[-2]
+---
+>         dFdt[-1,1] = (bdrF[-1,1] - (4+x.ntr-1)*dlnkhdt*FB[-1] + 2*aAlpha*scale*FG[-2]) 
+356,357c334,335
+<         dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*H *G[-1] - aAlpha*G[-1]*sigmaE
+<                              + scale**2 * aAlpha*(E[-2] - B[-2]) + ScalarCpl*B[-1] + aAlpha*B[-1]*sigmaB)
+---
+>         dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*dlnkhdt*FG[-1] - aAlpha*FG[-1]*sigmaE
+>                              + aAlpha*scale*(FE[-2] - FB[-2]) + ScalarCpl*FB[-1])
+519c497
+<     def DefineDictionary(x, t, y):
+---
+>     def DefineDictionary(x, t, y, atol=1e-6):
+530,534c508,513
+<         F = y[x.GaugePos:]
+<         F = F.reshape(x.ntr, 3)
+<         x.vals["E"] = F[:,0]
+<         x.vals["B"] = F[:,1]
+<         x.vals["G"] = F[:,2]
+---
+>         F = y[x.GaugePos:x.GaugePos+3*x.ntr]
+>         x.vals["F"] = F.reshape(x.ntr, 3)
+> 
+>         x.vals["E"] = x.vals["F"][0,0]*np.exp(4*(y[3]-y[0]))
+>         x.vals["B"] = x.vals["F"][0,1]*np.exp(4*(y[3]-y[0]))
+>         x.vals["G"] = x.vals["F"][0,2]*np.exp(4*(y[3]-y[0]))
+585c564,567
+<                 x.vals["sigmaE"], x.vals["sigmaB"], _ = x.conductivity()
+---
+>                 x.vals["sigmaE"], x.vals["sigmaB"], ks = x.conductivity()
+>                 """if np.log(ks/(x.vals["a"]*x.vals["H"])) < atol:
+>                     x.vals["sigmaE"] = 0.
+>                     x.vals["sigmaB"] = 0."""
+596c578
+<         rhoEB = 0.5*(y[x.GaugePos]+y[x.GaugePos+1])*x.ratio**2#*np.exp(4*(y[3]-y[0]))
+---
+>         rhoEB = 0.5*(y[x.GaugePos]+y[x.GaugePos+1])*x.ratio**2*np.exp(4*(y[3]-y[0]))
+614d595
+< 
+740c721
+<         #parsold.remove("F")
+---
+>         parsold.remove("F")
+767,769c748
+<                 if (par in ["E", "B", "G", "EBar", "BBar", "GBar"]):
+<                         res[par].append(x.vals[par][0])
+<                 else: res[par].append(x.vals[par])
+---
+>                 res[par].append(x.vals[par])
+993a973
+>             #print("halo")
+1057a1038
+>             #print("ola")
+1101a1083
+>         #print("mahalo", end='\r')
+1203c1185
+<     def Whittaker_Interp(x):
+---
+>     """def Whittaker_Interp(x):
+1212c1194
+<         return F
+---
+>         return F"""
