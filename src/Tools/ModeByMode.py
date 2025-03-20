@@ -177,9 +177,9 @@ class ModeByMode:
 
         x.__etaf = CubicSpline(x.__t, soleta.y[0,:])
 
-        Nend = G.EndOfInflation()[0]
+        Nend = G.EndOfInflation()
 
-        maxN = min(max(x.__N), Nend+1)
+        maxN = min(max(x.__N), Nend)
         
         #Define suitable range of wavenumbers which can be considered given the background dynamics. mink might still change
         x.maxk = CubicSpline(x.__N, kh)(maxN)
@@ -212,7 +212,7 @@ class ModeByMode:
 
         elif mode=="k":
             k = init
-            x0 = np.log(k[0]) - np.log(x.__khf(0.)) - 5/2*np.log(10)
+            x0 = np.log(k[0]) - np.log(x.__khf(0.1)) - 5/2*np.log(10)
             tstart = []
             for i, l in enumerate(k):
                 f = lambda t: np.log(l) - np.log(x.__khf(t)) - 5/2*np.log(10)
