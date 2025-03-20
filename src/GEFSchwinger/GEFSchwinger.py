@@ -228,16 +228,8 @@ class GEF:
         sEprime = (-dHdt * s + a**(1-alpha)*(alpha*H*x.vals["sigmaE"]+ dsigmaEdt)/2)/H
         rprime = (np.sign(xieff)+xieff/sqrtterm)*xieffprime + sEprime*(s+1/2)/sqrtterm
         fcprime = (1-alpha)*H*fc + dHdt*a**(1-alpha)*r + a**(1-alpha)*H*rprime
-        eps=max(np.log(kh)*rtol, 1e-20)
-        dlnkhdt = fcprime/kh*Heaviside(fcprime/kh, eps)*Heaviside(np.log(fc/kh)+10*eps, eps)
-        #return np.heaviside(fcprime/kh, 0.5)*np.heaviside((fc/kh-1+rtol), 0.5)*fcprime/kh
-        """if((kh-fc)/kh <=1e-3):
-        #if ( (1-np.log(fc)/np.log(kh)) < rtol):
-            dlnkhdt = fcprime/kh*Heaviside(fcprime/kh, eps)
-        else:
-            dlnkhdt = 0"""
     
-        return dlnkhdt
+        return fcprime/kh
 
     def EoMlnkSMixed(x, dEdt, dBdt, dGdt):
         alpha = x.alpha
@@ -368,23 +360,6 @@ class GEF:
         dFdt = np.zeros(bdrF.shape)
 
         #Damped+Undamped Modes
-        """for n in range(x.ntr-1):
-            dFdt[n,0] = (bdrF[n, 0] - (4+n)*dlnkhdt*FE[n] - 2*aAlpha * sigmaE*min(FE[n],GE[n]) 
-                             - 2*aAlpha*scale*FG[n+1] + 2*ScalarCpl*FG[n] + 2*aAlpha*min(FG[n],GG[n]) *sigmaB)
-
-            dFdt[n,1] = (bdrF[n, 1] - (4+n)*dlnkhdt*FB[n] + 2*aAlpha*scale*FG[n+1])
-
-            dFdt[n,2] = (bdrF[n, 2] - (4+n)*dlnkhdt*FG[n] - aAlpha*min(FG[n],GG[n])*sigmaE
-                             + aAlpha*scale*(FE[n+1] - FB[n+1]) + ScalarCpl*FB[n] + aAlpha*min(FB[n],GB[n])*sigmaB)
-
-        dFdt[-1,0] = (bdrF[-1,0] -  (4+x.ntr-1)*dlnkhdt*FE[-1] - 2*aAlpha*sigmaE*min(FE[-1],GE[-1])
-                            - 2*aAlpha*scale*FG[-2] + 2*ScalarCpl*FG[-1] + 2*aAlpha*min(FG[-1],GG[-1]) *sigmaB)
-
-        dFdt[-1,1] = (bdrF[-1,1] - (4+x.ntr-1)*dlnkhdt*FB[-1] + 2*aAlpha*scale*FG[-2]) 
-
-        dFdt[-1,2] = (bdrF[-1,2] - (4+x.ntr-1)*dlnkhdt*FG[-1] - aAlpha*min(FG[-1],GG[-1])*sigmaE
-                             + aAlpha*scale*(FE[-2] - FB[-2]) + ScalarCpl*FB[-1] + aAlpha*min(FB[-1],GB[-1])*sigmaB)"""
-        
         for n in range(x.ntr-1):
             dampE = np.sign(FE[n])*min(abs(GE[n]), abs(FE[n])) 
             dampB = np.sign(FB[n])*min(abs(GB[n]), abs(FB[n])) 
@@ -477,8 +452,8 @@ class GEF:
         
         return yini
     
-    def TimeStep(x, t, y, rtol=1e-6):
-        x.DefineDictionary(t, y, rtol=rtol)
+    def TimeStep(x, t, y, rtol=1e-6, atol=1e-20):
+        x.DefineDictionary(t, y, rtol=rtol, atol=atol)
 
         dydt = np.zeros(y.shape)
 
@@ -486,7 +461,14 @@ class GEF:
         dydt[1] = x.vals["dphi"]
         dydt[2] = x.EoMphi()
 
+        eps=max(abs(y[3])*rtol, atol)
         dlnkhdt = x.EoMlnkh(dydt[2], rtol=rtol)
+        xieff = x.vals["xieff"]
+        s = x.vals["s"]
+        sqrtterm = np.sqrt(xieff**2 + s**2 + s)
+        r = (abs(xieff) + sqrtterm)
+        logfc = y[0] + np.log(r*dydt[0]) 
+        dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-y[3]+10*eps, eps)
         dydt[3] = dlnkhdt       
         
         if (x.SEPicture != None):
@@ -545,10 +527,13 @@ class GEF:
                 x.vals["kS"] = x.vals["kh"]
                 x.vals["rhoChi"] = np.exp(y[4])
                 x.vals["H"] = x.FriedmannEq()
-                x.vals["sigmaE"], x.vals["sigmaB"], _ = x.conductivity()
-                if np.log(x.vals["kh"]/(x.vals["a"]*x.vals["H"]))<0:
-                    x.vals["sigmaE"] = 0.
-                    x.vals["sigmaB"] = 0.
+
+                sigmaE, sigmaB, ks = x.conductivity()
+                eps = max(abs(y[0])*rtol, atol)
+                GlobalFerm = Heaviside(np.log(ks/(x.vals["a"]*x.vals["H"])), eps)
+                x.vals["sigmaE"] = GlobalFerm*sigmaE
+                x.vals["sigmaB"] = GlobalFerm*sigmaB
+
                 x.vals["s"] = 0
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"]
@@ -582,10 +567,13 @@ class GEF:
                 x.vals["delta"] = y[4]
                 x.vals["rhoChi"] = np.exp(y[5])
                 x.vals["H"] = x.FriedmannEq()
-                x.vals["sigmaE"], x.vals["sigmaB"], ks = x.conductivity()
-                """if np.log(ks/(x.vals["a"]*x.vals["H"])) < atol:
-                    x.vals["sigmaE"] = 0.
-                    x.vals["sigmaB"] = 0."""
+
+                sigmaE, sigmaB, ks = x.conductivity()
+                eps = max(abs(y[0])*rtol, atol)
+                GlobalFerm = Heaviside(np.log(ks/(x.vals["a"]*x.vals["H"])), eps)
+                x.vals["sigmaE"] = GlobalFerm*sigmaE
+                x.vals["sigmaB"] = GlobalFerm*sigmaB
+
                 x.vals["s"] = x.GetS(x.vals["sigmaE"])
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])    
