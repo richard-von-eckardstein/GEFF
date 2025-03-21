@@ -275,14 +275,14 @@ class GEF:
     
     def EoMDelta(x):
         return -x.vals["a"]**(x.alpha)*x.vals["sigmaE"]*x.vals["delta"]
-                
+    
     def EoMrhoChi(x):    
-        return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["E"]/x.vals["rhoChi"]
-                                        - x.vals["sigmaB"]*x.vals["G"]/x.vals["rhoChi"]- 4*x.vals["H"])
+        return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["E"]
+                                        - x.vals["sigmaB"]*x.vals["G"]- 4*x.vals["H"]*x.vals["rhoChi"])
         
     def EoMrhoChiBar(x):    
-        return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["EBar"]/x.vals["rhoChi"]
-                                        - x.vals["sigmaB"]*x.vals["GBar"]/x.vals["rhoChi"]- 4*x.vals["H"])
+        return x.vals["a"]**(x.alpha)*(x.vals["sigmaE"]*x.vals["EBar"]
+                                        - x.vals["sigmaB"]*x.vals["GBar"]- 4*x.vals["H"]*x.vals["rhoChi"])
 
     def EoMF(x, dlnkhdt):
         FE = x.vals["F"][:,0]
@@ -440,21 +440,20 @@ class GEF:
         
         if (x.SEPicture != None):
             if (x.SEModel == "Del1"):
-                yini[4] = np.log(atol)#x.ini["rhoChi"]
+                yini[4] = x.ini["rhoChi"]
             elif (x.SEModel == "KDep"):
                 x.Ferm2=1
                 x.Whittaker = x.WhittakerNoFerm
-                yini[4] = np.log(atol)#x.ini["rhoChi"]
+                yini[4] = x.ini["rhoChi"]
                 x.vals["kS"] = 1e-3*yini[3]
             else:
                 yini[4] = x.ini["delta"]
-                yini[5] = np.log(atol)#x.ini["rhoChi"]
+                yini[5] = x.ini["rhoChi"]
         
         return yini
     
     def TimeStep(x, t, y, rtol=1e-6, atol=1e-20):
         x.DefineDictionary(t, y, rtol=rtol, atol=atol)
-
         dydt = np.zeros(y.shape)
 
         dydt[0] = x.vals["H"]
@@ -525,7 +524,7 @@ class GEF:
         else:
             if (x.SEModel == "Del1"):
                 x.vals["kS"] = x.vals["kh"]
-                x.vals["rhoChi"] = np.exp(y[4])
+                x.vals["rhoChi"] = y[4]
                 x.vals["H"] = x.FriedmannEq()
 
                 sigmaE, sigmaB, ks = x.conductivity()
@@ -538,7 +537,7 @@ class GEF:
                 x.vals["xi"] = x.GetXi()
                 x.vals["xieff"] = x.vals["xi"]
             elif (x.SEModel == "KDep"):
-                x.vals["rhoChi"] = np.exp(y[4])
+                x.vals["rhoChi"] = y[4]
                 x.vals["H"] = x.FriedmannEq()
                 sigmaE, sigmaB, x.vals["kS"] = x.conductivity()
                 logkS = np.log(x.vals["kS"])
@@ -565,7 +564,7 @@ class GEF:
                 x.vals["xieff"] = x.vals["xi"] + x.GetS(x.vals["sigmaB"])*(1-x.Ferm2)
             else:
                 x.vals["delta"] = y[4]
-                x.vals["rhoChi"] = np.exp(y[5])
+                x.vals["rhoChi"] = y[5]
                 x.vals["H"] = x.FriedmannEq()
 
                 sigmaE, sigmaB, ks = x.conductivity()
@@ -688,8 +687,6 @@ class GEF:
             except ValueError:
                 print(f"The run failed at t={x.vals['t']}, N={x.vals['N']}.")
                 raise TruncationError
-            except RuntimeError:
-                raise RuntimeError
             
             done=True
             for i, event in enumerate(events):
@@ -788,6 +785,10 @@ class GEF:
                     attempts+=1
                     print("A truncation error occured")
                     x.IncreaseNtr(10)
+                except:
+                    for key in x.vals.keys():
+                        print(key, x.vals[key])
+                    raise RuntimeError
             if attempts>maxattempts:
                 print(f"The run did not finish after {attempts} attempts. Check the output for more information.")
                 raise RuntimeError
