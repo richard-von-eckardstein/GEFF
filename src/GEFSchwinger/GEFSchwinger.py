@@ -204,7 +204,7 @@ class GEF:
                 - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"]*x.ratio**2)
         return ddphiddt
     
-    def EoMlnkh(x, ddphiddt, rtol=1e-6):
+    def EoMlnkh(x, ddphiddt):
         alpha = x.alpha
         a = x.vals["a"]
         H = x.vals["H"]
@@ -462,7 +462,7 @@ class GEF:
         dydt[2] = x.EoMphi()
 
         eps=max(abs(y[3])*rtol, atol)
-        dlnkhdt = x.EoMlnkh(dydt[2], rtol=rtol)
+        dlnkhdt = x.EoMlnkh(dydt[2])
         xieff = x.vals["xieff"]
         s = x.vals["s"]
         sqrtterm = np.sqrt(xieff**2 + s**2 + s)

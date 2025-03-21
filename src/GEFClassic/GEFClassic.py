@@ -7,15 +7,17 @@ from src.Tools.timer import Timer
 import math
 from mpmath import whitw, mp
 
+def Heaviside(x, eps):
+    return 1/(1+np.exp(-x/eps))
+
 class TruncationError(Exception):
     pass
 
-def AddEventFlags(name, terminal=True, direction=1, final=True):
+def AddEventFlags(name, terminal=True, direction=1):
     def setflags(func):
         func.name = name
         func.terminal = terminal
         func.direction = direction
-        func.final = final
         return func
     return setflags
 
@@ -220,11 +222,11 @@ class GEF:
                 - a**(2*alpha)*x.dVdphi() - a**(2*alpha)*x.dIdphi()*x.vals["G"]*x.ratio**2)
         return ddphiddt
     
-    def EoMlnkh(x, ddphiddt, rtol=1e-6):
-        kh = x.vals["kh"]
+    def EoMlnkh(x, ddphiddt):
         alpha = x.alpha
         a = x.vals["a"]
         H = x.vals["H"]
+        kh = x.vals["kh"]
         
         xi = x.vals["xi"]
         r = 2*abs(xi)
@@ -236,15 +238,7 @@ class GEF:
         rprime = 2*np.sign(xi)*xiprime
         fcprime = (1-alpha)*H*fc + dHdt*a**(1-alpha)*r + a**(1-alpha)*H*rprime
                    
-        if (fcprime >= 0):
-            if(1-np.log(fc)/np.log(kh) < rtol):
-                dlnkhdt = fcprime/kh
-            else:
-                dlnkhdt = 0
-        else:
-            dlnkhdt = 0
-    
-        return dlnkhdt
+        return fcprime/kh
 
     def EoMF(x, dlnkhdt):
         FE = x.vals["F"][:,0]
@@ -302,7 +296,7 @@ class GEF:
     
         return yini
     
-    def TimeStep(x, t, y, rtol=1e-6):
+    def TimeStep(x, t, y, rtol=1e-6, atol=1e-20):
         x.DefineDictionary(t, y)
 
         dydt = np.zeros(y.shape)
@@ -311,8 +305,12 @@ class GEF:
         dydt[1] = x.vals["dphi"]
         dydt[2] = x.EoMphi()
         
-        dlnkhdt = x.EoMlnkh(dydt[2], rtol=rtol)
-        dydt[3] = dlnkhdt
+        eps=max(abs(y[3])*rtol, atol)
+        dlnkhdt = x.EoMlnkh(dydt[2])
+        r = 2*abs(x.vals["xi"])
+        logfc = y[0] + np.log(r*dydt[0]) 
+        dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-y[3]+10*eps, eps)
+        dydt[3] = dlnkhdt       
                 
         dFdt = x.EoMF(dlnkhdt)
         dydt[4:] = dFdt.reshape(x.ntr*3) 
@@ -343,7 +341,7 @@ class GEF:
 
         return
     
-    @AddEventFlags("End of inflation", True, 1, True)
+    @AddEventFlags("End of inflation", True, 1)
     def __EndOfInflation__(x, t, y):
         dphi = y[2]
         V = x.V(x.f*y[1])/(x.f*x.omega)**2
@@ -372,11 +370,11 @@ class GEF:
     def ObtainSolution(x, t0, tend, yini, atol, rtol, events):
         ODE = lambda t, y: x.TimeStep(t, y, rtol)
 
-        teval = np.arange(10*t0, 10*tend +1)/10
+        teval = np.arange(np.ceil(10*t0), np.floor(10*tend) +1)/10
 
         sol = solve_ivp(ODE, [t0,tend], yini, t_eval=teval,
                                  method="RK45", atol=atol, rtol=rtol, events=events)
-        assert sol.success
+
         return sol
 
     def SolveGEF(x, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, Ntol=-1):
@@ -391,51 +389,75 @@ class GEF:
 
         done=False
         attempts = 0
+
+        order="stop"
+
+        sols = []
         
         print(f"Attempting run with ntr={x.ntr}")
         while not(done) and attempts<10:
-            #mp.dps = int(abs(np.log10(atol)))+1
-            attempts += 1
             try:
                 sol = x.ObtainSolution(t0, tend, yini, atol, rtol, events)
-            except ValueError or AssertionError:
+                if not(sol.success): raise ValueError
+            except ValueError:
                 print(f"The run failed at t={x.vals['t']}, N={x.vals['N']}.")
                 raise TruncationError
             except RuntimeError:
                 raise RuntimeError
-            else:
-                if reachNend:
-                    try: 
-                        Ninf = sol.y_events[0][0,0]
+            
+            done=True
+            for i, event in enumerate(events):
+                eventname = event.name
+                if (event.terminal):
+                    try: N =  sol.y_events[i][0,0]
                     except:
-                        t0=sol.t[-5]
-                        yini = sol.y[:,-5]
+                        if event.name=="End of inflation":
+                            done=False
+                            attempts += 1
+                            t0=sol.t[-1]
+                            yini = sol.y[:,-1]
 
-                        if yini[0] > x.Nend: Ninc = 5
-                        else: Ninc=x.Nend-yini[0]
+                            if yini[0] > x.Nend: Ninc = 5
+                            else: Ninc=x.Nend-yini[0]
 
-                        tdiff = np.round(Ninc/x.vals["H"])
-                        #round again, sometimes floats cause problems in t_span and t_eval.
-                        tend  = np.round(tend + tdiff, 1)
+                            tdiff = np.round(Ninc/x.vals["H"])
+                            #round again, sometimes floats cause problems in t_span and t_eval.
+                            tend  = np.round(tend + tdiff, 1)
 
-                        print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
+                            print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
                     else:
-                        done = True
-                        for i, eventname in enumerate(eventdic.keys()):
-                            eventdic[eventname]["t"].append(sol.t_events[i])
-                            eventdic[eventname]["N"].append(sol.y_events[i][:,0])
-                        print(f"The end of inflation was reached at t={np.round(sol.t_events[i][-1], 1)} and N={np.round(Ninf, abs(Ntol))}.")
-                        if attempts > 1:
-                            order="repeat"
-                        else: order="proceed"
-                else:
-                    done=True
+                        sols.append(sol)
+                        eventdic[eventname]["t"].append(sol.t_events[i])
+                        eventdic[eventname]["N"].append(sol.y_events[i][:,0])
+                        print(f"{eventname} at t={np.round(sol.t_events[i][-1], 1)} and N={np.round(sol.y_events[i][-1,0], abs(Ntol))}.")
+                        if eventname=="End of inflation": 
+                            done =True
+                            order="proceed"
             
         t.stop()
+        nfevs = 0
+        y = []
+        t = []
+        for s in sols:
+            t.append(s.t)
+            y.append(s.y)
+            nfevs +=sol.nfev
+
+        t = np.concatenate(t)
+        y = np.concatenate(y, axis=1)
+
+        sol.t = t
+        sol.y = y
+        sol.nfev = nfevs
 
         for eventname in (eventdic.keys()):
-            eventdic[eventname]["t"] = np.round(np.concatenate(eventdic[eventname]["t"]), 1)
-            eventdic[eventname]["N"] = np.round(np.concatenate(eventdic[eventname]["N"]), 3)
+            try:
+                eventdic[eventname]["t"] = np.round(np.concatenate(eventdic[eventname]["t"]), 1)
+                eventdic[eventname]["N"] = np.round(np.concatenate(eventdic[eventname]["N"]), 3)
+            except ValueError:
+                eventdic[eventname]["t"] = np.array(eventdic[eventname]["t"])
+                eventdic[eventname]["N"] = np.array(eventdic[eventname]["N"])
+
 
         sol.events = eventdic
 
@@ -443,19 +465,18 @@ class GEF:
             print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
             raise RuntimeError
 
-        return sol, tend, Ninf, order
+        return sol, tend, order
     
-    def RunGEF(x, ntr, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, printstats=False, Ntol=-1):
+    def RunGEF(x, ntr, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, printstats=False, Ntol=-1, maxattempts=5):
         x.ntr = ntr+1
         if not(x.completed):
             finished= False
             attempts=1
             while not(finished) and attempts<=5:
                 try:
-                    sol, tend, Ninf, order = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend, Ntol=Ntol)
-                    if order=="repeat":
-                        print("Multiple iterations where necessary to estimate tend. Repeating the same run to check consistency.")
+                    sol, tend, order = x.SolveGEF(tend, atol=atol, rtol=rtol, reachNend=reachNend, Ntol=Ntol)
                     if order=="proceed":
+                        Ninf = sol.events["End of inflation"]["N"][-1]
                         if np.log10(abs(Ninf-x.Nend)) < Ntol: 
                             finished=True
                         else:
@@ -465,15 +486,18 @@ class GEF:
                             print("To verify a consistent run, checking stability against increasing ntr.")
                             x.IncreaseNtr(5)
                         x.Nend = Ninf
+                    elif order=="stop":
+                        if printstats: PrintSol(sol)
+                        x.WriteOutGEFResults(sol)
+                        return sol
                 except TruncationError:
                     attempts+=1
                     print("A truncation error occured")
-                    x.IncreaseNtr(10)  
-            if attempts==10:
+                    x.IncreaseNtr(10)
+            if attempts>maxattempts:
                 print(f"The run did not finish after {attempts} attempts. Check the output for more information.")
                 raise RuntimeError
-            if printstats:
-                PrintSol(sol)
+            if printstats: PrintSol(sol)
             x.WriteOutGEFResults(sol)
             x.completed = True
             return sol
@@ -485,7 +509,10 @@ class GEF:
         t = sol.t
         y = sol.y
         parsold = list(x.vals.keys())
-        parsold.remove("F")
+        unwantedkeys = ["F"]
+        for key in unwantedkeys:
+            if key in parsold:
+                parsold.remove(key)
         newpars = ["ddphi", "dlnkh"] #"E1", "B1", "G1", "Edot", "Bdot", "Gdot", "EdotBdr", "BdotBdr", "GdotBdr"]
         pars = parsold + newpars
         res = dict(zip(pars, [[] for par in pars]))
@@ -703,23 +730,23 @@ class GEF:
         return Fterm
     
     def WhittakerExact(x):
-        xieff = x.vals["xi"]
+        xi = x.vals["xi"]
         s = 0.
-        r = (abs(xieff) + np.sqrt(xieff**2 + s**2 + s))
+        r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
         
-        Whitt1Plus = whitw(-xieff*(1j), 1/2 + s, -2j*r)
-        Whitt2Plus = whitw(1-xieff*(1j), 1/2 + s, -2j*r)
+        Whitt1Plus = whitw(-xi*(1j), 1/2 + s, -2j*r)
+        Whitt2Plus = whitw(1-xi*(1j), 1/2 + s, -2j*r)
 
-        Whitt1Minus = whitw(xieff*(1j), 1/2 + s, -2j*r)
-        Whitt2Minus = whitw(1+xieff*(1j), 1/2 + s, -2j*r)
+        Whitt1Minus = whitw(xi*(1j), 1/2 + s, -2j*r)
+        Whitt2Minus = whitw(1+xi*(1j), 1/2 + s, -2j*r)
             
-        exptermPlus = np.exp(np.pi*xieff)
-        exptermMinus = np.exp(-np.pi*xieff)
+        exptermPlus = np.exp(np.pi*xi)
+        exptermMinus = np.exp(-np.pi*xi)
         
         Fterm = np.zeros((3, 2))
 
-        Fterm[0,0] = exptermPlus*abs((1j*r - 1j*xieff -s) * Whitt1Plus + Whitt2Plus)**2/r**2
-        Fterm[0,1] = exptermMinus*abs((1j*r + 1j*xieff -s) * Whitt1Minus + Whitt2Minus)**2/r**2
+        Fterm[0,0] = exptermPlus*abs((1j*r - 1j*xi -s) * Whitt1Plus + Whitt2Plus)**2/r**2
+        Fterm[0,1] = exptermMinus*abs((1j*r + 1j*xi -s) * Whitt1Minus + Whitt2Minus)**2/r**2
 
         Fterm[1,0] = exptermPlus*abs(Whitt1Plus)**2
         Fterm[1,1] = exptermMinus*abs(Whitt1Minus)**2
