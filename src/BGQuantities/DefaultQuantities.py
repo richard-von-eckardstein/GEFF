@@ -1,8 +1,8 @@
 #Space--time variables:
 spacetime = {
-    "t": {"H0":-1, "MP":0, "default":0.}, #physical time
+    "t": {"H0":-1, "MP":0, "default":0., "optional":False}, #physical time
     #"eta": {"H0":-1, "MP":0, "default":0}, #conformal time
-    "N": {"H0":0, "MP":0, "default":0.}, #e-folds
+    "N": {"H0":0, "MP":0, "default":0., "optional":False}, #e-folds
     "a": {"H0":0, "MP":0, "default":1.}, #scale factor
     "H": {"H0":1, "MP":0} #Hubble rate
 }
@@ -10,22 +10,22 @@ spacetime = {
 
 #Inflaton  variables:
 inflaton = {
-    "phi": {"H0":0, "MP":1}, #field value
-    "dphi": {"H0":1, "MP":1}, #velocity
+    "phi": {"H0":0, "MP":1, "optional":False}, #field value
+    "dphi": {"H0":1, "MP":1, "optional":False}, #velocity
     "ddphi": {"H0":2, "MP":1} #acceleration
 }
 
 #Gauge-field variables:
 gaugefield = {
-    "E": {"H0":4, "MP":1, "default":0.}, #electric field expectation value
-    "B": {"H0":4, "MP":1, "default":0.}, #magnetic field expectation value
-    "G": {"H0":4, "MP":1, "default":0.} #-EdotB expectation value
+    "E": {"H0":4, "MP":1, "default":0., "optional":False}, #electric field expectation value
+    "B": {"H0":4, "MP":1, "default":0., "optional":False}, #magnetic field expectation value
+    "G": {"H0":4, "MP":1, "default":0., "optional":False} #-EdotB expectation value
 }
 
 #Auxiliary quantities:
 auxiliary = {
     "xi": {"H0":0, "MP":0}, #instability parameter
-    "kh": {"H0":1, "MP":0}  #instability scale
+    "kh": {"H0":1, "MP":0, "optional":False}  #instability scale
 }
 
 #Inflaton potential:
