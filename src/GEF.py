@@ -3,7 +3,7 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 from src.BGQuantities import DefaultQuantities
-from src.BGQuantities.BGTypes import BGVal, BGFunc
+from src.BGQuantities.BGTypes import BGVal, BGFunc, BGSystem
 import importlib.util as util
 import os
 
@@ -23,7 +23,7 @@ class MissingInputError(Exception):
     pass
 
 
-class GEF:
+class GEF(BGSystem):
     """
     A class used to solve the GEF equations given a set of initial conditions. The class also comes with several useful utility functions.
     
@@ -68,8 +68,8 @@ class GEF:
         self.beta = beta
 
         #Compute H0 from initial conditions
-        self.H0 = np.sqrt( ( 0.5*iniVals["dphi"]**2 + Funcs["V"](iniVals["phi"]) )/3 )
-        self.MP = 1.
+        H0 = np.sqrt( ( 0.5*iniVals["dphi"]**2 + Funcs["V"](iniVals["phi"]) )/3 )
+        MP = 1.
 
         #Get Model attributes
         model = ModelBuilder(model)
@@ -78,9 +78,12 @@ class GEF:
         self.__name = model.name
         
         #Define background quantities
-        self.__InitialiseQuantities(model.modelQuantities, iniVals)
+        valuedic = self.__InitialiseQuantities(model.modelQuantities, iniVals)
         #Define background functions
-        self.__InitialiseFunctions(model.modelFunctions, Funcs)
+        functiondic = self.__InitialiseFunctions(model.modelFunctions, Funcs)
+
+        #Define the GEFClass as a BGSystem using the background quantities, functions and unit conversions
+        super().__init__(valuedic, functiondic, H0, MP)
 
         #Configure model settings
         self.__ConfigureModelSettings(model.modelSettings, userSettings)
@@ -128,22 +131,23 @@ class GEF:
         quantities.update(modelSpecific)
 
         #initialise GEFValues
-        for key, item in quantities.items():
-            #Create the GEFValue item
-            setattr(self, key, BGVal(key, item["H0"], item["MP"], self.H0, self.MP))
-            obj = getattr(self, key)
-    
+        for key, item in quantities.items():    
             #Add initial data
             if key in iniVals.keys():
                 #Initial data from input
-                obj.SetVal(iniVals[key])
+                item["value"]=iniVals[key]
             else:
                 try:
                     #initial data from default
-                    obj.SetVal(item["default"])
+                    item["value"] = item["default"]
+                    item.pop("default")
                 except:
+                    item["value"] = None
                     print(f"No default value set for {key}")
-        return
+            #Remove default key from value dictionary
+            if hasattr(item, "default"):
+                item.pop("default")
+        return quantities
     
     def __InitialiseFunctions(self, modelSpecific, Funcs):
         #Get default functions which are always present in every GEF run
@@ -166,17 +170,12 @@ class GEF:
                 try:
                     func = Funcs[key]
                 except:
-                    raise KeyError(f"'Funcs' needs to declare '{key}'")
+                    raise KeyError(f"'Funcs' needs to declare the function '{key}'")
+            item["func"] = func
             #Define the function as a BGFunc
-            setattr(self, key, BGFunc(key, func, item["H0"], item["MP"], self.H0, self.MP) )
-        return
+
+        return functions
     
-    def SetUnits(self, units):
-        for var in vars(self):
-            obj = getattr(self, var)
-            if isinstance(obj, BGVal):
-                obj.SetUnits(units)
-        return
 
     #ToDo   
     def SaveData(x):

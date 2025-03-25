@@ -1,8 +1,8 @@
 import numpy as np
 
 class BGVal:
-    def __init__(self, name, H0units, MPunits, H0, MP=1, units=True):
-        self.value = None
+    def __init__(self, name, value, H0units, MPunits, H0, MP=1, units=True):
+        self.value = value
         self.name = name
         self.__units = True
         self.u_H0 = H0units
@@ -78,6 +78,33 @@ class BGFunc:
         else:
             raise TypeError
     
+class BGSystem:
+    def __init__(self, values, functions, H0, MP):
+        self.H0 = H0
+        self.MP = MP
+        for key, item in values.items():
+            #initialise value in dictionary with given name and unit conversion. Value is assumed Unitful
+            self.AddValue(key, item["value"], item["H0"], item["MP"])
+        for key, item in functions.items():
+            self.AddFunction(key, item["func"], item["H0"], item["MP"])
+
+    def AddValue(self, name, value, H0units, MPunits, units=True):
+        setattr(self, name,
+                 BGVal(name, value, H0units, MPunits, self.H0, self.MP, units=units))
+        return
+    
+    def AddFunction(self, name, function, H0units, MPunits):
+        setattr(self, name,
+                BGFunc(name, function, H0units, MPunits, self.H0, self.MP))
+        
+    def SetUnits(self, units):
+        for var in vars(self):
+            obj = getattr(self, var)
+            if isinstance(obj, BGVal):
+                obj.SetUnits(units)
+        return
+
+
 
 
     
