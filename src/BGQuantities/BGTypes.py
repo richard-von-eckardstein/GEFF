@@ -31,7 +31,7 @@ class BGVal:
     
     def SetUnits(self, units):
         
-        if self.value==None:
+        if isinstance(self.value, type(None)):
             self.__units=units
             return
         
