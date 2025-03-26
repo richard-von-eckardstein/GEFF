@@ -7,9 +7,10 @@ from src.BGQuantities.BGTypes import BGVal, BGFunc, BGSystem
 import importlib.util as util
 import os
 import warnings
+from copy import deepcopy
 
 def ModelLoader(modelname):
-    modelpath = os.path.join("./src/Models/", modelname+".py")
+    modelpath = os.path.join("./Models/", modelname+".py")
     #Check if Model exists
     try:
         #Load ModelAttributes from GEFFile
@@ -54,28 +55,30 @@ class GEF(BGSystem):
                 self, model: str, beta: float, iniVals: dict, Funcs: dict,
                 userSettings: dict = {}, GEFData: None|str = None, ModeData: None|str = None
                 ):
-        #...
-
-        #At initialisation, all input is assumed to be in Planck units
-        self.units = True
-
-        #Set coupling constant
-        self.beta = beta
-
-        #Compute H0 from initial conditions
-        H0 = np.sqrt( ( 0.5*iniVals["dphi"]**2 + Funcs["V"](iniVals["phi"]) )/3 )
-        MP = 1.
-
+        #...Documentation...
         #Get Model attributes
         model = ModelLoader(model)
 
         #Set GEF-name
         self.__name = model.name
+
+        #Set coupling constant
+        self.beta = beta
         
         #Define background quantities
-        valuedic = self.__InitialiseQuantities(model.modelQuantities, iniVals)
+        valuedic = self.__PrepareQuantities(model.modelQuantities, iniVals)
         #Define background functions
-        functiondic = self.__InitialiseFunctions(model.modelFunctions, Funcs)
+        functiondic = self.__PrepareFunctions(model.modelFunctions, Funcs)
+
+        #Compute H0 from initial conditions
+        rhoInf = 0.5*valuedic["dphi"]["value"]**2 + functiondic["V"]["func"](valuedic["phi"]["value"])
+        rhoEM = (valuedic["E"]["value"] + valuedic["B"]["value"])/2
+        rhoExtra = [rho(valuedic) for rho in model.modelRhos]
+        H0 = np.sqrt( (rhoInf + rhoEM + sum(rhoExtra))/3 )
+        MP = 1.
+
+        #At initialisation, all input is assumed to be in Planck units
+        self.units = True
 
         #Define the GEFClass as a BGSystem using the background quantities, functions and unit conversions
         super().__init__(valuedic, functiondic, H0, MP)
@@ -90,21 +93,26 @@ class GEF(BGSystem):
         return
     
     def __str__(self):
+        #Add the model information
         string = f"Model: {self.__name}, "
+        #Add any additional settings if applicable
         if isinstance(self.settings, dict):
             for setting in self.settings.items():
                 string += f"{setting[0]} : {setting[1]}, "
+        #Add coupling strength
         string += f"beta={self.beta}"
         return string
 
     def __ConfigureModelSettings(self, modelSettings, userSettings):
         settings = {}
+        #Check if user specified any model settings, if not, use default settings
         for setting in modelSettings.keys():
             try:
                 settings[setting] = userSettings[setting]
             except:
                 settings[setting] = modelSettings[setting]
-
+        
+        #pass settings-dictionary to class
         if settings == {}:
             self.settings = None
         else:
@@ -112,7 +120,7 @@ class GEF(BGSystem):
         return
                 
     
-    def __InitialiseQuantities(self, modelSpecific, iniVals):
+    def __PrepareQuantities(self, modelSpecific, iniVals):
         #Get default quantities which are always present in every GEF run
         spacetime = DefaultQuantities.spacetime
         inflaton = DefaultQuantities.inflaton
@@ -120,19 +128,19 @@ class GEF(BGSystem):
         auxiliary = DefaultQuantities.auxiliary
         
         #concatenate dictionary and update default values according to model
-        quantities = spacetime | inflaton | gaugefield | auxiliary
-        quantities.update(modelSpecific)
+        quantities = deepcopy(spacetime | inflaton | gaugefield | auxiliary)
+        quantities.update(deepcopy(modelSpecific))
 
         necessarykeys = []
 
         #initialise GEFValues
-        for key, item in quantities.items():    
+        for key, item in quantities.items(): 
             #Check if a complete GEF value requires knowledge of this value.
             item.setdefault("optional", True) #If the "optional flag is not set, it is assumed the key is optional"
             if not(item["optional"]):
                 necessarykeys.append(key)
             #default key is not longer needed from here on out
-            item.pop("default")
+            item.pop("optional")
     
             #Add initial data
             if key in iniVals.keys():
@@ -151,22 +159,23 @@ class GEF(BGSystem):
             self.__necessarykeys = necessarykeys
         return quantities
     
-    def __InitialiseFunctions(self, modelSpecific, Funcs):
+    def __PrepareFunctions(self, modelSpecific, Funcs):
         #Get default functions which are always present in every GEF run
         inflatonpotential = DefaultQuantities.inflatonpotential
         coupling = DefaultQuantities.coupling
-        coupling["dI"]["func"] = lambda x: self.beta/self.MP
-        coupling["ddI"]["func"] = lambda x: 0.
-
+        
         #concatenate dictionary of functions and update default functions according to model
-        functions = inflatonpotential | coupling
-        functions.update(modelSpecific)
+        functions = deepcopy(inflatonpotential | coupling)
+        functions.update(deepcopy(modelSpecific))
+
+        functions["dI"]["func"] = lambda x: self.beta/self.MP
+        functions["ddI"]["func"] = lambda x: 0.
 
         #initialise GEFFunctions
         for key, item in functions.items():
             if key in ["dI", "ddI"]:
                 #inflaton--gauge field coupling initialised separetly
-                func = coupling[key]["func"]
+                func = item["func"]
             else:
                 #Check if Function is passed by the User via Funcs
                 try:
@@ -205,14 +214,10 @@ class GEF(BGSystem):
                 raise KeyError(f"The file you provided does not contain information on the parameter'{key}'. Please provide a complete data file")
 
         #Befor starting to load, check that the file is compatible with the GEF setup.
+        valuelist = self.ListValues()
         for key in data.keys():
-            try:
-                obj = getattr(self, key)
-                assert isinstance(obj, BGVal)
-            except AttributeError:
+            if not(key in valuelist):
                 raise AttributeError(f"The data table you tried to load contains an unkown value: '{key}'")
-            except AssertionError:
-                raise AttributeError(f"'{key}' is not a known value")
         
         #Store current units to switch back to later
         units=self.units
@@ -239,20 +244,19 @@ class GEF(BGSystem):
             #remember the original units of the GEF
             units = self.units
 
-            for key in vars(self):
+            valuelist = self.ListValues()
+            for key in valuelist:
                 obj = getattr(self, key)
-                #Only store BGVal instances
-                if isinstance(obj, BGVal):
-                    #Make sure to not store unitialised BGVal instances
-                    if isinstance(obj.value, type(None)):
-                        #If a necessary key is not initialised, the data cannot be stored. Unitialised optional keys are ignored.
-                        if (key in self.__necessarykeys):
-                            raise ValueError(f"Incomplete data. No values assigned to '{key}'.")
-                    else:
-                        #Add the quantities value to the dictionary
-                        obj.SetUnits(False)
-                        dic[key] = obj.value
-                        obj.SetUnits(units)
+                #Make sure to not store unitialised BGVal instances
+                if isinstance(obj.value, type(None)):
+                    #If a necessary key is not initialised, the data cannot be stored. Unitialised optional keys are ignored.
+                    if (key in self.__necessarykeys):
+                        raise ValueError(f"Incomplete data. No values assigned to '{key}'.")
+                else:
+                    #Add the quantities value to the dictionary
+                    obj.SetUnits(False)
+                    dic[key] = obj.value
+                    obj.SetUnits(units)
 
             #Create pandas data frame and store the dictionary under the user-specified path
             output_df = pd.DataFrame(dic)  

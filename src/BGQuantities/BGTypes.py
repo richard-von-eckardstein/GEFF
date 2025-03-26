@@ -70,13 +70,15 @@ class BGFunc:
         self.__Conversion = (H0**H0units*MP**MPunits)
 
     def __call__(self, value):
+        valueconversion = value.GetConversion()
+        pow = (1 - value.GetUnits())
         if isinstance(value, BGVal):
-            if value.GetUnits():
-                return self.__basefunc(value.value)
-            elif not(value.GetUnits()):
-                return self.__basefunc(value.value*value.GetConversion())/self.__Conversion
+            return self.__basefunc(value.value*valueconversion**pow)/self.__Conversion**pow 
         else:
             raise TypeError
+        
+    def GetBaseFunc(self):
+        return self.__basefunc
     
 class BGSystem:
     def __init__(self, values, functions, H0, MP):
@@ -93,9 +95,17 @@ class BGSystem:
                  BGVal(name, value, H0units, MPunits, self.H0, self.MP, units=units))
         return
     
+    def RemoveValue(self, name):
+        delattr(self, name)
+        return
+    
     def AddFunction(self, name, function, H0units, MPunits):
         setattr(self, name,
                 BGFunc(name, function, H0units, MPunits, self.H0, self.MP))
+        
+    def RemoveFunction(self, name):
+        delattr(self, name)
+        return
         
     def SetUnits(self, units):
         for var in vars(self):
@@ -103,6 +113,44 @@ class BGSystem:
             if isinstance(obj, BGVal):
                 obj.SetUnits(units)
         return
+
+    def ListValues(self):
+        valuelist = []
+        for var in vars(self):
+            obj = getattr(self, var)
+            if isinstance(obj, BGVal):
+                valuelist.append(obj.name)
+        return valuelist
+
+    def ListFunctions(self):
+        funclist = []
+        for var in vars(self):
+            obj = getattr(self, var)
+            if isinstance(obj, BGFunc):
+                funclist.append(obj.name)
+        return funclist
+    
+    def CopySystem(self):
+        values = self.ListValues()
+        funcs = self.ListFunctions()
+        valuedic = dict(zip(values, [{"value":None, "H0":0, "MP":0} for v in values]))
+        for value in values:
+            obj = getattr(self, value)
+            valuedic[value]["value"] = obj.value
+            valuedic[value]["H0"] = obj.u_H0
+            valuedic[value]["MP"] = obj.u_MP
+
+        funcdic = dict(zip(funcs, [{"func":None, "H0":0, "MP":0} for f in funcs]))
+        for func in funcs:
+            obj = getattr(self, func)
+            funcdic[func]["func"] = obj.GetBaseFunc()
+            funcdic[func]["H0"] = obj.u_H0
+            funcdic[func]["MP"] = obj.u_MP
+        
+        return BGSystem(valuedic, funcdic, self.H0, self.MP)
+
+
+
 
 
 
