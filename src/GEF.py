@@ -168,7 +168,7 @@ class GEF(BGSystem):
         functions = deepcopy(inflatonpotential | coupling)
         functions.update(deepcopy(modelSpecific))
 
-        functions["dI"]["func"] = lambda x: self.beta/self.MP
+        functions["dI"]["func"] = lambda x: float(self.beta)
         functions["ddI"]["func"] = lambda x: 0.
 
         #initialise GEFFunctions

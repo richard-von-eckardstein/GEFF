@@ -26,6 +26,64 @@ class BGVal:
     def __len__(self):
         return len(self.value)
     
+    def __abs__(self):
+        return abs(self.value)
+    
+    def __add__(self, other):
+        if isinstance(other, BGVal):
+            return self.value + other.value
+        else:
+            return self.value + other
+        
+    __radd__ = __add__
+    
+    def __sub__(self, other):
+        if isinstance(other, BGVal):
+            return self.value - other.value
+        else:
+            return self.value - other
+        
+    __rsub__ = __sub__
+
+    def __mul__(self, other):
+        return self.value * other
+        """if isinstance(other, BGVal):
+            return self.value * other.value
+        else:
+            return self.value * other"""
+        
+    __rmul__ = __mul__
+    
+    def __floordiv__(self, other):
+        if isinstance(other, BGVal):
+            return self.value // other.value
+        else:
+            return self.value // other
+        
+    __rfloordiv__ = __floordiv__
+    
+    def __truediv__(self, other):
+        if isinstance(other, BGVal):
+            return self.value / other.value
+        else:
+            return self.value / other
+        
+    __rtruediv__ = __truediv__
+    
+    def __mod__(self, other):
+        return self.value % other
+    
+    def __pow__(self, other):
+        #BGVal should never be exponentiated by another BGVal
+        return self.value ** other
+    
+    def __eq__(self, other):
+        if isinstance(other, BGVal):
+            return (self.value==other.value)# and (self.u_H0 == other.u__H0) and (self.u_MP == other.u__MP)
+        else:
+            return self.value==other
+    #ToDo
+    
     def GetUnits(self):
         return self.__units
     
