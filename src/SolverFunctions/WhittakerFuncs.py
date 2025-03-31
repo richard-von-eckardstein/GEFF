@@ -1,6 +1,8 @@
 import numpy as np
 import math
-from mpmath import whitw, whitm
+from mpmath import whitw, whitm, mp
+
+mp.dps = 8
 
 #Whittaker Functions
 def WhittakerApprox(xi):

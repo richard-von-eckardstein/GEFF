@@ -45,7 +45,6 @@ def EoMF(vals, F, W, dlnkhdt):
     dFdt = np.zeros(bdrF.shape)
 
     for n in range(ntr): #all bilinear up to ntr-1
-        print(n)
         dFdt[n,0] = (bdrF[n, 0] - (4+n)*dlnkhdt*FE[n] - 2*scale*FG[n+1] + 2*ScalarCpl*FG[n])
 
         dFdt[n,1] = (bdrF[n, 1] - (4+n)*dlnkhdt*FB[n] + 2*scale*FG[n+1])
@@ -53,7 +52,6 @@ def EoMF(vals, F, W, dlnkhdt):
         dFdt[n,2] = (bdrF[n, 2] - (4+n)*dlnkhdt*FG[n] + scale*(FE[n+1] - FB[n+1]) + ScalarCpl*FB[n])
 
     #bilinears at truncation order ntr
-    print(ntr)
     dFdt[-1,0] = (bdrF[-1,0] -  (4+ntr)*dlnkhdt*FE[-1]- 2*scale*FG[-2] + 2*ScalarCpl*FG[-1])
 
     dFdt[-1,1] = (bdrF[-1,1] - (4+ntr)*dlnkhdt*FB[-1] + 2*scale*FG[-2]) 

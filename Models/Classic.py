@@ -21,7 +21,7 @@ def Initialise(GEF, ntr):
     yini[1] = vals.phi.value
     yini[2] = vals.dphi.value
 
-    vals.kh.SetVal( vals.dphi.value*vals.dI(vals.phi), False)
+    vals.kh.SetVal( abs(vals.dphi)*vals.dI(vals.phi), False)
     yini[3] = np.log(vals.kh.value)
 
     #currently, all gauge-field expectation values are assumed to be 0 at initialisation
@@ -42,8 +42,8 @@ def UpdateVals(t, y, vals):
     vals.G.SetVal( y[6]*np.exp(4*(y[3]-y[0])), False)
 
     vals.H.SetVal( Friedmann(vals), False)
-    vals.xi.SetVal( vals.dI(vals.phi)*(vals.dphi/(2.*vals.H)) )
-    vals.ddphi.SetVal(EoMphi(vals))
+    vals.xi.SetVal( vals.dI(vals.phi)*(vals.dphi/(2*vals.H)), False )
+    vals.ddphi.SetVal(EoMphi(vals), False)
     return
 
 def TimeStep(t, y, vals, **kwargs):
@@ -58,11 +58,11 @@ def TimeStep(t, y, vals, **kwargs):
 
     eps = max(abs(y[3])*rtol, atol)
     dlnkhdt = EoMlnkh(vals)
-    logfc = y[0] + np.log( 2*abs(vals.xi*dydt[0]) )
+    logfc = y[0] + np.log( 2*abs(vals.xi)*dydt[0]) 
     dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-y[3]+10*eps, eps)
     dydt[3] = dlnkhdt
 
-    Fcol = y[4:].shape[0]/3
+    Fcol = y[4:].shape[0]//3
     F = y[4:].reshape(Fcol,3)
     W = WhittakerApprox(vals.xi.value)
     dFdt = EoMF(vals, F, W, dlnkhdt)

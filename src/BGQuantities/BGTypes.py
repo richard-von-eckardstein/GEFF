@@ -7,6 +7,7 @@ class BGVal:
         self.__units = True
         self.u_H0 = H0units
         self.u_MP = MPunits
+        self.massdim = self.u_H0+self.u_MP
         self.__Conversion = (H0**H0units*MP**MPunits)
 
     def __str__(self):
@@ -26,22 +27,35 @@ class BGVal:
     def __len__(self):
         return len(self.value)
     
+    def __round__(self):
+        return round(self.value)
+    
     def __abs__(self):
         return abs(self.value)
     
+    def __neg__(self):
+        return -self.value
+    
+    def __pos__(self):
+        return +self.value
+    
     def __add__(self, other):
-        if isinstance(other, BGVal):
-            return self.value + other.value
-        else:
-            return self.value + other
+        """if isinstance(other, BGVal):
+            assert (self.massdim==other.massdim)
+            #always add quantities with units
+            return (self.value*self.__Conversion**(1-self.__units) 
+                    + other.value*other.GetConversion()**(1-other.GetUnits()))"""
+        return self.value + other
         
     __radd__ = __add__
     
     def __sub__(self, other):
-        if isinstance(other, BGVal):
-            return self.value - other.value
-        else:
-            return self.value - other
+        """if isinstance(other, BGVal):
+            assert (self.massdim==other.massdim)
+            #always add quantities with units
+            return (self.value*self.__Conversion**(1-self.__units) 
+                    - other.value*other.GetConversion()**(1-other.GetUnits()))"""
+        return self.value - other
         
     __rsub__ = __sub__
 
@@ -60,15 +74,25 @@ class BGVal:
         else:
             return self.value // other
         
-    __rfloordiv__ = __floordiv__
+    def __rfloordiv__(self, other):
+        if isinstance(other, BGVal):
+            return other.value // self.value
+        else:
+            return other // self.value
     
     def __truediv__(self, other):
-        if isinstance(other, BGVal):
+        return self.value / other
+        """if isinstance(other, BGVal):
             return self.value / other.value
         else:
-            return self.value / other
+            return self.value / other"""
         
-    __rtruediv__ = __truediv__
+    def __rtruediv__(self, other):
+        return other / self.value
+        """if isinstance(other, BGVal):
+            return other.value / self.value
+        else:
+            return other / self.value"""
     
     def __mod__(self, other):
         return self.value % other
@@ -78,11 +102,22 @@ class BGVal:
         return self.value ** other
     
     def __eq__(self, other):
-        if isinstance(other, BGVal):
-            return (self.value==other.value)# and (self.u_H0 == other.u__H0) and (self.u_MP == other.u__MP)
-        else:
-            return self.value==other
-    #ToDo
+        return self.value == other
+            
+    def __ne__(self, other):
+        return self.value != other
+    
+    def __lt__(self, other):
+        return self.value < other
+
+    def __gt__(self, other):
+        return self.value > other
+
+    def __le__(self, other):
+        return  self.value <= other
+
+    def __ge__(self, other):
+        return  self.value >= other
     
     def GetUnits(self):
         return self.__units
@@ -130,10 +165,14 @@ class BGFunc:
     def __call__(self, value):
         valueconversion = value.GetConversion()
         pow = (1 - value.GetUnits())
+        return self.__basefunc(value.value*valueconversion**pow)/self.__Conversion**pow 
+        """
         if isinstance(value, BGVal):
+            valueconversion = value.GetConversion()
+            pow = (1 - value.GetUnits())
             return self.__basefunc(value.value*valueconversion**pow)/self.__Conversion**pow 
         else:
-            raise TypeError
+            raise TypeError"""
         
     def GetBaseFunc(self):
         return self.__basefunc
