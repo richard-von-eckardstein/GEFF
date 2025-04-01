@@ -1,13 +1,15 @@
 import pandas as pd
 import numpy as np
-from scipy.interpolate import CubicSpline
-from scipy.optimize import fsolve
+from scipy.integrate import solve_ivp
 from src.BGQuantities import DefaultQuantities
-from src.BGQuantities.BGTypes import BGVal, BGFunc, BGSystem
+from src.BGQuantities.BGTypes import BGSystem
 import importlib.util as util
 import os
 import warnings
 from copy import deepcopy
+
+class TruncationError(Exception):
+    pass
 
 def ModelLoader(modelname):
     modelpath = os.path.join("./Models/", modelname+".py")
@@ -86,6 +88,9 @@ class GEF(BGSystem):
         #Configure model settings
         self.__ConfigureModelSettings(model.modelSettings, userSettings)
 
+        #Create the GEF solver class
+        self.__SetupGEFSolver(model)
+
         #Add information about storage
         self.GEFData = GEFData
         self.ModeData = ModeData
@@ -118,7 +123,15 @@ class GEF(BGSystem):
         else:
             self.settings = settings
         return
-                
+    
+    def __SetupGEFSolver(self, model):
+        inivals = self.CopySystem()
+
+        self.Solver = self.GEFSolver(
+                                    model.UpdateVals, model.TimeStep, model.Initialise, model.events, inivals
+                                    )
+        
+        return
     
     def __PrepareQuantities(self, modelSpecific, iniVals):
         #Get default quantities which are always present in every GEF run
@@ -265,3 +278,208 @@ class GEF(BGSystem):
     
     def EndOfInflation(x, tol=1e-4):
         pass
+
+    class GEFSolver:
+        def __init__(self, UpdateVals, TimeStep, Initialise, events, inivals):
+            self.__inivals = inivals
+            self.__UpdateVals = UpdateVals
+            self.__TimeStep = TimeStep
+            self.__Initialise = Initialise
+            self.__Events = events
+            self.completed=False
+        
+        def __ode(self, t, y, vals, atol=1e-20, rtol=1e-6):
+            self.__UpdateVals(t, y, vals)
+            dydt = self.__TimeStep(t, y, vals, atol=atol, rtol=rtol)
+            return dydt
+        
+        def SolveGEF(self, reachNend=True):
+            done = False
+            attempts = 0
+            sols = []
+
+            t0, yini, vals, eventfuncs, eventdic = self.__PrepareSolver(reachNend)
+
+            print(f"The solver aims at reaching t={self.__tend}. Attempting run with ntr={self.ntr}.")
+            while not(done) and attempts < 10:
+                try:
+                    tend = self.__tend
+                    atol = self.__atol
+                    rtol = self.__rtol
+
+                    teval = np.arange(np.ceil(10*t0), np.floor(10*tend) +1)/10 #hotfix
+
+                    sol = solve_ivp(self.__ode, [t0,tend], yini, t_eval=teval, args=(vals, atol, rtol),
+                                 method="RK45", atol=atol, rtol=rtol, events=eventfuncs)
+                    if not(sol.success):
+                        raise ValueError
+                except ValueError:
+                    print(f"The run failed at t={vals.t}, N={vals.N}.")
+                    raise TruncationError
+                except RuntimeError:
+                    raise RuntimeError
+                else:
+                    sols.append(sol)
+
+                    eventdic_new, command = self.__AssessEvents(sol.t_events, sol.y_events, vals, reachNend=reachNend)
+
+                    for key in eventdic_new.keys():
+                        eventdic[key]["t"].append(eventdic_new[key]["t"])
+                        eventdic[key]["N"].append(eventdic_new[key]["N"])
+
+                    if command=="finish":
+                        print("Finishing")
+                        done=True
+                    elif command=="repeat":
+                        print("Repeating")
+                        sols.pop()
+                    elif command=="proceed":
+                        #print("Proceeding")
+                        t0 = sol.t[-1]
+                        yini = sol.y[:,-1]
+
+            self.__FinaliseSolution(sols, eventdic)
+       
+            if attempts != 1 and not(done):
+                print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
+                raise RuntimeError
+            
+            return sol, tend
+        
+        def __PrepareSolver(self, reachNend):
+            eventfuncs = []
+            eventdic = {}
+            for event in self.__Events:
+                eventname = event.name
+                if eventname == "End of inflation" and not(reachNend):
+                    print("Removing default event 'End of inflation'")
+                else:
+                    eventfuncs.append(event.func)
+                    eventdic[eventname] = {"t":[], "N":[]}
+
+            vals = deepcopy(self.__inivals)
+            vals.SetUnits(False)
+            yini = self.__Initialise(vals, self.ntr)
+            t0 = 0.
+            return t0, yini, vals, eventfuncs, eventdic
+        
+        def __AssessEvents(self, tevents, yevents, vals, reachNend=True):
+            commands = {"primary":[], "secondary":[]}
+            eventdic = {}
+            Events = deepcopy(self.__Events)
+            if not(reachNend):
+                #temporarily remove "End of inflation" from events
+                for i, event in enumerate(Events):
+                    if event.name=="End of inflation":
+                        Events.pop(i)
+
+            for i, event in enumerate(Events):
+
+                #Check if the event occured
+                occurance = (len(tevents[i]) != 0)
+                #Asses the events consequences based on its occurance or non-occurance
+                consequence = event.EventConsequence(vals, occurance)
+                for key, item in consequence.items(): 
+                    commands[key].append(item)
+                #Add the event occurances to the event dictionary:
+                if occurance:
+                    eventdic.update({event.name:{"t":tevents[i], "N": yevents[i][:,0]}})
+                    print(f"{event.name} at t={np.round(tevents[i], 1)} and N={np.round(yevents[i][:,0],1)}.")
+
+            for command in commands["secondary"]:
+                for key, item in command.items():
+                    if key in ["TimeStep", "tend", "atol", "rtol"]:
+                        setattr(self, "__".key, item)
+            
+            #Check command priority. Finish command takes priority over repeat, takes priority over proceed
+            for primarycommand in ["finish", "repeat", "proceed"]:
+                if primarycommand in commands["primary"]:
+                    return eventdic, primarycommand
+
+            #if no primarycommand was passed, return "finish"
+            return eventdic, "finish"
+        
+        def __FinaliseSolution(self, sols, eventdic):
+            nfevs = 0
+            y = []
+            t = []
+            solution = sols[-1]
+            for s in sols:
+                t.append(s.t)
+                y.append(s.y)
+                nfevs += s.nfev
+
+            t = np.concatenate(t)
+            y = np.concatenate(y, axis=1)
+
+            solution.t = t
+            solution.y = y
+            solution.nfev = nfevs
+
+            for eventname in (eventdic.keys()):
+                try:
+                    eventdic[eventname]["t"] = np.round(np.concatenate(eventdic[eventname]["t"]), 1)
+                    eventdic[eventname]["N"] = np.round(np.concatenate(eventdic[eventname]["N"]), 3)
+                except ValueError:
+                    eventdic[eventname]["t"] = np.array(eventdic[eventname]["t"])
+                    eventdic[eventname]["N"] = np.array(eventdic[eventname]["N"])
+
+            solution.events = eventdic
+            return solution
+        
+        def RunGEF(self, ntr, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, printstats=False, maxattempts=5):
+            self.ntr = ntr
+            self.__tend = tend
+            self.__atol = atol
+            self.__rtol = rtol
+            if reachNend: Nend=60 #set default Nend
+            if not(self.completed):
+                attempts=1
+                while not(self.completed) and attempts<=maxattempts:
+                    try:
+                        sol, tend = self.SolveGEF(reachNend=reachNend)
+                        if reachNend:
+                            Ninf = sol.events["End of inflation"]["N"][-1]
+                            if np.log10(abs(Ninf-Nend)) < -1: 
+                                self.completed=True
+                            else:
+                                print("To verify a consistent run, checking stability against increasing ntr.")
+                                self.__IncreaseNtr(5)
+                                Nend = Ninf
+                        else:
+                            self.completed=True
+                    except TruncationError:
+                        attempts+=1
+                        print("A truncation error occured")
+                        self.__IncreaseNtr(10)
+                    
+                if attempts>maxattempts:
+                    print(f"The run did not finish after {attempts} attempts. Check the output for more information.")
+                    raise RuntimeError
+                if printstats: self.__PrintSolution(sol)
+
+                return sol
+            else:
+                print("This run is already completed, data is stored in the GEF Object.")
+                return
+            
+        def __IncreaseNtr(self, val=10):
+            self.ntr+=val
+            print(f"Increasing ntr by {val} to {self.ntr}.")
+            return
+            
+        def __PrintSolution(self, sol):
+            print("The run terminated with the following statistics:")
+            for attr in sol.keys():
+                if attr not in ["y", "t", "y_events", "t_events", "sol", "events"]:
+                    print(rf"{attr} : {getattr(sol, attr)}")
+            events = sol.events
+            if len(events.keys())==0:
+                print("No events occured during the run")
+            else:
+                print("The following events occured during the run:")
+                for event in events.keys():
+                    time = events[event]["t"]
+                    efold = events[event]["N"]
+                    print(rf"{event} at t={time} or N={efold}")
+            return

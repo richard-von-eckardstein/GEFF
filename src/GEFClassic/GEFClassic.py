@@ -433,7 +433,6 @@ class GEF:
                             done =True
                             order="proceed"
         
-       
             
         t.stop()
         if len(events)!=0:

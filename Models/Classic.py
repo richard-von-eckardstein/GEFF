@@ -2,6 +2,7 @@ import numpy as np
 from src.SolverFunctions.ClassicEoMs import *
 from src.SolverFunctions.WhittakerFuncs import WhittakerApprox, WhittakerExact
 from src.SolverFunctions.Utility import Heaviside
+from src.Events import Event
 
 name = "Classic"
 
@@ -11,11 +12,8 @@ modelRhos = []
 
 modelSettings = {}
 
-def Initialise(GEF, ntr):
+def Initialise(vals, ntr):
     yini = np.zeros((ntr+1)*3+4)
-
-    vals = GEF.CopySystem() #Create a copy of all initial conditions encoded in GEF
-    vals.SetUnits(False)
 
     yini[0] = vals.N.value
     yini[1] = vals.phi.value
@@ -25,7 +23,7 @@ def Initialise(GEF, ntr):
     yini[3] = np.log(vals.kh.value)
 
     #currently, all gauge-field expectation values are assumed to be 0 at initialisation
-    return yini, vals
+    return yini
 
 def UpdateVals(t, y, vals):
     vals.t.SetVal(t, False)
@@ -46,9 +44,7 @@ def UpdateVals(t, y, vals):
     vals.ddphi.SetVal(EoMphi(vals), False)
     return
 
-def TimeStep(t, y, vals, **kwargs):
-    atol = kwargs["atol"]
-    rtol = kwargs["rtol"]
+def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
 
     dydt = np.zeros(y.shape)
 
@@ -69,6 +65,38 @@ def TimeStep(t, y, vals, **kwargs):
     dydt[4:] = dFdt.reshape(Fcol*3)
 
     return dydt
+
+#Event 1:
+def EndOfInflationFunc(t, y, vals, atol, rtol):
+    dphi = y[2]
+    V = vals.V.GetBaseFunc()(vals.MP*y[1])/vals.V.GetConversion()
+    rhoEB = 0.5*(y[4]+y[5])*(vals.H0/vals.MP)**2*np.exp(4*(y[3]-y[0]))
+    val = np.log(abs((dphi**2 + rhoEB)/V))
+    return val
+
+def EndOfInflationConsequence(vals, occurance):
+    if occurance:
+        return {"primary":"finish"}
+    else:
+        tdiff = 20.
+        Nend = vals.N
+        if Nend < 60:
+            tdiff = np.round((60-Nend)/vals.H, 0)
+        else:
+            tdiff = np.round(5/vals.H, 0)
+        #round again, sometimes floats cause problems in t_span and t_eval.
+        tend  = np.round(vals.t + tdiff, 0)
+
+        print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
+        return {"primary":"proceed", "secondary":{"tend":tend}}
+    
+EndOfInflation = Event("End of inflation", EndOfInflationFunc, True, 1, EndOfInflationConsequence)
+
+events = [EndOfInflation]
+
+
+    
+
 
 
 
