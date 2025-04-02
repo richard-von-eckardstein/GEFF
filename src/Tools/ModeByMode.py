@@ -27,6 +27,7 @@ def ReadMode(file):
     
     return t, N, k, Ap, dAp, Am, dAm
 
+
 def ModeEoM(y : ArrayLike, k : float, a : float, SclrCpl : float, sigmaE : float=0., sigmaB : float=0.):
     """
     Compute the time derivative of the gauge-field mode and its derivatives for a fixed comoving wavenumber at a given moment of time t
@@ -83,10 +84,9 @@ def ModeEoM(y : ArrayLike, k : float, a : float, SclrCpl : float, sigmaE : float
     
     return dydt
 
-
 class ModeByMode:
     #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
-    def __init__(x, G):
+    def __init__(self, values, settings):
         """
         A class used to solve the gauge-field mode equation for axion inflation based on a given GEF solution.
         Can be used to internally verify the consistency of the GEF solution. All quantities throught are treated in Hubble units.
@@ -96,36 +96,34 @@ class ModeByMode:
         Attributes
         ----------
 
-        x.__t : array
+        __t : array
             An increasing array of physical times tracking the evolution of the GEF system.
-        x.__N : array
+        __N : array
             An increasing array of e-Folds tracking the evolution of the GEF system.
-        x.__beta : float
-            The strength of the inflaton--gauge-field interaction, beta/M_P
-        x.__af : function
+        __af : function
             returns the scale factor, a(t), as a function of physical time. Obtained by interpolation of the GEF solution.
-        x.__SclrCplf : function
+        __SclrCplf : function
             returns the coupling of the inflaton velocity to the gauge-field, beta/M_p*dphidt, as a function of physical time.
             Obtained by interpolation of the GEF solution.
-        x.__khf : function
+        __khf : function
             returns the instability scale k_h(t) as a function of physical time. Obtained by interpolation of the GEF solution.
-        x.__etaf : function
+        __etaf : function
             returns the conformal time eta(t) as a function of physical time normalised to eta(0)=-1/H_0.
             Obtained by numerical integration and interpolation.
-        x.__SE : string | None:
-            if the GEF incorporates the Schwinger effect, x.__SE="KDep" or x.__SE="Old", depending on the configuartion of the GEF run (G.SEModel)
-            otherwise, x.__SE=None
-        x.__sigmaE : array:
-            an array containing the electric conductivities as a function of time (only relevant if x.__SE != None)
-        x.__sigmaB : array:
-            an array containing the magnetic conductivities as a function of time (only relevant if x.__SE != None)
-        x.__delta : array:
-            an array containing the time accumulated damping due to electric conductivity, exp(-int[sigmaE,dt] ) as a function of time (only relevant if x.__SE == "Old") 
-        x.__kFerm : array
-            an array containing the fermion pair-creation scale as a function of time (only relevant if x.__SE == "KDep") 
-        x.maxk : float
+        __SE : string | None:
+            if the GEF incorporates the Schwinger effect, self.__SE="KDep" or self.__SE="Old", depending on the configuartion of the GEF run (G.SEModel)
+            otherwise, self.__SE=None
+        __sigmaE : array:
+            an array containing the electric conductivities as a function of time (only relevant if self.__SE != None)
+        __sigmaB : array:
+            an array containing the magnetic conductivities as a function of time (only relevant if self.__SE != None)
+        __delta : array:
+            an array containing the time accumulated damping due to electric conductivity, exp(-int[sigmaE,dt] ) as a function of time (only relevant if self.__SE == "Old") 
+        __kFerm : array
+            an array containing the fermion pair-creation scale as a function of time (only relevant if self.__SE == "KDep") 
+        maxk : float
             the maximal comoving wavenumber k which can be resolved based on the dynamical range covered by the GEF solution
-        x.mink : float
+        mink : float
             the minimal comoving wavenumber k which can be resolved based on the initial conditions of the GEF solution
 
         ...
@@ -148,53 +146,52 @@ class ModeByMode:
         """
         
         #Initialise the ModeByMode class, defines all relevant quantities for this class from the background GEF values G
-        if G.units: G.Unitless()
-        x.__t = G.vals["t"]
-        x.__N = G.vals["N"]
-        kh = G.vals["kh"]
-        x.__beta = G.beta
+        if values.GetUnits(): values.SetUnits(False)
+        self.__t = values.t
+        self.__N = values.N
+        kh = values.kh.value
 
-        x.__af = CubicSpline(x.__t, G.vals["a"])
-        x.__SclrCplf = CubicSpline( x.__t, G.dIdphi()*G.vals["dphi"] )
-        x.__khf = CubicSpline(x.__t, kh)
-
+        self.__af = CubicSpline(self.__t, values.a.value)
+        self.__SclrCplf = CubicSpline( self.__t, values.dI(values.phi)*values.dphi.value )
+        self.__khf = CubicSpline(self.__t, kh)
+        
         #Assess if the GEF run incorporates Fermions
-        if hasattr(G, "SEModel"):
-            x.__SE = G.SEModel
-            x.__sigmaB = G.vals["sigmaB"]
-            x.__sigmaE = G.vals["sigmaE"]
-            x.__delta = G.vals["delta"]
+        try:
+            self.__SE = settings["SEModel"]
+            self.__sigmaB = values.sigmaB.value
+            self.__sigmaE = values.sigmaE.value
+            self.__delta = values.delta.value
             
-            if x.__SE=="KDep":
-                x.__kFerm = G.vals["kS"]
-            elif x.__SE=="Del1":
-                x.__kFerm = G.vals["kh"]
+            if self.__SE=="KDep":
+                self.__kFerm = values.kS.value
+            elif self.__SE=="Del1":
+                self.__kFerm = kh
 
-        else:
-            x.__SE = None
+        except:
+            self.__SE = None
         
-        deta = lambda t, y: 1/x.__af(t)
+        deta = lambda t, y: 1/self.__af(t)
         
-        soleta = solve_ivp(deta, [min(x.__t), max(x.__t)], np.array([-1]), t_eval=x.__t)
+        soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([-1]), t_eval=self.__t)
 
-        x.__etaf = CubicSpline(x.__t, soleta.y[0,:])
+        self.__etaf = CubicSpline(self.__t, soleta.y[0,:])
 
-        Nend = G.EndOfInflation()
+        #Nend = G.EndOfInflation()
 
-        maxN = min(max(x.__N), Nend)
+        maxN = max(self.__N)#min(max(self.__N), Nend)
         
         #Define suitable range of wavenumbers which can be considered given the background dynamics. mink might still change
-        x.maxk = CubicSpline(x.__N, kh)(maxN)
-        x.mink = 10**4*kh[0]
+        self.maxk = CubicSpline(self.__N, kh)(maxN)
+        self.mink = 10**4*kh[0]
         
         return
     
-    def InitialKTN(x, init, mode="t"):
+    def InitialKTN(self, init, mode="t"):
         """
         Input
         -----
         init : array
-           an array of physical time coordinates t, OR of e-Folds N, OR of comoving wavenumbers k (within x.mink and x.maxk)
+           an array of physical time coordinates t, OR of e-Folds N, OR of comoving wavenumbers k (within self.mink and self.maxk)
         mode : str
             if init contains physical time coordinates: mode="t"
             if init contains e-Folds: mode="N"
@@ -210,15 +207,15 @@ class ModeByMode:
 
         if mode=="t":
             tstart = init
-            k = 10**(5/2)*x.__khf(tstart)
+            k = 10**(5/2)*self.__khf(tstart)
 
         elif mode=="k":
             k = init
             t0 = 3/2*np.log(10)
-            x0 = np.log(k[0]) - np.log(x.__khf(t0)) - 5/2*np.log(10)
+            x0 = np.log(k[0]) - np.log(self.__khf(t0)) - 5/2*np.log(10)
             tstart = []
             for i, l in enumerate(k):
-                f = lambda t: np.log(l) - np.log(x.__khf(t)) - 5/2*np.log(10)
+                f = lambda t: np.log(l) - np.log(self.__khf(t)) - 5/2*np.log(10)
                 ttmp = fsolve(f, x0)[0]
                 #Update the initial guess based on the previous result
                 if i < len(k)-1:
@@ -227,8 +224,8 @@ class ModeByMode:
             tstart = np.array(tstart)
 
         elif mode=="N":
-            tstart = CubicSpline(x.__N, x.__t)(init)
-            k = 10**(5/2)*x.__khf(tstart)
+            tstart = CubicSpline(self.__N, self.__t)(init)
+            k = 10**(5/2)*self.__khf(tstart)
 
         else:
             print("not a valid choice")
@@ -236,7 +233,7 @@ class ModeByMode:
 
         return k, tstart
     
-    def ComputeMode(x, k, tstart, teval=[], atol=1e-3, rtol=1e-5):
+    def ComputeMode(self, k, tstart, teval=[], atol=1e-3, rtol=1e-5):
         """
         Input
         -----
@@ -246,7 +243,7 @@ class ModeByMode:
             the time coordinate satisfying k = 10^(5/2)k_h(tstart) needed to ensure that the modes initialised in the Bunch-Davies vacuum
         teval : array/list
             physical time points at which the mode function A(t,k,+/-) and its derivatives will be returned
-            if teval=[], the mode functions are evaluated at x.__t
+            if teval=[], the mode functions are evaluated at self.__t
         atol : float
             the absolute precision of the numerical intergrator (1e-3 should be fine for all applications, lower will increase computational time)
         rtol : float
@@ -265,45 +262,45 @@ class ModeByMode:
         """
 
         #Setup initial modes and ODE depending on Schwinger effect mode
-        if x.__SE == None:
+        if self.__SE == None:
             #Initial conditions for y and dydt for both helicities (rescaled appropriately)
             yini = np.array([1., 0, 0, -1., 1, 0, 0, -1.])
             deltaf  = lambda x: 1.0
             
             #Define ODE to solve (sigmaE=0, sigmaB=0)
-            ode = lambda t, y: ModeEoM(y, k, x.__af(t), x.__SclrCplf(t))
+            ode = lambda t, y: ModeEoM(y, k, self.__af(t), self.__SclrCplf(t))
         else:
             #Treat sigma's depending on KDep or not
-            if x.__SE in ["KDep", "Del1"]:
-                tcross = x.__t[np.where(x.__kFerm/k < 1)][-1]
+            if self.__SE in ["KDep", "Del1"]:
+                tcross = self.__t[np.where(self.__kFerm/k < 1)][-1]
                 if tstart > tcross: tstart = tcross
-                sigmaEk = np.heaviside( x.__kFerm - k, 0.5)*x.__sigmaE
-                sigmaBk = np.heaviside( x.__kFerm - k, 0.5)*x.__sigmaB
+                sigmaEk = np.heaviside( self.__kFerm - k, 0.5)*self.__sigmaE
+                sigmaBk = np.heaviside( self.__kFerm - k, 0.5)*self.__sigmaB
 
-                sigmaEf = CubicSpline(x.__t, sigmaEk)
-                sigmaBf = CubicSpline(x.__t, sigmaBk)
+                sigmaEf = CubicSpline(self.__t, sigmaEk)
+                sigmaBf = CubicSpline(self.__t, sigmaBk)
 
                 deltaf  = np.vectorize(lambda x: 1.0) #we always initialse modes while k > kFerm
-            elif x.__SE=="Old":
-                sigmaEf = CubicSpline(x.__t, x.__sigmaE)
-                sigmaBf = CubicSpline(x.__t, x.__sigmaB)
-                deltaf  = CubicSpline(x.__t, x.__delta)
+            elif self.__SE=="Old":
+                sigmaEf = CubicSpline(self.__t, self.__sigmaE)
+                sigmaBf = CubicSpline(self.__t, self.__sigmaB)
+                deltaf  = CubicSpline(self.__t, self.__delta)
                 
 
             #Initial conditions for y and dydt for both helicities (rescaled appropriately)
-            yini = np.array([1., -1/2*sigmaEf(tstart)*x.__af(tstart)/k, 0, -1.,
-                             1., -1/2*sigmaEf(tstart)*x.__af(tstart)/k, 0, -1.])*np.sqrt( deltaf(tstart) )
+            yini = np.array([1., -1/2*sigmaEf(tstart)*self.__af(tstart)/k, 0, -1.,
+                             1., -1/2*sigmaEf(tstart)*self.__af(tstart)/k, 0, -1.])*np.sqrt( deltaf(tstart) )
             
             #Define ODE to solve
-            ode = lambda t, y: ModeEoM( y, k, x.__af(t), x.__SclrCplf(t), sigmaEf(t), sigmaBf(t) )
+            ode = lambda t, y: ModeEoM( y, k, self.__af(t), self.__SclrCplf(t), sigmaEf(t), sigmaBf(t) )
         
         #parse teval input
         if len(teval)==0:
-            teval=x.__t
+            teval=self.__t
         tmax = max(teval)
         
         #conformal time needed for relative phases
-        eta = x.__etaf(teval)
+        eta = self.__etaf(teval)
         delta = deltaf(teval)
 
         istart = 0
@@ -315,8 +312,8 @@ class ModeByMode:
         sol = solve_ivp(ode, [tstart, tmax], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
         
         #the mode was in vacuum before tstart
-        vac = list( np.exp(-1j*eta[:istart]*k)*np.sqrt( delta[:istart] ) )
-        dvac = list( -1j*np.exp(-1j*eta[:istart]*k)*np.sqrt( delta[:istart] ) )
+        vac = list( (np.exp(-1j*eta*k)*np.sqrt( delta ))[:istart] )
+        dvac = list( (-1j*np.exp(-1j*eta*k)*np.sqrt( delta ))[:istart]  )
 
         #Create array of mode evolution stringing together vacuum and non-vacuum time evolutions to get evolution from t0 to tend
         yp = np.array( vac + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )
@@ -327,7 +324,26 @@ class ModeByMode:
 
         return yp, dyp, ym, dym
     
-    def EBGnSpec(x, k : float, t : float, lam : float, ylam : float, dylam : float, n : int):
+    def ComputeSpectrum(self, nvals, Nstep=0.1, atol=1e-3, rtol=1e-5):
+        ks = np.logspace(np.log10(self.mink), np.log10(self.maxk), nvals)
+        ks, tstart = self.InitialKTN(ks, mode="k")
+
+        Neval = np.arange(5, max(self.__N), Nstep)
+
+        teval = CubicSpline(self.__N, self.__t)(Neval)
+
+        shape = (len(ks), len(teval))
+        Ap = (1.+0.j)*np.ones(shape)
+        dAp = (1.+0.j)*np.ones(shape)
+        Am = (1.+0.j)*np.ones(shape)
+        dAm = (1.+0.j)*np.ones(shape)
+        for i, k in enumerate(ks):
+            Ap[i,:], dAp[i,:], Am[i,:], dAm[i,:] = self.ComputeMode(k, tstart[i], teval=teval, atol=atol, rtol=rtol)
+        
+        return teval, Neval, ks, Ap, dAp, Am, dAm
+
+    
+    def EBGnSpec(self, k : float, t : float, lam : float, ylam : float, dylam : float, n : int):
         """
         Input
         -----
@@ -354,7 +370,7 @@ class ModeByMode:
             the spectrum of -1/a^n E rot^n B for comoving wavenumber k and helicity lam
         """
 
-        a = x.__af(t)
+        a = self.__af(t)
     
         Eterm = abs(dylam)**2
         Bterm = abs(ylam)**2
@@ -372,7 +388,7 @@ class ModeByMode:
 
         return E, B, G
     
-    def ComputeEBGnMode(x, yP : ArrayLike, yM : ArrayLike, dyP : ArrayLike, dyM : ArrayLike, t : float, ks : ArrayLike, n : int=0):
+    def ComputeEBGnMode(self, yP : ArrayLike, yM : ArrayLike, dyP : ArrayLike, dyM : ArrayLike, t : float, ks : ArrayLike, n : int=0):
         """
         Input
         -----
@@ -405,9 +421,9 @@ class ModeByMode:
         Bs = []
         Gs = []
         for i, k in enumerate(ks):
-            if k < x.__khf(t) and k > x.mink:
-                Ep, Bp, Gp = x.EBGnSpec(k, t,  1.0, yP[i], dyP[i], n)
-                Em, Bm, Gm = x.EBGnSpec(k, t, -1.0, yM[i], dyM[i], n)
+            if k < self.__khf(t) and k > self.mink:
+                Ep, Bp, Gp = self.EBGnSpec(k, t,  1.0, yP[i], dyP[i], n)
+                Em, Bm, Gm = self.EBGnSpec(k, t, -1.0, yM[i], dyM[i], n)
                 Es.append(Ep + Em)
                 Bs.append(Bp + Bm)
                 Gs.append(Gp + Gm)
@@ -422,9 +438,9 @@ class ModeByMode:
 
         return En, Bn, Gn
 
-    def SaveMode(x, t, ks, Ap, dAp, Am, dAm, name=None):
+    def SaveMode(self, t, ks, Ap, dAp, Am, dAm, name=None):
         logk = np.log10(ks)
-        N = list(np.log(x.__af(t)))
+        N = list(np.log(self.__af(t)))
         N = np.array([np.nan]+N)
         t = np.array([np.nan]+list(t))
         dic = {"t":t}
@@ -440,7 +456,7 @@ class ModeByMode:
             dic = dict(dic, **dictmp)
             
         if(name==None):
-            filename = "Modes+Beta" + str(x.__beta) + "+M6_16" + ".dat"
+            filename = "Modes/ModeFile.dat"
         else:
             filename = name
     

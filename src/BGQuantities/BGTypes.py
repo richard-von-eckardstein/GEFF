@@ -9,6 +9,7 @@ class BGSystem:
             self.AddValue(key, item["value"], item["H0"], item["MP"])
         for key, item in functions.items():
             self.AddFunction(key, item["func"], item["H0"], item["MP"])
+        self.__units=True
 
     def AddValue(self, name, value, H0units, MPunits, units=True):
         setattr(self, name, self.BGVal(name, value, H0units, MPunits, self.H0, self.MP, units=units))
@@ -30,7 +31,11 @@ class BGSystem:
             obj = getattr(self, var)
             if isinstance(obj, self.BGVal):
                 obj.SetUnits(units)
+        self.__units=units
         return
+
+    def GetUnits(self):
+        return self.__units
 
     def ListValues(self):
         valuelist = []
