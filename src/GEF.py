@@ -3,16 +3,19 @@ import numpy as np
 from scipy.integrate import solve_ivp
 from src.BGQuantities import DefaultQuantities
 from src.BGQuantities.BGTypes import BGSystem
+from src.Tools.ModeByMode import ModeByMode
+from scipy.interpolate import CubicSpline
 import importlib.util as util
 import os
 import warnings
 from copy import deepcopy
+from src.Tools.timer import Timer
 
 class TruncationError(Exception):
     pass
 
 def ModelLoader(modelname):
-    modelpath = os.path.join("./Models/", modelname+".py")
+    modelpath = os.path.join("Models/", modelname+".py")
     #Check if Model exists
     try:
         #Load ModelAttributes from GEFFile
@@ -95,9 +98,6 @@ class GEF(BGSystem):
         H0 = np.sqrt( (rhoInf + rhoEM + sum(rhoExtra))/3 )
         MP = 1.
 
-        #At initialisation, all input is assumed to be in Planck units
-        self.units = True
-
         #Define the GEFClass as a BGSystem using the background quantities, functions and unit conversions
         super().__init__(valuedic, functiondic, H0, MP)
 
@@ -141,7 +141,7 @@ class GEF(BGSystem):
         return
     
     def __SetupGEFSolver(self, model):
-        inivals = self.CopySystem()
+        inivals = self.CreateCopySystem()
         inivals.SetUnits(False)
 
         self.Solver = self.GEFSolver(
@@ -221,7 +221,103 @@ class GEF(BGSystem):
     def PrintNecessaryKeys(self):
         print(f"Necessary keys for this GEF-setup are:\n{self.__necessarykeys}")
 
-    #ToDo
+    def GEFAlogrithm(self, reachNend=True, ensureConvergence=True, maxattempts=5):
+        if reachNend: Nend=60 #set default Nend
+
+        attempts=1
+        while not(self.completed) and attempts<=maxattempts:
+            t0 = 0
+            vals = deepcopy(self.Solver.iniVals)
+            yini = self.Solver.Initialise(self.Solver.iniVals, self.Solver.ntr)
+            try:
+                sol = self.Solver.SolveGEF(t0, yini, vals, reachNend=reachNend)
+                if reachNend and ensureConvergence:
+                    Ninf = sol.events["End of inflation"]["N"][-1]
+                    if np.log10(abs(Ninf-Nend)) < -1: 
+                        self.completed=True
+                    else:
+                        print("To verify a consistent run, checking stability against increasing ntr.")
+                        self.Solver.IncreaseNtr(5)
+                        Nend = Ninf
+                else:
+                    self.completed=True
+            except TruncationError:
+                attempts+=1
+                print("A truncation error occured")
+                self.Solver.IncreaseNtr(10)
+        if attempts>maxattempts:
+            print(f"The run did not finish after {attempts} attempts. Check the output for more information.")
+            raise RuntimeError
+            
+        return sol
+    
+    def ModeByModeCrossCheck(self, sol, nmodes=500):
+        TempGEF = self.CopySystem()
+        TempGEF.SetUnits(False)
+        self.Solver.ParseArrToUnitSystem(sol.t, sol.y, TempGEF)
+
+        MbM = ModeByMode(TempGEF, self.settings)
+        teval, Neval, ks, Ap, dAp, Am, dAm = MbM.ComputeSpectrum(nmodes)
+
+        time = Timer()
+        time.start()
+        MbMres = []
+        for n in range(self.Solver.ntr):
+            FnGEF =  sol.y[4+3*n:4+3*(n+1),:]
+            FnMbM  = []
+            for j, t in enumerate(teval):
+                FnMbM.append(MbM.EBGnFromModes(Ap[:,j], Am[:,j], dAp[:,j], dAm[:,j], t, ks, n=n))
+            MbMres.append(FnMbM)
+        np.array(MbMres)
+        time.stop()
+
+        keys = ["E", "B", "G"]
+        for i, key in enumerate(keys):
+            Nerr = Neval[100:] #ignore first 10 e-folds
+            spl = CubicSpline( TempGEF.N, getattr(TempGEF, key) )(Nerr)
+            err = abs( (MbMres[100:,i]-spl)/spl )
+            err = np.array([np.average(err[-10*(i+1):-10*i]) for i in range(len(Nerr)//10)])
+            Nerr = np.array([np.average(Nerr[-10*(i+1):-10*i]) for i in range(len(Nerr)//10)])
+
+        if (err > 0.1).any():
+            return False
+        else:
+            return True
+    
+
+    def RunGEF(self, ntr, tend=120., atol=1e-20, rtol=1e-6, ensureConvergence=True,
+                reachNend=True, printstats=False, maxattempts=5, ModeCrossCheck=True):
+        
+        
+        if not(self.completed):
+            
+            self.Solver.ntr=ntr
+            self.Solver.tend=tend
+            self.Solver.atol=atol
+            self.Solver.rtol=rtol
+
+            sol = self.GEFAlogrithm(
+                                    reachNend=reachNend,
+                                     ensureConvergence=ensureConvergence,
+                                    maxattempts=maxattempts
+                                    )
+            
+            if printstats: PrintSolution(sol)
+            if ModeCrossCheck:
+                MbMagreement = self.ModeByModeCrossCheck(sol, nmodes=500)
+                
+                if (MbMagreement):
+                    print("The GEF agrees with the Mode by Mode solution. Storing results in GEF-object.")
+                    self.Solver.ParseArrToUnitSystem(sol.t, sol.y, self)
+                else:
+                    print("The GEF does not agree with the Mode by Mode solution.")
+                
+            return sol
+        else:
+            print("This run is already completed, access data using GEF.'key'.")
+            return
+
+
     def LoadGEFData(self):
         #Check if GEF has a file path associated with it
         if self.GEFData == None:
@@ -237,7 +333,8 @@ class GEF(BGSystem):
                 raise FileNotFoundError(f"No file found under '{file}'")
         
         #Dictionary for easy access using keys
-        data = dict(zip(input_df.columns[1:],input_df.values[1:,1:].T))
+
+        data = dict(zip(input_df.columns[1:],input_df.values[:,1:].T))
 
         #Check if data file is complete
         for key in self.__necessarykeys:
@@ -245,26 +342,26 @@ class GEF(BGSystem):
                 raise KeyError(f"The file you provided does not contain information on the parameter'{key}'. Please provide a complete data file")
 
         #Befor starting to load, check that the file is compatible with the GEF setup.
-        valuelist = self.ListValues()
+        valuelist = self.ValuesList()
         for key in data.keys():
             if not(key in valuelist):
                 raise AttributeError(f"The data table you tried to load contains an unkown value: '{key}'")
         
         #Store current units to switch back to later
-        units=self.units
+        units=self.GetUnits()
 
         #GEF data is always stored untiless, thus it is assumed to be untiless when loaded.
         self.SetUnits(False)
         #Load data into background-value attributes
         for key, values in data.items():
             obj = getattr(self, key)
-            obj.SetVal(values)
+            obj.SetValue(values)
         self.SetUnits(units)
         self.completed=True
 
         return
 
-    def SaveData(self):
+    def SaveGEFData(self):
         if self.GEFData==None:
             print("You did not specify the file under which to store the GEF data. Set 'GEFData' to the location where you want to save your data.")
         else:
@@ -274,69 +371,32 @@ class GEF(BGSystem):
             dic = {}
 
             #remember the original units of the GEF
-            units = self.units
+            units=self.GetUnits()
 
-            valuelist = self.ListValues()
+            #Data is always stored unitless
+            self.SetUnits(False)
+
+            valuelist = self.ValuesList()
             for key in valuelist:
                 obj = getattr(self, key)
                 #Make sure to not store unitialised BGVal instances
                 if isinstance(obj.value, type(None)):
                     #If a necessary key is not initialised, the data cannot be stored. Unitialised optional keys are ignored.
                     if (key in self.__necessarykeys):
+                        #restore original units before raising error
+                        self.SetUnits(units)
                         raise ValueError(f"Incomplete data. No values assigned to '{key}'.")
                 else:
                     #Add the quantities value to the dictionary
-                    obj.SetUnits(False)
                     dic[key] = obj.value
-                    obj.SetUnits(units)
-
+            
             #Create pandas data frame and store the dictionary under the user-specified path
             output_df = pd.DataFrame(dic)  
             output_df.to_csv(path)
+
+            #after storing data, restore original units
+            self.SetUnits(units)
         return
-    
-    def RunGEF(self, ntr, tend=120., atol=1e-20, rtol=1e-6, reachNend=True, printstats=False, maxattempts=5):
-        
-        if not(self.completed):
-            
-            setattr(self.Solver, "ntr", ntr)
-            setattr(self.Solver, "tend", tend)
-            setattr(self.Solver, "atol", atol)
-            setattr(self.Solver, "rtol", rtol)
-
-            if reachNend: Nend=60 #set default Nend
-
-            attempts=1
-            while not(self.completed) and attempts<=maxattempts:
-                t0 = 0
-                vals = deepcopy(self.Solver.iniVals)
-                yini = self.Solver.Initialise(self.Solver.iniVals, ntr)
-                try:
-                    sol, tend = self.Solver.SolveGEF(t0, yini, vals, reachNend=reachNend)
-                    if reachNend:
-                        Ninf = sol.events["End of inflation"]["N"][-1]
-                        if np.log10(abs(Ninf-Nend)) < -1: 
-                            self.completed=True
-                        else:
-                            print("To verify a consistent run, checking stability against increasing ntr.")
-                            self.Solver.IncreaseNtr(5)
-                            Nend = Ninf
-                    else:
-                        self.completed=True
-                except TruncationError:
-                    attempts+=1
-                    print("A truncation error occured")
-                    self.Solver.IncreaseNtr(10)
-                
-            if attempts>maxattempts:
-                print(f"The run did not finish after {attempts} attempts. Check the output for more information.")
-                raise RuntimeError
-            if printstats: PrintSolution(sol)
-
-            return sol
-        else:
-            print("This run is already completed, access data using GEF.'key'.")
-            return
     
     def EndOfInflation(x, tol=1e-4):
         pass
@@ -345,15 +405,22 @@ class GEF(BGSystem):
         def __init__(self, UpdateVals, TimeStep, Initialise, events, iniVals):
             self.Initialise = Initialise
             self.iniVals = iniVals
-            self.UpdateVals = UpdateVals
+            self.__UpdateVals = UpdateVals
             self.TimeStep = TimeStep
             self.Events = events
             self.completed=False
         
         def __ode(self, t, y, vals, atol=1e-20, rtol=1e-6):
-            self.UpdateVals(t, y, vals)
+            self.__UpdateVals(t, y, vals)
             dydt = self.TimeStep(t, y, vals, atol=atol, rtol=rtol)
             return dydt
+        
+        def ParseArrToUnitSystem(self, t, y, vals):
+            ts = deepcopy(t)
+            ys = deepcopy(y)
+            vals.SetUnits(False)
+            self.__UpdateVals(ts, ys, vals)
+            return
         
         def SolveGEF(self, t0, yini, vals, reachNend=True):
             done = False
@@ -415,7 +482,7 @@ class GEF(BGSystem):
                 print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
                 raise RuntimeError
             
-            return sol, tend
+            return sol
         
         def __AssessEvents(self, tevents, yevents, vals, reachNend=True):
             commands = {"primary":[], "secondary":[]}
@@ -459,9 +526,11 @@ class GEF(BGSystem):
             t = []
             solution = sols[-1]
             for s in sols:
-                t.append(s.t)
-                y.append(s.y)
+                t.append(s.t[:-1])
+                y.append(s.y[:,:-1])
                 nfevs += s.nfev
+            t.append(np.array([s.t[-1]]))
+            y.append(np.array([s.y[:,-1]]).T)
 
             t = np.concatenate(t)
             y = np.concatenate(y, axis=1)

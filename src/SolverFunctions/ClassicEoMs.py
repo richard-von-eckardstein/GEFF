@@ -52,7 +52,7 @@ def EoMF(vals, F, W, dlnkhdt):
         dFdt[n,2] = (bdrF[n, 2] - (4+n)*dlnkhdt*FG[n] + scale*(FE[n+1] - FB[n+1]) + ScalarCpl*FB[n])
 
     #bilinears at truncation order ntr
-    dFdt[-1,0] = (bdrF[-1,0] -  (4+ntr)*dlnkhdt*FE[-1]- 2*scale*FG[-2] + 2*ScalarCpl*FG[-1])
+    dFdt[-1,0] = (bdrF[-1,0] -  (4+ntr)*dlnkhdt*FE[-1] - 2*scale*FG[-2] + 2*ScalarCpl*FG[-1])
 
     dFdt[-1,1] = (bdrF[-1,1] - (4+ntr)*dlnkhdt*FB[-1] + 2*scale*FG[-2]) 
 

@@ -1,18 +1,20 @@
 import numpy as np
+from copy import deepcopy
     
 class BGSystem:
     def __init__(self, values, functions, H0, MP):
         self.H0 = H0
         self.MP = MP
+        self.__units=True
         for key, item in values.items():
             #initialise value in dictionary with given name and unit conversion. Value is assumed Unitful
             self.AddValue(key, item["value"], item["H0"], item["MP"])
         for key, item in functions.items():
             self.AddFunction(key, item["func"], item["H0"], item["MP"])
-        self.__units=True
+        
 
-    def AddValue(self, name, value, H0units, MPunits, units=True):
-        setattr(self, name, self.BGVal(name, value, H0units, MPunits, self.H0, self.MP, units=units))
+    def AddValue(self, name, value, H0units, MPunits):
+        setattr(self, name, self.BGVal(name, value, H0units, MPunits, self))
         return
     
     def RemoveValue(self, name):
@@ -20,7 +22,7 @@ class BGSystem:
         return
     
     def AddFunction(self, name, function, H0units, MPunits):
-        setattr(self, name, self.BGFunc(name, function, H0units, MPunits, self.H0, self.MP))
+        setattr(self, name, self.BGFunc(name, function, H0units, MPunits, self))
         
     def RemoveFunction(self, name):
         delattr(self, name)
@@ -37,7 +39,7 @@ class BGSystem:
     def GetUnits(self):
         return self.__units
 
-    def ListValues(self):
+    def ValuesList(self):
         valuelist = []
         for var in vars(self):
             obj = getattr(self, var)
@@ -45,7 +47,7 @@ class BGSystem:
                 valuelist.append(obj.name)
         return valuelist
 
-    def ListFunctions(self):
+    def FunctionsList(self):
         funclist = []
         for var in vars(self):
             obj = getattr(self, var)
@@ -53,13 +55,13 @@ class BGSystem:
                 funclist.append(obj.name)
         return funclist
     
-    def CopySystem(self):
-        values = self.ListValues()
-        funcs = self.ListFunctions()
+    def CreateCopySystem(self):
+        values = self.ValuesList()
+        funcs = self.FunctionsList()
         valuedic = dict(zip(values, [{"value":None, "H0":0, "MP":0} for v in values]))
         for value in values:
             obj = getattr(self, value)
-            valuedic[value]["value"] = obj.value
+            valuedic[value]["value"] = deepcopy(obj.value)
             valuedic[value]["H0"] = obj.u_H0
             valuedic[value]["MP"] = obj.u_MP
 
@@ -73,14 +75,14 @@ class BGSystem:
         return BGSystem(valuedic, funcdic, self.H0, self.MP)
     
     class BGVal:
-        def __init__(self, name, value, H0units, MPunits, H0, MP=1, units=True):
+        def __init__(self, name, value, H0units, MPunits, BGSystem):
             self.value = value
             self.name = name
-            self.__units = True
+            self.__units = BGSystem.GetUnits()
             self.u_H0 = H0units
             self.u_MP = MPunits
             self.massdim = self.u_H0+self.u_MP
-            self.__Conversion = (H0**H0units*MP**MPunits)
+            self.__Conversion = (BGSystem.H0**H0units*BGSystem.MP**MPunits)
 
         def __str__(self):
             if self.__units==None:
@@ -129,7 +131,8 @@ class BGSystem:
                         - other.value*other.GetConversion()**(1-other.GetUnits()))"""
             return self.value - other
             
-        __rsub__ = __sub__
+        def __rsub__(self, other):
+            return other - self.value
 
         def __mul__(self, other):
             return self.value * other
@@ -212,27 +215,28 @@ class BGSystem:
             self.__units=True
             return
         
-        def SetVal(self, value, units=True):
+        def SetValue(self, value):
+            #set the value of the array element assuming the units of the BG system
             self.value = np.asarray(value)
-            self.__units = units
-
+            return
+        
         def GetConversion(self):
             return self.__Conversion
     
 
     class BGFunc:
-        def __init__(self, name, func, H0units, MPunits, H0, MP):
+        def __init__(self, name, func, H0units, MPunits, BGSystem):
             self.u_H0 = H0units
             self.u_MP = MPunits
             self.__basefunc = func
             self.name = name
-            self.__Conversion = (H0**H0units*MP**MPunits)
+            self.__Conversion = (BGSystem.H0**H0units*BGSystem.MP**MPunits)
 
         def __call__(self, value):
             if isinstance(value, BGSystem.BGVal):
                 valueconversion = value.GetConversion()
                 pow = (1 - value.GetUnits())
-                return self.__basefunc(value.value*valueconversion**pow)/self.__Conversion**pow 
+                return self.__basefunc(value*valueconversion**pow)/self.__Conversion**pow 
             
         def GetBaseFunc(self):
             return self.__basefunc

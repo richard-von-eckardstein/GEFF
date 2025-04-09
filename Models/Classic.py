@@ -19,29 +19,29 @@ def Initialise(vals, ntr):
     yini[1] = vals.phi.value
     yini[2] = vals.dphi.value
 
-    vals.kh.SetVal( abs(vals.dphi)*vals.dI(vals.phi), False)
+    vals.kh.SetValue( abs(vals.dphi)*vals.dI(vals.phi))
     yini[3] = np.log(vals.kh.value)
 
     #currently, all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
 
 def UpdateVals(t, y, vals):
-    vals.t.SetVal(t, False)
-    vals.N.SetVal(y[0], False)
-    vals.a.SetVal(np.exp(y[0]), False)
+    vals.t.SetValue(t)
+    vals.N.SetValue(y[0])
+    vals.a.SetValue(np.exp(y[0]))
 
-    vals.phi.SetVal(y[1], False)
-    vals.dphi.SetVal(y[2], False)
+    vals.phi.SetValue(y[1])
+    vals.dphi.SetValue(y[2])
 
-    vals.kh.SetVal(np.exp(y[3]), False)
+    vals.kh.SetValue(np.exp(y[3]))
 
-    vals.E.SetVal( y[4]*np.exp(4*(y[3]-y[0])), False)
-    vals.B.SetVal( y[5]*np.exp(4*(y[3]-y[0])), False)
-    vals.G.SetVal( y[6]*np.exp(4*(y[3]-y[0])), False)
+    vals.E.SetValue( y[4]*np.exp(4*(y[3]-y[0])))
+    vals.B.SetValue( y[5]*np.exp(4*(y[3]-y[0])))
+    vals.G.SetValue( y[6]*np.exp(4*(y[3]-y[0])))
 
-    vals.H.SetVal( Friedmann(vals), False)
-    vals.xi.SetVal( vals.dI(vals.phi)*(vals.dphi/(2*vals.H)), False )
-    vals.ddphi.SetVal(EoMphi(vals), False)
+    vals.H.SetValue( Friedmann(vals))
+    vals.xi.SetValue( vals.dI(vals.phi)*(vals.dphi/(2*vals.H)))
+    vals.ddphi.SetValue(EoMphi(vals))
     return
 
 def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
@@ -78,7 +78,6 @@ def EndOfInflationConsequence(vals, occurance):
     if occurance:
         return {"primary":"finish"}
     else:
-        tdiff = 20.
         Nend = vals.N
         if Nend < 60:
             tdiff = np.round((60-Nend)/vals.H, 0)
