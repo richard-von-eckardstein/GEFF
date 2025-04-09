@@ -327,7 +327,7 @@ class ModeByMode:
 
         return yp, dyp, ym, dym
     
-    def ComputeSpectrum(self, nvals, Nstep=0.1, atol=1e-3, rtol=1e-5):
+    def ComputeModeSpectrum(self, nvals, Nstep=0.1, atol=1e-3, rtol=1e-5):
 
         #create an array of values log(10*kh(t))
         logks = np.round( np.log(10*self.__khf(np.linspace(self.__tmin, self.__t[-1], nvals))), 3)

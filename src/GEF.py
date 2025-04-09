@@ -252,37 +252,45 @@ class GEF(BGSystem):
         return sol
     
     def ModeByModeCrossCheck(self, sol, nmodes=500):
-        TempGEF = self.CopySystem()
-        TempGEF.SetUnits(False)
+        rtol = self.Solver.rtol
+        atol = self.Solver.atol
+
+        #Creat temporary BGSystem as a basis for Mode-By-Mode cross check
+        TempGEF = self.CreateCopySystem()
         self.Solver.ParseArrToUnitSystem(sol.t, sol.y, TempGEF)
 
+        #Get mode-by-mode solution
         MbM = ModeByMode(TempGEF, self.settings)
-        teval, Neval, ks, Ap, dAp, Am, dAm = MbM.ComputeSpectrum(nmodes)
+        teval, Neval, ks, Ap, dAp, Am, dAm = MbM.ComputeModeSpectrum(nmodes)
 
-        time = Timer()
-        time.start()
-        MbMres = []
-        for n in range(self.Solver.ntr):
-            FnGEF =  sol.y[4+3*n:4+3*(n+1),:]
-            FnMbM  = []
-            for j, t in enumerate(teval):
-                FnMbM.append(MbM.EBGnFromModes(Ap[:,j], Am[:,j], dAp[:,j], dAm[:,j], t, ks, n=n))
-            MbMres.append(FnMbM)
-        np.array(MbMres)
-        time.stop()
+        #Check agreement of E^2, B^2, EdotB between mode-by-mode and GEF:
+        FMbM = np.array([
+                            MbM.EBGnFromModes(
+                                        t, ks, Ap[:,i], Am[:,i], dAp[:,i], dAm[:,i], n=0,
+                                        epsabs=atol, epsrel=rtol
+                                            )[0]
+                        for i, t in enumerate(teval)])
+
 
         keys = ["E", "B", "G"]
-        for i, key in enumerate(keys):
-            Nerr = Neval[100:] #ignore first 10 e-folds
-            spl = CubicSpline( TempGEF.N, getattr(TempGEF, key) )(Nerr)
-            err = abs( (MbMres[100:,i]-spl)/spl )
-            err = np.array([np.average(err[-10*(i+1):-10*i]) for i in range(len(Nerr)//10)])
-            Nerr = np.array([np.average(Nerr[-10*(i+1):-10*i]) for i in range(len(Nerr)//10)])
+        errs = []
 
-        if (err > 0.1).any():
-            return False
-        else:
-            return True
+        Nerr = Neval[100:] #ignore first 10 e-folds
+        l = len(Nerr)//10
+
+        for i, key in enumerate(keys):
+            spl = CubicSpline( TempGEF.N, (TempGEF.a/TempGEF.kh)**4*getattr(TempGEF, key) )(Nerr) #interpolate GEF solution
+            #average error over 1 e-fold to dampen impact of short time-scale spikes
+            errs.append( np.average( abs( (FMbM[100:,i]-spl) / spl )[-10*l:].reshape(l, 10), 1) )
+        #Create e-fold bins of 1-efold corresponding to the error arrays in errs
+        Nerr = np.average( Nerr[-10*l:].reshape(l, 10), 1)
+
+        agreement=True
+        for err in errs:
+            if (err > 0.1).any():
+                agreement=False
+        
+        return agreement
     
 
     def RunGEF(self, ntr, tend=120., atol=1e-20, rtol=1e-6, ensureConvergence=True,
