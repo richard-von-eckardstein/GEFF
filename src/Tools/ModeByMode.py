@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.integrate import solve_ivp
-from scipy.integrate import trapezoid
+from scipy.integrate import quad
 import pandas as pd
 from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
@@ -146,7 +146,7 @@ class ModeByMode:
         """
         
         #Initialise the ModeByMode class, defines all relevant quantities for this class from the background GEF values G
-        if values.GetUnits(): values.SetUnits(False)
+        values.SetUnits(False)
         self.__t = values.t
         self.__N = values.N
         kh = values.kh.value
@@ -181,8 +181,11 @@ class ModeByMode:
         maxN = max(self.__N)#min(max(self.__N), Nend)
         
         #Define suitable range of wavenumbers which can be considered given the background dynamics. mink might still change
-        self.maxk = CubicSpline(self.__N, kh)(maxN)
+        self.maxk = CubicSpline(self.__N, 10*kh)(maxN)
         self.mink = 10**4*kh[0]
+
+        #find lowest t value corresponding to kh(t) = 10*mink
+        self.__tmin = self.__t[np.where(kh >= self.mink)][0]
         
         return
     
@@ -325,73 +328,87 @@ class ModeByMode:
         return yp, dyp, ym, dym
     
     def ComputeSpectrum(self, nvals, Nstep=0.1, atol=1e-3, rtol=1e-5):
-        ks = np.logspace(np.log10(self.mink), np.log10(self.maxk), nvals)
-        ks, tstart = self.InitialKTN(ks, mode="k")
+
+        #create an array of values log(10*kh(t))
+        logks = np.round( np.log(10*self.__khf(np.linspace(self.__tmin, self.__t[-1], nvals))), 3)
+        #filter out all values that are repeating (kh is not strictly monotonous)
+        logks = np.unique((logks))
+
+        #fill up the array of ks values with additional elements between gaps, favouring larger k
+        while len(logks) < nvals:
+            numnewvals = nvals - len(logks)
+            if numnewvals > len(logks):
+                newvals = (logks[1:] + logks[:-1])/2
+            else:
+                newvals = (logks[-numnewvals:] + logks[-numnewvals-1:-1])/2
+            logks = np.sort(np.concatenate([logks, newvals]))
+
+        ks, tstart = self.InitialKTN(np.exp(logks), mode="k")
 
         Neval = np.arange(5, max(self.__N), Nstep)
 
         teval = CubicSpline(self.__N, self.__t)(Neval)
 
-        shape = (len(ks), len(teval))
-        Ap = (1.+0.j)*np.ones(shape)
-        dAp = (1.+0.j)*np.ones(shape)
-        Am = (1.+0.j)*np.ones(shape)
-        dAm = (1.+0.j)*np.ones(shape)
-        for i, k in enumerate(ks):
-            Ap[i,:], dAp[i,:], Am[i,:], dAm[i,:] = self.ComputeMode(k, tstart[i], teval=teval, atol=atol, rtol=rtol)
+        modes = np.array([self.ComputeMode(k, tstart[i], teval=teval, atol=atol, rtol=rtol)
+                  for i, k in enumerate(ks)])
+
+        Ap = modes[:,0,:]
+        dAp = modes[:,1,:]
+        Am = modes[:,2,:]
+        dAm = modes[:,3,:]
         
         return teval, Neval, ks, Ap, dAp, Am, dAm
 
     
-    def EBGnSpec(self, k : float, t : float, lam : float, ylam : float, dylam : float, n : int):
+    def FnSpec(self, lam : float, ylam : float, dylam : float):
         """
         Input
         -----
-        k : float
-            the comoving wavenumber for which the spectrum should be computed
-        t : float
-            the time at which to evaluate the spectrum
         lam : float
             the helicity of the spectrum (either +1 or -1)
         ylam : float
-            the mode function sqrt(2k) A(t,k,lam) for a given comoving wavenumber k and helicity lam evaluated at time t
+            the mode function sqrt(2k) A(t,k,lam) for comoving wavenumber k and helicity lam at time t
         dylam : float
-            the mode-function derivative, sqrt(2/k) dAdeta(t,k,lam) for a given comoving wavenumber k and helicity lam evaluated at time t
-        n : int
-            the power of the curl in E rot^n E, B rot^n B, etc.
+            the mode-function derivative, sqrt(2/k) dAdeta(t,k,lam) for comoving wavenumber k and helicity lam at time t
 
         Return
         ------
         E : float
-            the spectrum of 1/a^n E rot^n E for comoving wavenumber k and helicity lam
+            the spectrum (a/k)^4 d E^2 / d log (k/kh) for comoving wavenumber k and helicity lam,
         B : float
-            the spectrum of 1/a^n B rot^n B for comoving wavenumber k and helicity lam
+            the spectrum of (a/k)^4 d B^2 / d log (k/kh) for comoving wavenumber k and helicity lam
         G : float
-            the spectrum of -1/a^n E rot^n B for comoving wavenumber k and helicity lam
+            the spectrum of - (a/k)^4 d B dot B / d log (k/kh)for comoving wavenumber k and helicity lam
         """
 
-        a = self.__af(t)
-    
         Eterm = abs(dylam)**2
         Bterm = abs(ylam)**2
         Gterm = lam*(ylam.conjugate() * dylam).real
 
         #prefac modified to account for sqrt(2k) factor in modes
-        prefac = lam**n * 1/(2*np.pi)**2 * (k/a)**(n+3)/a
+        prefac = 1/(2*np.pi)**2
 
         #ErotnE = int(Edk) 
-        E = prefac * Eterm
+        FE = prefac * Eterm
         #BrotnB = int(Bdk) 
-        B = prefac * Bterm
+        FB = prefac * Bterm
         #-ErotnB = int(Gdk)
-        G = prefac * Gterm
+        FG = prefac * Gterm
 
-        return E, B, G
+        return FE, FB, FG
     
-    def ComputeEBGnMode(self, yP : ArrayLike, yM : ArrayLike, dyP : ArrayLike, dyM : ArrayLike, t : float, ks : ArrayLike, n : int=0):
+    def EBGnFromModes(
+                    self, t : float, ks : ArrayLike, 
+                    yP : ArrayLike, yM : ArrayLike, dyP : ArrayLike, dyM : ArrayLike,
+                    n : int=0, epsabs=1e-20, epsrel=1e-4
+                    ):
         """
         Input
         -----
+        t : float
+            the physical time at which to evaluate the function
+        ks : array
+            an array of comoving wavenumbers associated to the modes
         yP : array
             the positive-helicity mode sqrt(2ks)*A(t,ks,+) for a fixed time t
         yM : array
@@ -400,43 +417,36 @@ class ModeByMode:
             the positive-helicity mode's derivative sqrt(2/ks)*dAdeta(t,ks,+) for a fixed time t
         dyM : array
             the negative-helicity mode's derivative sqrt(2/ks)*dAdeta(t,ks,+) for a fixed time t
-        t : float
-            the physical time at which to evaluate the function
-        ks : array
-            an array of comoving wavenumbers associated to the modes
         n : int
             the power of the curl in E rot^n E, B rot^n B, etc.
 
         Return
         ------
         En : float
-            the value of 1/a^n E rot^n E at time t
+            the value of (a^4/k_h^(n+4)) E rot^n E at time t
         Bn : float
-            the value of 1/a^n B rot^n B at time t
+            the value of (a^4/k_h^(n+4)) B rot^n B at time t
         Gn : float
-            the value of -1/a^n E rot^n B at time t
+            the value of -(a^4/k_h^(n+4)) E rot^n B at time t
         """
 
-        Es = []
-        Bs = []
-        Gs = []
-        for i, k in enumerate(ks):
-            if k < self.__khf(t) and k > self.mink:
-                Ep, Bp, Gp = self.EBGnSpec(k, t,  1.0, yP[i], dyP[i], n)
-                Em, Bm, Gm = self.EBGnSpec(k, t, -1.0, yM[i], dyM[i], n)
-                Es.append(Ep + Em)
-                Bs.append(Bp + Bm)
-                Gs.append(Gp + Gm)
-            else:
-                Es.append(0)
-                Bs.append(0)
-                Gs.append(0)
+        z = ks/self.__khf(t)
 
-        En = trapezoid(np.array(Es), ks)
-        Bn = trapezoid(np.array(Bs), ks)
-        Gn = trapezoid(np.array(Gs), ks)
+        spec = (np.array(self.FnSpec(1, yP, dyP))
+             + (-1)**n * np.array(self.FnSpec(-1, yM, dyM)))
+        
+        x = (n+4)*np.log(z)
 
-        return En, Bn, Gn
+        vals = []
+        errs = []
+        for k in range(3):
+            spl = CubicSpline(x, spec[k,:])
+            f = lambda x: spl(x)*np.exp(x)/(n+4)
+            val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
+            vals.append(val)
+            errs.append(err)
+
+        return vals, err
 
     def SaveMode(self, t, ks, Ap, dAp, Am, dAm, name=None):
         logk = np.log10(ks)
