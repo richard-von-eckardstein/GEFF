@@ -446,7 +446,7 @@ class ModeByMode:
             vals.append(val)
             errs.append(err)
 
-        return vals, err
+        return vals, errs
 
     def SaveMode(self, t, ks, Ap, dAp, Am, dAm, name=None):
         logk = np.log10(ks)

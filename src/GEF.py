@@ -145,7 +145,9 @@ class GEF(BGSystem):
         inivals.SetUnits(False)
 
         self.Solver = self.GEFSolver(
-                                    model.UpdateVals, model.TimeStep, model.Initialise, model.events, inivals
+                                    model.UpdateVals, model.TimeStep, model.Initialise,
+                                      model.events, inivals,
+                                      MbMSettings={} # EDIT FOR SE
                                     )
         self.completed=False
         
@@ -220,110 +222,6 @@ class GEF(BGSystem):
     
     def PrintNecessaryKeys(self):
         print(f"Necessary keys for this GEF-setup are:\n{self.__necessarykeys}")
-
-    def GEFAlogrithm(self, reachNend=True, ensureConvergence=True, maxattempts=5):
-        if reachNend: Nend=60 #set default Nend
-
-        attempts=1
-        while not(self.completed) and attempts<=maxattempts:
-            t0 = 0
-            vals = deepcopy(self.Solver.iniVals)
-            yini = self.Solver.Initialise(self.Solver.iniVals, self.Solver.ntr)
-            try:
-                sol = self.Solver.SolveGEF(t0, yini, vals, reachNend=reachNend)
-                if reachNend and ensureConvergence:
-                    Ninf = sol.events["End of inflation"]["N"][-1]
-                    if np.log10(abs(Ninf-Nend)) < -1: 
-                        self.completed=True
-                    else:
-                        print("To verify a consistent run, checking stability against increasing ntr.")
-                        self.Solver.IncreaseNtr(5)
-                        Nend = Ninf
-                else:
-                    self.completed=True
-            except TruncationError:
-                attempts+=1
-                print("A truncation error occured")
-                self.Solver.IncreaseNtr(10)
-        if attempts>maxattempts:
-            print(f"The run did not finish after {attempts} attempts. Check the output for more information.")
-            raise RuntimeError
-            
-        return sol
-    
-    def ModeByModeCrossCheck(self, sol, nmodes=500):
-        rtol = self.Solver.rtol
-        atol = self.Solver.atol
-
-        #Creat temporary BGSystem as a basis for Mode-By-Mode cross check
-        TempGEF = self.CreateCopySystem()
-        self.Solver.ParseArrToUnitSystem(sol.t, sol.y, TempGEF)
-
-        #Get mode-by-mode solution
-        MbM = ModeByMode(TempGEF, self.settings)
-        teval, Neval, ks, Ap, dAp, Am, dAm = MbM.ComputeModeSpectrum(nmodes)
-
-        #Check agreement of E^2, B^2, EdotB between mode-by-mode and GEF:
-        FMbM = np.array([
-                            MbM.EBGnFromModes(
-                                        t, ks, Ap[:,i], Am[:,i], dAp[:,i], dAm[:,i], n=0,
-                                        epsabs=atol, epsrel=rtol
-                                            )[0]
-                        for i, t in enumerate(teval)])
-
-
-        keys = ["E", "B", "G"]
-        errs = []
-
-        Nerr = Neval[100:] #ignore first 10 e-folds
-        l = len(Nerr)//10
-
-        for i, key in enumerate(keys):
-            spl = CubicSpline( TempGEF.N, (TempGEF.a/TempGEF.kh)**4*getattr(TempGEF, key) )(Nerr) #interpolate GEF solution
-            #average error over 1 e-fold to dampen impact of short time-scale spikes
-            errs.append( np.average( abs( (FMbM[100:,i]-spl) / spl )[-10*l:].reshape(l, 10), 1) )
-        #Create e-fold bins of 1-efold corresponding to the error arrays in errs
-        Nerr = np.average( Nerr[-10*l:].reshape(l, 10), 1)
-
-        agreement=True
-        for err in errs:
-            if (err > 0.1).any():
-                agreement=False
-        
-        return agreement
-    
-
-    def RunGEF(self, ntr, tend=120., atol=1e-20, rtol=1e-6, ensureConvergence=True,
-                reachNend=True, printstats=False, maxattempts=5, ModeCrossCheck=True):
-        
-        
-        if not(self.completed):
-            
-            self.Solver.ntr=ntr
-            self.Solver.tend=tend
-            self.Solver.atol=atol
-            self.Solver.rtol=rtol
-
-            sol = self.GEFAlogrithm(
-                                    reachNend=reachNend,
-                                     ensureConvergence=ensureConvergence,
-                                    maxattempts=maxattempts
-                                    )
-            
-            if printstats: PrintSolution(sol)
-            if ModeCrossCheck:
-                MbMagreement = self.ModeByModeCrossCheck(sol, nmodes=500)
-                
-                if (MbMagreement):
-                    print("The GEF agrees with the Mode by Mode solution. Storing results in GEF-object.")
-                    self.Solver.ParseArrToUnitSystem(sol.t, sol.y, self)
-                else:
-                    print("The GEF does not agree with the Mode by Mode solution.")
-                
-            return sol
-        else:
-            print("This run is already completed, access data using GEF.'key'.")
-            return
 
 
     def LoadGEFData(self):
@@ -410,7 +308,8 @@ class GEF(BGSystem):
         pass
 
     class GEFSolver:
-        def __init__(self, UpdateVals, TimeStep, Initialise, events, iniVals):
+        def __init__(self, UpdateVals, TimeStep, Initialise, events, iniVals, MbMSettings):
+            self.MbMSettings = MbMSettings
             self.Initialise = Initialise
             self.iniVals = iniVals
             self.__UpdateVals = UpdateVals
@@ -422,6 +321,135 @@ class GEF(BGSystem):
             self.__UpdateVals(t, y, vals)
             dydt = self.TimeStep(t, y, vals, atol=atol, rtol=rtol)
             return dydt
+        
+        def RunGEF(self, ntr, tend, atol, rtol, nmodes=500, printstats=True, **AlgorithmKwargs):
+            self.ntr=ntr
+            self.tend=tend
+            self.atol=atol
+            self.rtol=rtol
+            reachNend = AlgorithmKwargs.get("reachNend", True)
+            ensureConvergence = AlgorithmKwargs.get("ensureConvergence", True)
+            maxattempts = AlgorithmKwargs.get("maxattempts", 5)
+
+            done=False
+            while not(done):
+                sol, vals = self.GEFAlogrithm(reachNend, ensureConvergence, maxattempts) 
+
+                if nmodes!=None:
+                    MbM = ModeByMode(vals, self.MbMSettings)
+                    teval, Neval, ks, Ap, dAp, Am, dAm = MbM.ComputeModeSpectrum(nmodes)
+
+                    self.MbMCrossCheck()
+                
+                
+            if printstats: PrintSolution(sol)
+            print("Storing results in GEF-object.")
+            self.Solver.ParseArrToUnitSystem(sol.t, sol.y, self)
+
+            return sol
+        
+        def GEFAlgorithm(self, reachNend=True, ensureConvergence=True, maxattempts=5):
+            if reachNend: Nend=60 #set default Nend
+
+            attempts=1
+            done = False
+            #Run GEF
+            while not(done) and attempts<=maxattempts:
+                t0 = 0
+                vals = deepcopy(self.iniVals)
+                yini = self.Initialise(self.iniVals, self.ntr)
+                try:
+                    sol = self.SolveGEF(t0, yini, vals, reachNend=reachNend)
+                    if reachNend and ensureConvergence:
+                        Ninf = sol.events["End of inflation"]["N"][-1]
+                        if np.log10(abs(Ninf-Nend)) < -1: 
+                            done=True
+                        else:
+                            print("To verify a consistent run, checking stability against increasing ntr.")
+                            self.IncreaseNtr(5)
+                            Nend = Ninf
+                    else:
+                        done=True
+                except TruncationError:
+                    attempts+=1
+                    print("A truncation error occured")
+                    self.IncreaseNtr(10)
+            if attempts>maxattempts:
+                print(f"The run did not finish after {attempts} attempts. Check the output for more information.")
+                raise RuntimeError
+            
+            self.ParseArrToUnitSystem(sol.t, sol.y, self)
+                
+            return sol, vals
+        
+        def ModeByModeCrossCheck(self, MbM, vals, teval, Neval, ks, Ap, Am, dAp, dAm):
+            FMbM = np.array([
+                            MbM.EBGnFromModes(
+                                        t, ks, Ap[:,i], Am[:,i], dAp[:,i], dAm[:,i], n=0,
+                                        epsabs=self.atol, epsrel=self.rtol
+                                            )[0]
+                        for i, t in enumerate(teval)])
+
+
+            keys = ["E", "B", "G"]
+            errs = []
+
+            Nerr = Neval[100:] #ignore first 10 e-folds
+            l = len(Nerr)//10
+
+            for i, key in enumerate(keys):
+                spl = CubicSpline( vals.N, (vals.a/vals.kh)**4*getattr(vals, key) )(Nerr) #interpolate GEF solution
+                #average error over 1 e-fold to dampen impact of short time-scale spikes
+                errs.append( np.average( abs( (FMbM[100:,i]-spl) / spl )[-10*l:].reshape(l, 10), 1) )
+            #Create e-fold bins of 1-efold corresponding to the error arrays in errs
+            Nerr = np.average( Nerr[-10*l:].reshape(l, 10), 1)
+
+            agreement=True
+            for err in errs:
+                if (err > 0.1).any():
+                    agreement=False
+            
+            if agreement==False:
+                err = 0.1
+                errInd = -1
+                while err > 0.05:
+                    err = max(np.array(errs[:][i]))
+                    errInd -= 1
+                
+                N0 = Nerr[errInd]
+
+                #####CONTINUE HERE NEXT TIME
+            
+            return agreement
+        
+        #not checked
+        def InitialiseFromMbM(self, sol, MbM, t, ks, modes):
+            ntr = self.ntr
+            rtol = self.rtol
+
+            #Create array of initial data at time t based on ODE-solution
+            yini = np.zeros((sol.y.shape[0]))
+            for i in range(sol.y.shape[0]):
+                yini[i] = CubicSpline(sol.t, sol.y[i,:])(t)
+
+            #Create temporary value system using yini to identify the position of gauge-bilinears
+            Temp = self.CreateCopySystem()
+            #reiinitialise Temp using "Initialise" to zero out all GEF-bilinear values
+            self.ParseArrToUnitSystem(t, yini, Temp) 
+            ytmp = self.Initialise(Temp, ntr)
+            gaugeinds = np.where(ytmp==0.)[0]
+
+            # compute En, Bn, Gn, for n>1 from Modes
+            yini[gaugeinds[3:]] = np.array(
+                                    [MbM.EBGnFromModes(t, ks, modes[0], modes[1], modes[2], modes[3], n=n,
+                                                        epsabs=1e-20, epsrel=rtol*1e-2)[0]
+                                    for n in range(1,ntr+1)]
+                                    ).reshape(3*ntr)
+            
+            #Prepare value system for solver
+            self.ParseArrToUnitSystem(t, yini, Temp)
+
+            return t, yini, Temp
         
         def ParseArrToUnitSystem(self, t, y, vals):
             ts = deepcopy(t)
@@ -487,7 +515,7 @@ class GEF(BGSystem):
             self.__FinaliseSolution(sols, eventdic)
        
             if attempts != 1 and not(done):
-                print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")
+                print(f"The run failed after {attempts} attempts.")
                 raise RuntimeError
             
             return sol
