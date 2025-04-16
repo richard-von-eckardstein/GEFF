@@ -335,10 +335,13 @@ class GEF(BGSystem):
             maxattempts = AlgorithmKwargs.get("maxattempts", 5)
 
             done=False
-            attempt = 0
+            sol = None
+            attempt=0
             while not(done) and attempt<3:
                 attempt +=1
-                sol, vals = self.GEFAlgorithm(reachNend, ensureConvergence, maxattempts) 
+                solnew, vals = self.GEFAlgorithm(reachNend, ensureConvergence, maxattempts)
+                sol = self.UpdateGEFSolution(sol, solnew)
+                self.ParseArrToUnitSystem(sol.t, sol.y, vals)
 
                 if nmodes!=None:
                     print("Using last successful GEF solution to compute gauge-field mode functions.")
@@ -352,7 +355,9 @@ class GEF(BGSystem):
                        print(f"The mode-by-mode comparison indicates a convergent GEF run.")
                        done=True
                     else:
-                        print(f"Attempting to solve GEF using self-correction at N={Neval[ind]}.")
+                        print(f"Attempting to solve GEF using self-correction starting from N={Neval[ind]}.")
+
+
                         self.InitialConditions = self.InitialiseFromMbM(
                                                                         sol, MbM, teval[ind], ks,
                                                                         {"Ap":Ap[:,ind], "dAp":dAp[:,ind],
@@ -403,9 +408,7 @@ class GEF(BGSystem):
                     return sol, vals
                 except:
                     raise RuntimeError(f"Not a single successful solution after {attempts} attempts.")
-            
-            self.ParseArrToUnitSystem(sol.t, sol.y, vals)
-                
+ 
             return sol, vals
         
         def ModeByModeCrossCheck(self, MbM, vals, teval, Neval, ks, Ap, Am, dAp, dAm):
@@ -450,7 +453,7 @@ class GEF(BGSystem):
                     #find where the error is above 5%, take the earliest occurance, reduce by 1
                     errInd = np.where(err > 0.05)[0][0]-1                
                 else:
-                    errInd = len(Nerr) #meaningless placeholder
+                    errInd = len(Nerr)-1
                 lowerrinds.append(errInd)
 
             N0 = Nerr[min(lowerrinds)]
@@ -459,6 +462,18 @@ class GEF(BGSystem):
             ind = np.where(Neval <= N0)[0][-1]
 
             return agreement, ind
+        
+        def UpdateGEFSolution(self, solold, solnew):
+            if solold==None:
+                return solnew
+            else:
+                sol = solold
+                indoverlap = np.where(solnew.t[0] > solold.t)[0][-1]
+                sol.t = np.concatenate([solold.t[:indoverlap], solnew.t])
+                sol.y = np.concatenate([solold.y[:,:indoverlap], solnew.y], axis=1)
+                sol.events.update(solnew.events)
+                sol.nfev +=sol.nfev
+                return sol
         
         def InitialiseFromSlowRoll(self):
             t0 = 0
@@ -534,12 +549,12 @@ class GEF(BGSystem):
                                  method="RK45", atol=atol, rtol=rtol, events=eventfuncs)
                     if not(sol.success):
                         raise ValueError
-                except ValueError:
+                except KeyboardInterrupt:
+                    print(f"The run failed at t={vals.t}, N={vals.N}.")
+                    raise KeyboardInterrupt
+                except:
                     print(f"The run failed at t={vals.t}, N={vals.N}.")
                     raise TruncationError
-                except RuntimeError:
-                    print(f"The run failed at t={vals.t}, N={vals.N}.")
-                    raise RuntimeError
                 else:
                     sols.append(sol)
 
