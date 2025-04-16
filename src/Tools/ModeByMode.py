@@ -214,15 +214,10 @@ class ModeByMode:
 
         elif mode=="k":
             k = init
-            t0 = 3/2*np.log(10)
-            x0 = np.log(k[0]) - np.log(self.__khf(t0)) - 5/2*np.log(10)
+            
             tstart = []
             for i, l in enumerate(k):
-                f = lambda t: np.log(l) - np.log(self.__khf(t)) - 5/2*np.log(10)
-                ttmp = fsolve(f, x0)[0]
-                #Update the initial guess based on the previous result
-                if i < len(k)-1:
-                    x0 = ttmp + np.log(k[i+1]/l)
+                ttmp  = self.__t[np.where(l >= 10**(5/2)*self.__khf(self.__t))[0][-1]]
                 tstart.append(ttmp)
             tstart = np.array(tstart)
 
@@ -327,8 +322,7 @@ class ModeByMode:
 
         return yp, dyp, ym, dym
     
-    def ComputeModeSpectrum(self, nvals, Nstep=0.1, atol=1e-3, rtol=1e-5):
-
+    def WavenumberArray(self, nvals):
         #create an array of values log(10*kh(t))
         logks = np.round( np.log(10*self.__khf(np.linspace(self.__tmin, self.__t[-1], nvals))), 3)
         #filter out all values that are repeating (kh is not strictly monotonous)
@@ -342,6 +336,10 @@ class ModeByMode:
             else:
                 newvals = (logks[-numnewvals:] + logks[-numnewvals-1:-1])/2
             logks = np.sort(np.concatenate([logks, newvals]))
+        return logks
+        
+    def ComputeModeSpectrum(self, nvals, Nstep=0.1, atol=1e-3, rtol=1e-5):
+        logks = self.WavenumberArray(nvals)
 
         ks, tstart = self.InitialKTN(np.exp(logks), mode="k")
 

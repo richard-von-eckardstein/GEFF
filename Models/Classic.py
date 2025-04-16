@@ -78,11 +78,7 @@ def EndOfInflationConsequence(vals, occurance):
     if occurance:
         return {"primary":"finish"}
     else:
-        Nend = vals.N
-        if Nend < 60:
-            tdiff = np.round((60-Nend)/vals.H, 0)
-        else:
-            tdiff = np.round(5/vals.H, 0)
+        tdiff = np.round(5/vals.H, 0)
         #round again, sometimes floats cause problems in t_span and t_eval.
         tend  = np.round(vals.t + tdiff, 0)
 
