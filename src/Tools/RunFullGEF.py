@@ -4,7 +4,7 @@ import sys
 import optparse
 import numpy as np
 from scipy.integrate import solve_ivp
-from GEFv15 import GEF
+from GEF import GEF
 
 alpha = 0
 Mpl = 1.

@@ -1,8 +1,8 @@
 import numpy as np
-from src.SolverFunctions.ClassicEoMs import *
-from src.SolverFunctions.WhittakerFuncs import WhittakerApprox, WhittakerExact
-from src.SolverFunctions.Utility import Heaviside
-from src.Events import Event
+from src.EoMsANDFunctions.ClassicEoMs import *
+from src.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox, WhittakerExact
+from src.EoMsANDFunctions.Utility import Heaviside
+from src.Solver.Events import Event
 
 name = "Classic"
 
