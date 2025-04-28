@@ -233,11 +233,10 @@ class GEF:
         
         fc = a**(1-alpha) * H * r
         
-        dHdt = x.vals["Hprime"]# #approximation  dHdt = alphaH**2  (slow-roll)
+        dHdt = 0#x.vals["Hprime"]# #approximation  dHdt = alphaH**2  (slow-roll)
         xiprime = (-dHdt * xi + (x.ddIddphi()*x.vals["dphi"]**2 + x.dIdphi()*ddphiddt)/2)/H
         rprime = 2*np.sign(xi)*xiprime
         fcprime = (1-alpha)*H*fc + dHdt*a**(1-alpha)*r + a**(1-alpha)*H*rprime
-                   
         return fcprime/kh
 
     def EoMF(x, dlnkhdt):
@@ -383,7 +382,7 @@ class GEF:
 
         print(f"The solver aims at reaching t={tend}")
 
-        t0, yini, events, eventdic = x.SetupSolver(reachNend=True)
+        t0, yini, events, eventdic = x.SetupSolver(reachNend=reachNend)
 
         t.start()
 
@@ -433,33 +432,36 @@ class GEF:
                         if eventname=="End of inflation": 
                             done =True
                             order="proceed"
+        
             
         t.stop()
-        nfevs = 0
-        y = []
-        t = []
-        for s in sols:
-            t.append(s.t)
-            y.append(s.y)
-            nfevs +=sol.nfev
+        if len(events)!=0:
+            nfevs = 0
+            y = []
+            t = []
+            for s in sols:
+                t.append(s.t)
+                y.append(s.y)
+                nfevs +=sol.nfev
 
-        t = np.concatenate(t)
-        y = np.concatenate(y, axis=1)
+        
+            t = np.concatenate(t)
+            y = np.concatenate(y, axis=1)
 
-        sol.t = t
-        sol.y = y
-        sol.nfev = nfevs
+            sol.t = t
+            sol.y = y
+            sol.nfev = nfevs
 
-        for eventname in (eventdic.keys()):
-            try:
-                eventdic[eventname]["t"] = np.round(np.concatenate(eventdic[eventname]["t"]), 1)
-                eventdic[eventname]["N"] = np.round(np.concatenate(eventdic[eventname]["N"]), 3)
-            except ValueError:
-                eventdic[eventname]["t"] = np.array(eventdic[eventname]["t"])
-                eventdic[eventname]["N"] = np.array(eventdic[eventname]["N"])
+            for eventname in (eventdic.keys()):
+                try:
+                    eventdic[eventname]["t"] = np.round(np.concatenate(eventdic[eventname]["t"]), 1)
+                    eventdic[eventname]["N"] = np.round(np.concatenate(eventdic[eventname]["N"]), 3)
+                except ValueError:
+                    eventdic[eventname]["t"] = np.array(eventdic[eventname]["t"])
+                    eventdic[eventname]["N"] = np.array(eventdic[eventname]["N"])
 
-
-        sol.events = eventdic
+            sol.events = eventdic
+       
 
         if attempts != 1 and not(done):
             print(f"The run did not finish after {sol.attempts} attempts. Check the output for more information.")

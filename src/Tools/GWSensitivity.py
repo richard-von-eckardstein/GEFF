@@ -5,10 +5,14 @@ import pandas as pd
 import os
 import random
 import inspect
-import src.GEFConstructor
+import src.GEF
+from scipy.interpolate import CubicSpline
+from scipy.integrate import simps
 
 h = 0.67
-def PlotSensitivityCurves(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25):
+
+
+def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25):
     """
     Plot the sensitivity curves for current and planned gravitational wave experiments on a OmegaGW vs. frequency plot. Experiments with existing data
     are shown with filled-in sensivity curves.
@@ -33,7 +37,7 @@ def PlotSensitivityCurves(ax : plt.Axes, names : list=[], cols : list=[], alpha 
         the updated plot.
     """
     #the path to the sensitivity curve data
-    path = os.path.abspath(inspect.getfile(src.GEFConstructor)).replace("GEFConstructor.py", "Tools/power-law-integrated_sensitivities/")
+    path = os.path.abspath(inspect.getfile(src.GEF)).replace("GEF.py", "Tools/power-law-integrated_sensitivities/")
     arr = os.listdir(path)
     
     #Obtain List of experiments and running experiments
@@ -66,7 +70,7 @@ def PlotSensitivityCurves(ax : plt.Axes, names : list=[], cols : list=[], alpha 
     if cols==[]:
         colavail = list(mcolors.CSS4_COLORS.keys())
         rndint = random.sample(range(0, len(colavail)-1), len(names))
-        cols=rndcols = [colavail[n] for n in rndint]
+        cols = [colavail[n] for n in rndint]
 
     #Create Dictionary linking experiment names to unique files and colors
     dic = {}
@@ -91,3 +95,35 @@ def PlotSensitivityCurves(ax : plt.Axes, names : list=[], cols : list=[], alpha 
             ax.fill_between(f, max(SCurve)*np.ones(f.shape), SCurve, color=dic[key]["col"], alpha=alpha)
         ax.plot(f, SCurve, color=dic[key]["col"])
     return ax
+
+def ComputeSNR(OmegaSignal, fSignal, experiment, tobs=1.):
+    path = os.path.abspath(inspect.getfile(src.GEF)).replace("GEF.py", "Tools/strains/")
+    arr = os.listdir(path)
+
+    exp = [a.replace("strain_","").replace(".dat", "") for a in arr ]
+
+    filename = f"strain_{experiment}.dat"
+
+    file = path+filename
+    try:
+        tab = pd.read_table(file, comment="#").values.T
+        fNoise = 10**tab[0,:]
+        OmegaNoise = 10**tab[1,:]
+
+        content = open(file).readlines()
+        if "auto-correlation" in content[1]:
+            ndet = 1
+        elif "cross-correlation" in content[1]: 
+            ndet = 2
+        else:
+            raise Exception
+    except FileNotFoundError:
+        raise FileNotFoundError(f"'{experiment}' is not a recognised experiment. Recognised experiments are {exp}")
+    
+    f = fNoise
+    OmegaSignal = CubicSpline(np.log(fSignal), OmegaSignal)(np.log(f))
+
+    SNR = (ndet*(tobs*365.2425*3600*24)*simps((OmegaSignal/OmegaNoise)**2, f))**(1/2)
+
+    return SNR
+
