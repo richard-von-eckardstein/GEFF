@@ -4,15 +4,119 @@ import numpy as np
 import pandas as pd
 import os
 import random
-import inspect
-import src.GEF
+
+from ptarcade.models_utils import g_rho, g_rho_0, g_s, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
+
 from scipy.interpolate import CubicSpline
 from scipy.integrate import simps
 
+from numpy.typing import ArrayLike
+from typing import Tuple
+
 h = 0.67
+
+class OmegaGW:
+    def __init__(self, values):
+        #Set GEF results to Hubble units.
+        values.SetUnits(False)
+
+        N = values.N
+        H = values.H
+
+        Nend = N[-1]
+
+        self.__omega = values.H0
+        
+        #Assess if the end of inflation is reached for this run
+        """if np.log10(abs(max(N) - Nend)) > -2:
+            print("This GEF run has not run reached the end of inflation. The code will assume Nend = max(N). Proceed with caution!")"""
+        maxN = min(max(N), Nend)
+        self.maxN = maxN
+
+        self.__HN = CubicSpline(N, H)
+
+        return
+    
+    def ktofreq(self, k : ArrayLike, Nend : float|None=None, Trh : None|float=None) -> ArrayLike:
+        """
+        Input
+        -----
+        k : array
+            an array of comoving wavenumbers k during inflation
+        Nend : float or None
+            the number of e-folds corresponding to the end of inflation.
+            If Nend=None, it is assumed that self.maxN corresponds to the end of inflation.
+        Trh : None or float
+            the assumed reheating temperature in GeV. Reheating is modelled assuming an EoS parameter wrh=0.
+            If Trh is None, instantaneous reheating is assumed.
+
+        Return
+        ------
+        f : array
+            the red-shifted frequencies in Hz
+        """
+        #Assumes the end of inflation is reached by the end of the run.
+        if Nend==None:
+            Nend = self.maxN
+
+        Hend = self.__HN(Nend)
+        if Trh==None:
+            Trh = np.sqrt(3*Hend*self.__omega/np.pi)*(10/106.75)**(1/4)*M_pl
+            Trh = Trh*(106.75/g_rho(Trh))**(1/4)
+            Nrh = 0
+        else:
+            wrh = 0
+            Nrh = np.log( 90*(Hend*self.__omega*M_pl**2)**2 / (np.pi**2*g_rho(Trh)*Trh**4 ) ) / ( 3 * (1 + wrh) )
+
+
+        f = k*self.__omega*M_pl*gev_to_hz/(2*np.pi*np.exp(Nend)) * T_0/Trh * (g_s_0/g_s(Trh))**(1/3) * np.exp(-Nrh)
+
+        return f
+    
+    def PTtoOmega(self, PT : ArrayLike, k : ArrayLike, Nend : float|None=None, Trh : None|float=None) -> Tuple[ArrayLike, ArrayLike]:
+        """
+        Input
+        -----
+        PT : array
+            an array of tensor power spectra at the end of inflation for comoving wavenumbers k
+        k : array
+            an array of comoving wavenumbers k during inflation
+        Nend : float or None
+            the number of e-folds corresponding to the end of inflation.
+            If Nend=None, it is assumed that self.maxN corresponds to the end of inflation.
+        Trh : None or float
+            the assumed reheating temperature in GeV. Reheating is modelled assuming an EoS parameter wrh=0.
+            If Trh is None, instantaneous reheating is assumed.
+
+        Return
+        ------
+        f : array
+            the red-shifted frequencies in Hz
+        """
+        
+        f = self.ktofreq(k, Nend, Trh)
+        if Trh==None:
+            TransferRH=1
+        else:
+            if Nend==None:
+                Nend = self.maxN
+            
+            frh = 1/(2*np.pi) * (g_s_0/g_s(Trh))**(1/3) * (np.pi**2*g_rho(Trh)/90)**(1/2) * (Trh/M_pl) * T_0*gev_to_hz
+            fend = 1/(2*np.pi) * (g_s_0/g_s(Trh))**(1/3) * (np.pi**2*g_rho(Trh)/90)**(1/3) * (Trh/M_pl)**(1/3) * (self.__HN(Nend)*self.__omega)**(1/3) * T_0*gev_to_hz
+
+            TransferRH = 1/(1. - 0.22*(f/frh)**1.5 + 0.65*(f/frh)**2)
+            TransferRH = np.where(np.log(f/fend) < 0, TransferRH, np.zeros(f.shape))
+
+        OmegaGW = h**2*omega_r/24  * PT * (g_rho(f, True)/g_rho_0) * (g_s_0/g_s(f, True))**(4/3) * TransferRH
+        
+        return OmegaGW, f
 
 basepath = os.path.dirname(os.path.abspath(__file__))
 
+def IntegrateGW(f, h2OmegaGW):
+    h2OmegaGW = np.where(np.log(f/1e-12) > 0, h2OmegaGW, 0)
+    val = simps(h2OmegaGW, np.log(f))
+    return val
 
 def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25):
     """

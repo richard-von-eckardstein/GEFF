@@ -117,13 +117,13 @@ class GEFSolver:
                 self.IncreaseNtr(10)
 
         if attempts>maxattempts:
-            print(f"The run did not finish after {attempts} attempts.")
+            print(f"The run did not finish after {maxattempts} attempts.")
             try:
                 sol
                 print("Proceeding with last successful solution.")
                 return sol, vals
             except:
-                raise RuntimeError(f"Not a single successful solution after {attempts} attempts.")
+                raise RuntimeError(f"Not a single successful solution after {maxattempts} attempts.")
 
         return sol, vals
     
@@ -174,21 +174,20 @@ class GEFSolver:
 
             treinit = ReInitSpec["t"]
 
-            #Create array of initial data at time t based on ODE-solution
-            yini = np.zeros((sol.y.shape[0]))
-            for i in range(sol.y.shape[0]):
-                yini[i] = CubicSpline(sol.t, sol.y[i,:])(treinit)
-
-            #reiinitialise Temp using "Initialise" to zero out all GEF-bilinear values
-            Temp = deepcopy(self.iniVals)
-            self.ParseArrToUnitSystem(treinit, yini, Temp) 
-            ytmp = self.__Initialise(Temp, ntr)
+            #Use the original "Initialise" to zero out all GEF-bilinear values
+            _, ytmp, Temp = self.InitialiseFromSlowRoll()
             gaugeinds = np.where(ytmp==0.)[0]
+
+            #Append initial data at time t based on the original ODE-solution
+            yini = np.zeros_like(ytmp)
+            for i in range(len(ytmp)):
+                if i not in gaugeinds[3:]:
+                    yini[i] = (CubicSpline(sol.t, sol.y[i,:])(treinit))
 
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
                                     [
-                                        MbM.IntegrateSpecSlice(ReInitSpec, n=n,epsabs=1e-20, epsrel=rtol*1e-2)[0]
+                                    MbM.IntegrateSpecSlice(ReInitSpec, n=n,epsabs=1e-20, epsrel=rtol*1e-2)[0]
                                     for n in range(1,ntr+1)
                                     ]
                                     ).reshape(3*ntr)

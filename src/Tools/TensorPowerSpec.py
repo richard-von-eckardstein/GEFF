@@ -5,15 +5,10 @@ from scipy.integrate import solve_ivp, trapezoid
 
 from src.Tools.ModeByMode import ReadMode
 
-from ptarcade.models_utils import g_rho, g_rho_0, g_s, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
-
 from typing import Tuple
 from numpy.typing import ArrayLike
 
-def IntegrateGW(f, h2OmegaGW):
-    h2OmegaGW = np.where(np.log(f/1e-12) > 0, h2OmegaGW, 0)
-    val = trapezoid(h2OmegaGW, np.log(f))
-    return val
+
 
 def TensorModeEoM(y : ArrayLike, k : float, H : float, a : float) -> ArrayLike:
     """
@@ -92,34 +87,34 @@ class PowSpecT:
     ----------
     
     
-    x.__t : array
+    self.__t : array
         An increasing array of physical times tracking the evolution of the GEF system.
-    x.__N : array
+    self.__N : array
         An increasing array of e-Folds tracking the evolution of the GEF system.
-    x.__H :  array
+    self.__H :  array
         An array of Hubble rates as a function of time.
-    x.__xi : array
+    self.__xi : array
         An array of xi values as a function of time.
-    x.__beta : float
+    self.__beta : float
         The strength of the inflaton--gauge-field interaction, beta/M_P
-    x.__af : function
+    self.__af : function
         returns the scale factor, a(t), as a function of physical time. Obtained by interpolation of the GEF solution.
-    x.__Hf : function
+    self.__Hf : function
         returns the Hubble rate, H(t), as a function of physical time. Obtained by interpolation of the GEF solution.
-    x.__HN : function
+    self.__HN : function
         returns the Hubble rate, H(N), as a function of e-folds. Obtained by interpolation of the GEF solution.
-    x.__khN : function
+    self.__khN : function
         returns the instability scale k_h(N) as a function of e-folds. Obtained by interpolation of the GEF solution.
-    x.__etaf : function
+    self.__etaf : function
         returns the conformal time eta(t) as a function of physical time normalised to eta(0)=-1/H_0. Obtained by numerical integration and interpolation.
-    x.maxk : float
+    self.maxk : float
         the maximal comoving wavenumber k which can be resolved based on the dynamical range covered by the GEF solution
-    x.mink : float
+    self.mink : float
         the minimal comoving wavenumber k which can be resolved based on the initial conditions of the GEF solution
-    x.__omega : float
+    self.__omega : float
         The ratio H_0/M_pl where H_0 is the value of the Hubble parameter at initialisation of the GEF system.
         Used to obtain gravitational-wave power spectra a a function of frequency today.
-    x.maxN : float
+    self.maxN : float
         If the GEF solution captures the end of Inflation, contains the number of e-folds after initialisation corresponding to the end of inflation.
         Otherwise, contains the largest number of e-folds after initialisiation which is captured by the GEF.
         This value is used to determine the redshift of frequencies and the gravitational wave power spectrum. 
@@ -146,14 +141,14 @@ class PowSpecT:
         Computes the full tensor power spectrum (including vacuum and sourced contributions) for a specified range of comoving wavenumbers k.
     ktofreq()
         Red-shifts a comoving wavenumber k to obtain the corresponding requency in Hz today.
-        Assumes  x.maxN corresponds to the end of inflation. 
+        Assumes  self.maxN corresponds to the end of inflation. 
     PTtoOmega():
         Converts a tensor power spectrum to the gravitational-wave energy density, h^2 OmegaGW.
-        Assumes  x.maxN corresponds to the end of inflation. 
+        Assumes  self.maxN corresponds to the end of inflation. 
     PTAnalyitcal():
         From a given GEF result, compute the analytical estimate of the tensor power spectrum from axion inflation.
     """
-    def __init__(x, values):
+    def __init__(self, values):
         #Set GEF results to Hubble units.
         values.SetUnits(False)
         
@@ -163,45 +158,45 @@ class PowSpecT:
         Nend = values.N[-1]
         N = values.N
 
-        x.__omega = values.H0
+        self.__omega = values.H0
         
         #Assess if the end of inflation is reached for this run
         """if np.log10(abs(max(N) - Nend)) > -2:
             print("This GEF run has not run reached the end of inflation. The code will assume Nend = max(N). Proceed with caution!")"""
         maxN = min(max(N), Nend)
-        x.maxN = maxN
+        self.maxN = maxN
             
         #Set the range of modes
-        x.maxk = CubicSpline(N, a*H)(maxN)
-        x.mink = 1e4
+        self.maxk = CubicSpline(N, a*H)(maxN)
+        self.mink = 1e4
 
         #Define Useful quantities
 
-        x.__t = values.t
-        x.__N = N
-        x.__H = H
-        x.__xi= values.xi
+        self.__t = values.t
+        self.__N = N
+        self.__H = H
+        self.__xi= values.xi
 
         
-        x.__af = CubicSpline(x.__t, a)
-        x.__Hf = CubicSpline(x.__t, H)
-        x.__HN = CubicSpline(x.__N, x.__H)
-        x.__khN = CubicSpline(N, values.kh)
+        self.__af = CubicSpline(self.__t, a)
+        self.__Hf = CubicSpline(self.__t, H)
+        self.__HN = CubicSpline(self.__N, self.__H)
+        self.__khN = CubicSpline(N, values.kh)
 
         #Obtain eta as a functio of time
-        deta = lambda t, y: 1/x.__af(t)
+        deta = lambda t, y: 1/self.__af(t)
         
-        soleta = solve_ivp(deta, [min(x.__t), max(x.__t)], np.array([-1]), t_eval=x.__t)
+        soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([-1]), t_eval=self.__t)
 
-        x.__etaf = CubicSpline(x.__t, soleta.y[0,:])
+        self.__etaf = CubicSpline(self.__t, soleta.y[0,:])
         return
     
-    def _InitialKTN_(x, init : ArrayLike, mode : str ="t", pwr : float=5/2) -> Tuple[ArrayLike, ArrayLike]:
+    def _InitialKTN_(self, init : ArrayLike, mode : str ="t", pwr : float=5/2) -> Tuple[ArrayLike, ArrayLike]:
         """
         Input
         -----
         init : array
-           an array of physical time coordinates t, OR of e-Folds N, OR of comoving wavenumbers k (within x.mink and x.maxk)
+           an array of physical time coordinates t, OR of e-Folds N, OR of comoving wavenumbers k (within self.mink and self.maxk)
         mode : str
             if init contains physical time coordinates: mode="t"
             if init contains e-Folds: mode="N"
@@ -215,8 +210,8 @@ class PowSpecT:
             an array of physical time coordinates t satisfying k=10^(5/2) a(tstart)H(tstart)
         """
 
-        t = x.__t
-        logkH = lambda t: np.log(x.__af(t)*x.__Hf(t))
+        t = self.__t
+        logkH = lambda t: np.log(self.__af(t)*self.__Hf(t))
         if mode=="t":
             tstart = init
             logks = logkH(tstart)
@@ -236,7 +231,7 @@ class PowSpecT:
             tstart = np.array(tstart)
 
         elif mode=="N":
-            tstart = CubicSpline(x.__N, t)(init)
+            tstart = CubicSpline(self.__N, t)(init)
             k = 10**pwr*np.exp(logkH(tstart))
 
         else:
@@ -245,7 +240,7 @@ class PowSpecT:
 
         return k, tstart
         
-    def _GetHomSol_(x, k : float, tstart : float, teval : ArrayLike|list=[], atol : float=1e-3, rtol : float=1e-4) -> Tuple[ArrayLike, ArrayLike]:
+    def _GetHomSol_(self, k : float, tstart : float, teval : ArrayLike|list=[], atol : float=1e-3, rtol : float=1e-4) -> Tuple[ArrayLike, ArrayLike]:
         """
         Input
         -----
@@ -255,7 +250,7 @@ class PowSpecT:
             the time coordinate satisfying k = 10^(5/2)k_h(tstart) needed to ensure that the modes initialised in the Bunch-Davies vacuum
         teval : array|list
             physical time points at which the tensor mode function and its derivatives will be returned.
-            If teval=[], the mode functions are evaluated at x.__t
+            If teval=[], the mode functions are evaluated at self.__t
         atol : float
             the absolute precision of the numerical intergrator
         rtol : float
@@ -270,18 +265,18 @@ class PowSpecT:
         """
 
         if len(teval)==0:
-            teval = x.__t
+            teval = self.__t
         tend = max(teval)
 
         #conformal time needed for relative phases
-        eta = x.__etaf(teval)
+        eta = self.__etaf(teval)
 
         istart = 0
         while teval[istart]<tstart:
             istart+=1
         
         #define the ODE for the GW modes
-        ode = lambda t, y: TensorModeEoM( y, k, x.__Hf(t), x.__af(t) )
+        ode = lambda t, y: TensorModeEoM( y, k, self.__Hf(t), self.__af(t) )
         
         #Initialise the modes in Bunch Davies
         Zini = np.array([1, -10**(-5/2), 0, -1])
@@ -295,12 +290,12 @@ class PowSpecT:
         dvac = list( -1j*np.exp(-1j*eta[:istart]*k) )
 
         #Create an array tracking a modes evolution from Bunch Davies to late times. Ensure equal length arrays for every mode k
-        phik = np.array( vac + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )/x.__af(teval)
-        dphik = np.array( dvac + list( (sol.y[1,:] + 1j*sol.y[3,:])*np.exp(-1j*k*eta[istart]) ) )/x.__af(teval)
+        phik = np.array( vac + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )/self.__af(teval)
+        dphik = np.array( dvac + list( (sol.y[1,:] + 1j*sol.y[3,:])*np.exp(-1j*k*eta[istart]) ) )/self.__af(teval)
 
         return phik, dphik
 
-    def _GreenFunc_(x, k : float, phik : ArrayLike, ind : int, tstart : float, teval : ArrayLike|list=[], atol : float=1e-30, rtol : float=1e-4) -> ArrayLike:
+    def _GreenFunc_(self, k : float, phik : ArrayLike, ind : int, tstart : float, teval : ArrayLike|list=[], atol : float=1e-30, rtol : float=1e-4) -> ArrayLike:
         """
         Input
         -----
@@ -314,7 +309,7 @@ class PowSpecT:
             The fixed time t in G(k, t, t') is given by t = teval[ind]
         teval : array|list
             physical time points at which the Green function is returned.
-            If teval=[], the Green function is evaluated at x.__t
+            If teval=[], the Green function is evaluated at self.__t
             teval must coincide with the times at which phik is evaluated!
         atol : float
             the absolute precision of the numerical intergrator 
@@ -327,7 +322,7 @@ class PowSpecT:
             the values of B(k, teval[ind], teval) = - k G(k, teval[ind], teval) 
         """
         if len(teval)==0:
-            teval = x.__t
+            teval = self.__t
             
         istart = 0
         while teval[istart]<tstart:
@@ -338,18 +333,18 @@ class PowSpecT:
     
 
         # Solve the EoM for G backwards in time starting from G(k, t, t)
-        Aode = lambda t, y: -GreenEoM(y, k, x.__Hf(-t), x.__af(-t))
+        Aode = lambda t, y: -GreenEoM(y, k, self.__Hf(-t), self.__af(-t))
         solA = solve_ivp(Aode, [-teval[ind], -tstart], Aini, t_eval=-teval[istart:ind+1][::-1],
                          method="RK45", atol=atol, rtol=rtol)
 
         #For numerical stability, only solve the EoM for the Green function until t' = tstart. Afterwards, compute it directly from the vacuum modes.
         GreenN = np.zeros(teval.shape)
         GreenN[istart:ind+1] = solA.y[0,:][::-1]
-        GreenN[:istart] = ( (phik[ind].conjugate()*phik).imag*x.__af(teval)**2 )[:istart]
+        GreenN[:istart] = ( (phik[ind].conjugate()*phik).imag*self.__af(teval)**2 )[:istart]
 
         return GreenN
 
-    def _VacuumPowSpec_(x, k : ArrayLike, phik : ArrayLike) -> ArrayLike:
+    def _VacuumPowSpec_(self, k : ArrayLike, phik : ArrayLike) -> ArrayLike:
         """
         Input
         -----
@@ -363,10 +358,10 @@ class PowSpecT:
         PTvac : array
             the vacuum tensor power spectrum PT_vac(t, k) at a fixed time t as a function of comoving wavenumber.
         """
-        PTvac = 2*(k*x.__omega)**2/( np.pi**2 ) * abs(phik)**2
+        PTvac = 2*(k*self.__omega)**2/( np.pi**2 ) * abs(phik)**2
         return PTvac
 
-    def _InducedTensorPowerSpec_(x, k : float, lgrav : float, ind: int, Ngrid : ArrayLike, GreenN : ArrayLike, kgrid : ArrayLike,
+    def _InducedTensorPowerSpec_(self, k : float, lgrav : float, ind: int, Ngrid : ArrayLike, GreenN : ArrayLike, kgrid : ArrayLike,
                                 l1 : float, A1 : ArrayLike, dA1 : ArrayLike, l2 : float, A2 : ArrayLike, dA2 : ArrayLike,
                                 momgrid : int=100) -> float:
         """
@@ -399,9 +394,9 @@ class PowSpecT:
             the gauge-field induced tensor power spectrum PT_ind(Ngrid[ind], k, lgrav).
         """
 
-        cutUV = x.__khN(Ngrid[ind])/k
+        cutUV = self.__khN(Ngrid[ind])/k
         cutIR = min(kgrid)/k
-        HN = x.__HN(Ngrid)
+        HN = self.__HN(Ngrid)
 
         logAs = np.linspace(np.log(max(0.5, cutIR)), np.log(cutUV), momgrid)
 
@@ -434,7 +429,7 @@ class PowSpecT:
 
                 mom =  abs( l1*l2 + 2*lgrav*( (l1+l2)*A + (l1-l2)*B ) + 4*(A**2 - B**2) + 8*lgrav*A*B*( (l1-l2)*A - (l1+l2)*B ) - 16*l1*l2*A**2*B**2 )
                 z = max(A+B,A-B)
-                mask = np.where(z<x.__khN(Ngrid)/k, 1, 0)
+                mask = np.where(z<self.__khN(Ngrid)/k, 1, 0)
 
                 val = (dAx*dAy + l1*l2*Ax*Ay)*mask*k/(np.exp(3*Ngrid)*HN)
                 timeintegrand = GreenN*val*mom
@@ -449,13 +444,15 @@ class PowSpecT:
             IntOuter.append(trapezoid(IntInner, Bs))
         IntOuter = np.array(IntOuter)
 
-        PTind = trapezoid(IntOuter, logAs) / (16*np.pi**4)*(k*x.__omega)**4
+        PTind = trapezoid(IntOuter, logAs) / (16*np.pi**4)*(k*self.__omega)**4
 
         return PTind
 
     
-    def ComputePowSpec(x, k : ArrayLike, N : float|None=None, ModePath : str|None=None, FastGW : bool=True,
-                       atols : list=[1e-3,1e-20], rtols : list=[1e-4,1e-4], momgrid : int=100) -> dict:
+    def ComputePowSpec(
+                        self, nmodes : int, N : float|None=None, ModePath : str|None=None, FastGW : bool=True,
+                       atols : list=[1e-3,1e-20], rtols : list=[1e-4,1e-4], momgrid : int=100
+                       ) -> Tuple[ArrayLike,dict]:
         """
         Input
         -----
@@ -463,7 +460,7 @@ class PowSpecT:
             the comoving wavenumber k for which to compute the tensor power spectrum.
         N : float|None
             the time (in e-folds) at which to compute the tensor power spectrun.
-            If N=None, the tensor power spectrum is computed at x.maxN.
+            If N=None, the tensor power spectrum is computed at self.maxN.
         ModePath : str
             The path to a file containing the tabulated gauge-field mode functions from a mode-by-mode computation.
         FastGW : bool
@@ -483,7 +480,8 @@ class PowSpecT:
             a dictionary containing all contributions to the tensor power spectrum, including the total power spectrum.
         """
 
-        ks, tstarts = x._InitialKTN_(k, mode="k")
+        k = np.logspace(np.log10(self.mink), np.log10(self.maxk), nmodes)
+        ks, tstarts = self._InitialKTN_(k, mode="k")
         
         spec = ReadMode(ModePath)
         Ngrid = spec["N"]
@@ -493,7 +491,7 @@ class PowSpecT:
         GaugeModes = {"+":(spec["Ap"], spec["dAp"]), "-":(spec["Am"], spec["dAm"])}
 
         if N==None:
-            N = x.maxN
+            N = self.maxN
         
         inds = np.where(Ngrid < N)[0]
         indend = inds[-1]
@@ -506,19 +504,19 @@ class PowSpecT:
                     (("+",1),("-",-1)),
                         (("-",-1),("-",-1))]
 
-        sign = np.sign(x.__xi[0])
+        sign = np.sign(self.__xi[0])
 
         for i, k in enumerate(ks):
             tstart = tstarts[i]
 
-            if k > 5*(x.__af(tgrid[indend])*x.__Hf(tgrid[indend])):
+            if k > 5*(self.__af(tgrid[indend])*self.__Hf(tgrid[indend])):
                 for key in PT.keys():
                     PT[key].append(0)
             else:
-                f, _ = x._GetHomSol_(k, tstart, tgrid, atol=atols[0], rtol=rtols[0])
-                Green = x._GreenFunc_(k, f, indend, tstart, tgrid, atol=atols[1], rtol=rtols[1])
+                f, _ = self._GetHomSol_(k, tstart, tgrid, atol=atols[0], rtol=rtols[0])
+                Green = self._GreenFunc_(k, f, indend, tstart, tgrid, atol=atols[1], rtol=rtols[1])
                 
-                PT["vac"].append(x._VacuumPowSpec_(k, f[indend]))
+                PT["vac"].append(self._VacuumPowSpec_(k, f[indend]))
 
                 for lgrav in GWpols:
                     for mu in gaugepols:
@@ -535,7 +533,7 @@ class PowSpecT:
                             PT[f"ind{lgrav[0]},{mu[0][0]}{mu[1][0]}"].append(0.)
                         else:
                             PT[f"ind{lgrav[0]},{mu[0][0]}{mu[1][0]}"].append(
-                                x._InducedTensorPowerSpec_(k, GWpol, indend, Ngrid, Green, kgrid, lx, Ax, dAx, ly, Ay, dAy, momgrid) )
+                                self._InducedTensorPowerSpec_(k, GWpol, indend, Ngrid, Green, kgrid, lx, Ax, dAx, ly, Ay, dAy, momgrid) )
 
         PT["tot"] = np.zeros(ks.shape)
         for key in PT.keys():
@@ -545,19 +543,19 @@ class PowSpecT:
             elif key=="vac":
                 PT["tot"] += PT[key]
 
-        return PT
+        return k, PT
     
-    def PTAnalytical(x) -> dict:
+    def PTAnalytical(self) -> Tuple[ArrayLike,dict]:
         """
         Return
         ------
         PT : dict
             a dictionary containing the most important contributions to the analytic tensor power spectrum, including the total power spectrum.
         """
-        H = x.__omega*x.__H
-        xi = abs(x.__xi)
-        pre = (H/np.pi)**2 # * (x.__H)**(x.__nT)
-        if np.sign(x.__xi[0]) > 0:                
+        H = self.__omega*self.__H
+        xi = abs(self.__xi)
+        pre = (H/np.pi)**2 # * (self.__H)**(self.__nT)
+        if np.sign(self.__xi[0]) > 0:                
             indP = pre * 8.6e-7 * H**2 * np.exp(4*np.pi*xi)/xi**6
             indM = pre * 1.8e-9 * H**2 * np.exp(4*np.pi*xi)/xi**6
         else:
@@ -566,81 +564,8 @@ class PowSpecT:
         
         #Factors of two to match my convention
         PTanalytic = {"tot":(2*pre + indP + indM), "vac":2*pre, "ind+":2*indP, "ind-":2*indM}
-        return PTanalytic
-
-    def ktofreq(x, k : ArrayLike, Nend : float|None=None, Trh : None|float=None) -> ArrayLike:
-        """
-        Input
-        -----
-        k : array
-            an array of comoving wavenumbers k during inflation
-        Nend : float or None
-            the number of e-folds corresponding to the end of inflation.
-            If Nend=None, it is assumed that x.maxN corresponds to the end of inflation.
-        Trh : None or float
-            the assumed reheating temperature in GeV. Reheating is modelled assuming an EoS parameter wrh=0.
-            If Trh is None, instantaneous reheating is assumed.
-
-        Return
-        ------
-        f : array
-            the red-shifted frequencies in Hz
-        """
-        #Assumes the end of inflation is reached by the end of the run.
-        if Nend==None:
-            Nend = x.maxN
-
-        Hend = x.__HN(Nend)
-        if Trh==None:
-            Trh = np.sqrt(3*Hend*x.__omega/np.pi)*(10/106.75)**(1/4)*M_pl
-            Trh = Trh*(106.75/g_rho(Trh))**(1/4)
-            Nrh = 0
-        else:
-            wrh = 0
-            Nrh = np.log( 90*(Hend*x.__omega*M_pl**2)**2 / (np.pi**2*g_rho(Trh)*Trh**4 ) ) / ( 3 * (1 + wrh) )
-
-
-        f = k*x.__omega*M_pl*gev_to_hz/(2*np.pi*np.exp(Nend)) * T_0/Trh * (g_s_0/g_s(Trh))**(1/3) * np.exp(-Nrh)
-
-        return f
-    
-    def PTtoOmega(x, PT : ArrayLike, k : ArrayLike, Nend : float|None=None, Trh : None|float=None) -> Tuple[ArrayLike, ArrayLike]:
-        """
-        Input
-        -----
-        PT : array
-            an array of tensor power spectra at the end of inflation for comoving wavenumbers k
-        k : array
-            an array of comoving wavenumbers k during inflation
-        Nend : float or None
-            the number of e-folds corresponding to the end of inflation.
-            If Nend=None, it is assumed that x.maxN corresponds to the end of inflation.
-        Trh : None or float
-            the assumed reheating temperature in GeV. Reheating is modelled assuming an EoS parameter wrh=0.
-            If Trh is None, instantaneous reheating is assumed.
-
-        Return
-        ------
-        f : array
-            the red-shifted frequencies in Hz
-        """
-        
-        f = x.ktofreq(k, Nend, Trh)
-        if Trh==None:
-            TransferRH=1
-        else:
-            if Nend==None:
-                Nend = x.maxN
-            
-            frh = 1/(2*np.pi) * (g_s_0/g_s(Trh))**(1/3) * (np.pi**2*g_rho(Trh)/90)**(1/2) * (Trh/M_pl) * T_0*gev_to_hz
-            fend = 1/(2*np.pi) * (g_s_0/g_s(Trh))**(1/3) * (np.pi**2*g_rho(Trh)/90)**(1/3) * (Trh/M_pl)**(1/3) * (x.__HN(Nend)*x.__omega)**(1/3) * T_0*gev_to_hz
-
-            TransferRH = 1/(1. - 0.22*(f/frh)**1.5 + 0.65*(f/frh)**2)
-            TransferRH = np.where(np.log(f/fend) < 0, TransferRH, np.zeros(f.shape))
-
-        OmegaGW = h**2*omega_r/24  * PT * (g_rho(f, True)/g_rho_0) * (g_s_0/g_s(f, True))**(4/3) * TransferRH
-        
-        return OmegaGW, f
+        k = H*np.exp(self.__N)
+        return k, PTanalytic
     
 
 

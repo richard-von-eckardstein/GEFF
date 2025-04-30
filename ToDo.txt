@@ -10,3 +10,5 @@ Tensor:
 GEF:
     - how to deal with end of inflation Event?
     - How to get Nend when loading data (repurcussions for PT)
+    - Better way to track gauge-field indices
+    - GEFAlgorithm: less unnecessary attempt trackers
