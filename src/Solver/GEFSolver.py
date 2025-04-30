@@ -96,26 +96,32 @@ class GEFSolver:
         attempts=1
         done = False
         #Run GEF
-        while not(done) and attempts<=maxattempts:
+        while not(done):
             try:
                 t0, yini, vals = self.InitialConditions()
                 sol = self.SolveGEF(t0, yini, vals, reachNend=reachNend)
+
                 if reachNend and ensureConvergence:
                     Ninf = sol.events["End of inflation"]["N"][-1]
                     if np.log10(abs(Ninf-Nend)) < -1: 
                         done=True
                     else:
+                        attempts+=1
+                        if attempts > maxattempts:
+                            break
                         print("To verify a consistent run, checking stability against increasing ntr.")
                         self.IncreaseNtr(5)
                         Nend = Ninf
-                        attempts+=1
+                        
                 else:
                     done=True
             except TruncationError:
                 attempts+=1
+                if attempts > maxattempts:
+                    break
                 print("A truncation error occured")
                 self.IncreaseNtr(10)
-
+        
         if attempts>maxattempts:
             print(f"The run did not finish after {maxattempts} attempts.")
             try:
