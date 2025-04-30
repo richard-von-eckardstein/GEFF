@@ -1,0 +1,12 @@
+ModeByMode:
+    - Documentation
+    - ReadMode
+    -  Split ModeByMode Solver and SpecFunctions? 
+
+Tensor:
+    - store and load Part
+    - split solver and PT?
+
+GEF:
+    - how to deal with end of inflation Event?
+    

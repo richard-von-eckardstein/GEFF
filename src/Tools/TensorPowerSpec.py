@@ -628,8 +628,6 @@ class PowSpecT:
         f : array
             the red-shifted frequencies in Hz
         """
-
-
         
         f = x.ktofreq(k, Nend, Trh)
         if Trh==None:

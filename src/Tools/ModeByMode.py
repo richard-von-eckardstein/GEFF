@@ -15,8 +15,8 @@ def ReadMode(file):
 
     x = np.arange(3,dataAp.shape[1], 4)
     
-    t = dataAp[1:,1]
-    N = dataAp[1:,2]
+    t = np.asarray(dataAp[1:,1], dtype=float)
+    N = np.asarray(dataAp[1:,2], dtype=float)
     logk = np.array([(complex(dataAp[0,y])).real for y in x])
     Ap = np.array([[complex(dataAp[i+1,y]) for i in range(len(N))] for y in x])
     dAp = np.array([[complex(dataAp[i+1,y+1]) for i in range(len(N))] for y in x])
@@ -209,15 +209,15 @@ class ModeByMode:
         values.SetUnits(False)
         self.__t = values.t
         self.__N = values.N
-        kh = values.kh.value
-        a = values.a.value
+        kh = values.kh
+        a = values.a
 
         self.__af = CubicSpline(self.__t, a)
         self.__SclrCplf = CubicSpline( self.__t, values.dI(values.phi)*values.dphi.value )
         self.__khf = CubicSpline(self.__t, kh)
 
         for key in ["E", "B", "G"]:
-            func = CubicSpline(self.__N, (a/kh)**4*getattr(values, key))
+            func = CubicSpline(self.__N, (a/kh)**4 * getattr(values, key))
             setattr(self, f"__{key}f", func)
         
         #Assess if the GEF run incorporates Fermions
@@ -469,9 +469,9 @@ class ModeByMode:
         Gterm = 0.
         for i, lam in enumerate(helicities):
             sgn = np.sign(0.5-i)
-            Eterm = prefac*sgn**n*abs(specAtT["dA"+lam])
-            Bterm = prefac*sgn**n*abs(specAtT["A"+lam])
-            Gterm = prefac*sgn**(n+1)*(specAtT["A"+lam].conjugate()*specAtT["dA"+lam]).real
+            Eterm += prefac*sgn**n*abs(specAtT["dA"+lam])**2
+            Bterm += prefac*sgn**n*abs(specAtT["A"+lam])**2
+            Gterm += prefac*sgn**(n+1)*(specAtT["A"+lam].conjugate()*specAtT["dA"+lam]).real
 
         integrand = np.array([Eterm, Bterm, Gterm])
         
@@ -499,7 +499,7 @@ class ModeByMode:
         l = len(Nerr)//10
 
         for i, key in enumerate(keys):
-            spl = getattr(self, "__"+key+"f")(Nerr) #interpolate GEF solution
+            spl = getattr(self, f"__{key}f")(Nerr) #call interpolated GEF solution
             #average error over 1 e-fold to dampen impact of short time-scale spikes
             errs.append( np.average( abs( (FMbM[100:,i]-spl) / spl )[-10*l:].reshape(l, 10), 1) )
         #Create e-fold bins of 1-efold corresponding to the error arrays in errs

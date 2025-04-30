@@ -10,7 +10,6 @@ from copy import deepcopy
 class TruncationError(Exception):
     pass
 
-
 def PrintSolution(sol):
     print("The run terminated with the following statistics:")
     for attr in sol.keys():
@@ -70,7 +69,7 @@ class GEFSolver:
 
                 
                 print("Performing mode-by-mode comparison with GEF results.")
-                agreement, ReInitSpec = self.ModeByModeCrossCheck(MbM, vals, spec)
+                agreement, ReInitSpec = self.ModeByModeCrossCheck(MbM, spec)
 
                 if agreement:
                     print(f"The mode-by-mode comparison indicates a convergent GEF run.")

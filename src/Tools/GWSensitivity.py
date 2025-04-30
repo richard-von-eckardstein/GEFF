@@ -55,16 +55,16 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
             print("Recognised experiments are given by", exp)
             print("Defaulting to showing all known sensitivity curves")
             names=exp
-        else:
-            arr = []
-            for name in names:
-                if name=="NANOGrav":
-                    arr.append("NANOGrav/sensitivity_curves_NG15yr_fullPTA.txt")
-                else:
-                    arr.append("plis_" + name + ".dat")
 
     elif names==[]:
         names=exp
+
+    arr = []
+    for name in names:
+        if name=="NANOGrav":
+            arr.append("NANOGrav/sensitivity_curves_NG15yr_fullPTA.txt")
+        else:
+            arr.append("plis_" + name + ".dat")   
 
     #Parse Input Colors
     if cols==[]:
