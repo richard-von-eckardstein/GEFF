@@ -15,8 +15,8 @@ def ReadMode(file):
 
     x = np.arange(3,dataAp.shape[1], 4)
     
-    t = np.array(dataAp[1:,1])
-    N = np.array(dataAp[1:,2])
+    t = dataAp[1:,1]
+    N = dataAp[1:,2]
     logk = np.array([(complex(dataAp[0,y])).real for y in x])
     Ap = np.array([[complex(dataAp[i+1,y]) for i in range(len(N))] for y in x])
     dAp = np.array([[complex(dataAp[i+1,y+1]) for i in range(len(N))] for y in x])
@@ -24,8 +24,11 @@ def ReadMode(file):
     dAm = np.array([[complex(dataAp[i+1,y+3]) for i in range(len(N))] for y in x])
 
     k = 10**logk
+
+    spec = GaugeSpec({"t":t, "N":N, "k":k,
+                    "Ap":Ap, "dAp":dAp, "Am":Am, "dAm":dAm})
     
-    return t, N, k, Ap, dAp, Am, dAm
+    return spec
 
 
 def ModeEoM(y : ArrayLike, k : float, a : float, SclrCpl : float, sigmaE : float=0., sigmaB : float=0.):
@@ -83,6 +86,63 @@ def ModeEoM(y : ArrayLike, k : float, a : float, SclrCpl : float, sigmaE : float
     dydt[7] = -( drag * y[7] + (dis1  - lam * dis2) * y[6] )
     
     return dydt
+
+class GaugeSpec(dict):
+    def __init__(self, modedic):
+        super().__init__(modedic)
+
+    def GetDim(self):
+        return {"kdim":len(self["k"]), "tdim":len(self["t"])}
+    
+    def TSlice(self, ind):
+        specslice = {}
+        for key, item in self.items():
+            if key in ["N", "t", "UVCut"]:
+                specslice[key] = self[key][ind]
+            elif key=="k":
+                specslice[key] = self[key]
+            else:
+                specslice[key] = self[key][:,ind]
+        return specslice
+    
+    def KSlice(self, ind):
+        specslice = {}
+        for key, item in self.items():
+            if key in ["N", "t", "cutoff"]:
+                specslice[key] = self[key]
+            elif key=="k":
+                specslice[key] = self[key][ind]
+            else:
+                specslice[key] = self[key][ind,:]
+        return specslice
+    
+    def SaveSpec(self, name=None):
+        
+        N = np.array([np.nan]+list(self["N"]))
+        t = np.array([np.nan]+list(self["t"]))
+
+        dic = {"t":t, "N":N}
+
+        for j, k in enumerate(self["k"]):
+            specslice = self.KSlice(j)
+            logk = np.log10(specslice["k"])
+            for key in ["Ap", "dAp", "Am", "dAm"]:
+                dictmp = {key + "_" + str(j) :np.array([logk] + list(specslice[key]))}
+                dic.update(dictmp)
+            
+        if(name==None):
+            filename = "Modes/ModeFile.dat"
+        else:
+            filename = name
+    
+        DirName = os.getcwd()
+    
+        path = os.path.join(DirName, filename)
+    
+        output_df = pd.DataFrame(dic)  
+        output_df.to_csv(path)
+        
+        return
 
 class ModeByMode:
     #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
@@ -150,10 +210,15 @@ class ModeByMode:
         self.__t = values.t
         self.__N = values.N
         kh = values.kh.value
+        a = values.a.value
 
-        self.__af = CubicSpline(self.__t, values.a.value)
+        self.__af = CubicSpline(self.__t, a)
         self.__SclrCplf = CubicSpline( self.__t, values.dI(values.phi)*values.dphi.value )
         self.__khf = CubicSpline(self.__t, kh)
+
+        for key in ["E", "B", "G"]:
+            func = CubicSpline(self.__N, (a/kh)**4*getattr(values, key))
+            setattr(self, f"__{key}f", func)
         
         #Assess if the GEF run incorporates Fermions
         try:
@@ -349,57 +414,23 @@ class ModeByMode:
 
         modes = np.array([self.ComputeMode(k, tstart[i], teval=teval, atol=atol, rtol=rtol)
                   for i, k in enumerate(ks)])
-
-        Ap = modes[:,0,:]
-        dAp = modes[:,1,:]
-        Am = modes[:,2,:]
-        dAm = modes[:,3,:]
         
-        return teval, Neval, ks, Ap, dAp, Am, dAm
+        spec = GaugeSpec({"t":teval, "N":Neval, "k":ks,
+                    "Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
 
+        return spec
     
-    def FnSpec(self, lam : float, ylam : float, dylam : float):
-        """
-        Input
-        -----
-        lam : float
-            the helicity of the spectrum (either +1 or -1)
-        ylam : float
-            the mode function sqrt(2k) A(t,k,lam) for comoving wavenumber k and helicity lam at time t
-        dylam : float
-            the mode-function derivative, sqrt(2/k) dAdeta(t,k,lam) for comoving wavenumber k and helicity lam at time t
+    def IntegrateSpec(self, spec:GaugeSpec, n : int=0, epsabs=1e-20, epsrel=1e-4):
+        tdim = spec.GetDim()["tdim"]
+        
+        FMbM = np.zeros((tdim, 3))
+        for i in range(tdim):
+            specslice = spec.TSlice(i)
+            FMbM[i,:] = self.IntegrateSpecSlice(specslice, n=n, epsabs=epsabs, epsrel=epsrel)[0]
+        
+        return FMbM
 
-        Return
-        ------
-        E : float
-            the spectrum (a/k)^4 d E^2 / d log (k/kh) for comoving wavenumber k and helicity lam,
-        B : float
-            the spectrum of (a/k)^4 d B^2 / d log (k/kh) for comoving wavenumber k and helicity lam
-        G : float
-            the spectrum of - (a/k)^4 d B dot B / d log (k/kh)for comoving wavenumber k and helicity lam
-        """
-
-        Eterm = abs(dylam)**2
-        Bterm = abs(ylam)**2
-        Gterm = lam*(ylam.conjugate() * dylam).real
-
-        #prefac modified to account for sqrt(2k) factor in modes
-        prefac = 1/(2*np.pi)**2
-
-        #ErotnE = int(Edk) 
-        FE = prefac * Eterm
-        #BrotnB = int(Bdk) 
-        FB = prefac * Bterm
-        #-ErotnB = int(Gdk)
-        FG = prefac * Gterm
-
-        return FE, FB, FG
-    
-    def EBGnFromModes(
-                    self, t : float, ks : ArrayLike, 
-                    yP : ArrayLike, yM : ArrayLike, dyP : ArrayLike, dyM : ArrayLike,
-                    n : int=0, epsabs=1e-20, epsrel=1e-4
-                    ):
+    def IntegrateSpecSlice(self, specAtT:dict, n : int=0, epsabs=1e-20, epsrel=1e-4):
         """
         Input
         -----
@@ -428,17 +459,28 @@ class ModeByMode:
             the value of -(a^4/k_h^(n+4)) E rot^n B at time t
         """
 
-        z = ks/self.__khf(t)
+        t = specAtT["t"]
+        z = specAtT["k"]/self.__khf(t)
 
-        spec = (np.array(self.FnSpec(1, yP, dyP))
-             + (-1)**n * np.array(self.FnSpec(-1, yM, dyM)))
+        prefac = 1/(2*np.pi)**2
+        helicities = ["p", "m"]
+        Eterm = 0.
+        Bterm = 0.
+        Gterm = 0.
+        for i, lam in enumerate(helicities):
+            sgn = np.sign(0.5-i)
+            Eterm = prefac*sgn**n*abs(specAtT["dA"+lam])
+            Bterm = prefac*sgn**n*abs(specAtT["A"+lam])
+            Gterm = prefac*sgn**(n+1)*(specAtT["A"+lam].conjugate()*specAtT["dA"+lam]).real
+
+        integrand = np.array([Eterm, Bterm, Gterm])
         
         x = (n+4)*np.log(z)
 
         vals = []
         errs = []
         for k in range(3):
-            spl = CubicSpline(x, spec[k,:])
+            spl = CubicSpline(x, integrand[k,:])
             f = lambda x: spl(x)*np.exp(x)/(n+4)
             val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
             vals.append(val)
@@ -446,36 +488,43 @@ class ModeByMode:
 
         return vals, errs
 
-    def SaveMode(self, t, ks, Ap, dAp, Am, dAm, name=None):
-        logk = np.log10(ks)
-        N = list(np.log(self.__af(t)))
-        N = np.array([np.nan]+N)
-        t = np.array([np.nan]+list(t))
-        dic = {"t":t}
-        dic = dict(dic, **{"N":N})
-        for k in range(len(logk)):
-            dictmp = {"Ap_" + str(k) :np.array([logk[k]] + list(Ap[k,:]))}
-            dic = dict(dic, **dictmp)
-            dictmp = {"Am_" + str(k) :np.array([logk[k]] + list(dAp[k,:]))}
-            dic = dict(dic, **dictmp)
-            dictmp = {"dAp_" + str(k):np.array([logk[k]] + list(Am[k,:]))}
-            dic = dict(dic, **dictmp)
-            dictmp = {"dAm_" + str(k):np.array([logk[k]] + list(dAm[k,:]))}
-            dic = dict(dic, **dictmp)
-            
-        if(name==None):
-            filename = "Modes/ModeFile.dat"
-        else:
-            filename = name
-    
-        DirName = os.getcwd()
-    
-        path = os.path.join(DirName, filename)
-    
-        output_df = pd.DataFrame(dic)  
-        output_df.to_csv(path)
-        
-        return
+    def CompareToBackgroundSolution(self, spec, epsabs=1e-20, epsrel=1e-4, verbose=True):
+        FMbM = self.IntegrateSpec(spec, n=0, epsabs=epsabs, epsrel=epsrel)
+
+        keys = ["E", "B", "G"]
+        errs = []
+
+        Neval = spec["N"]
+        Nerr = Neval[100:] #ignore first 10 e-folds
+        l = len(Nerr)//10
+
+        for i, key in enumerate(keys):
+            spl = getattr(self, "__"+key+"f")(Nerr) #interpolate GEF solution
+            #average error over 1 e-fold to dampen impact of short time-scale spikes
+            errs.append( np.average( abs( (FMbM[100:,i]-spl) / spl )[-10*l:].reshape(l, 10), 1) )
+        #Create e-fold bins of 1-efold corresponding to the error arrays in errs
+        Nerr = np.average( Nerr[-10*l:].reshape(l, 10), 1)
+        Nerr = np.round(Nerr, 1)
+        if verbose:
+            print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:")
+            for i, key in enumerate(keys):
+                err = errs[i]
+                errind = np.where(err == max(err))
+                maxerr = np.round(100*err[errind][0], 1)
+                Nmaxerr = Nerr[errind][0]#np.round(Nerr[errind][0], 1)
+                errend = np.round(100*err[-1], 1)
+                Nerrend = Nerr[-1]#np.round(Nerr[-1], 1)
+                print(f"-- {key} --")
+                print(f"maximum relative deviation: {maxerr}% at N={Nmaxerr}")
+                print(f"final relative deviation: {errend}% at N={Nerrend}")
+
+        return errs, Nerr
+
+
+
+
+
+
 
 
     

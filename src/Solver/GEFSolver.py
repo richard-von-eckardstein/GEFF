@@ -7,7 +7,6 @@ from scipy.interpolate import CubicSpline
 
 from copy import deepcopy
 
-
 class TruncationError(Exception):
     pass
 
@@ -67,23 +66,21 @@ class GEFSolver:
             if nmodes!=None:
                 print("Using last successful GEF solution to compute gauge-field mode functions.")
                 MbM = ModeByMode(vals, self.MbMSettings)
-                teval, Neval, ks, Ap, dAp, Am, dAm = MbM.ComputeModeSpectrum(nmodes)
+                spec = MbM.ComputeModeSpectrum(nmodes)
+
                 
                 print("Performing mode-by-mode comparison with GEF results.")
-                agreement, ind = self.ModeByModeCrossCheck(MbM, vals, teval, Neval, ks, Ap, Am, dAp, dAm)
+                agreement, ReInitSpec = self.ModeByModeCrossCheck(MbM, vals, spec)
 
                 if agreement:
                     print(f"The mode-by-mode comparison indicates a convergent GEF run.")
                     done=True
                 else:
-                    print(f"Attempting to solve GEF using self-correction starting from N={np.round(Neval[ind], 1)}.")
+                    Nreinit = np.round(ReInitSpec["N"], 1)
 
+                    print(f"Attempting to solve GEF using self-correction starting from N={Nreinit}.")
 
-                    self.InitialConditions = self.InitialiseFromMbM(
-                                                                    sol, MbM, teval[ind], ks,
-                                                                    {"Ap":Ap[:,ind], "dAp":dAp[:,ind],
-                                                                        "Am":Am[:,ind], "dAm":dAm[:,ind]}
-                                                                        )
+                    self.InitialConditions = self.InitialiseFromMbM(sol, MbM, ReInitSpec)
             else:
                 done=True
         
@@ -132,41 +129,9 @@ class GEFSolver:
 
         return sol, vals
     
-    def ModeByModeCrossCheck(self, MbM, vals, teval, Neval, ks, Ap, Am, dAp, dAm):
-        FMbM = np.array([
-                        MbM.EBGnFromModes(
-                                    t, ks, Ap[:,i], Am[:,i], dAp[:,i], dAm[:,i], n=0,
-                                    epsabs=self.atol, epsrel=self.rtol
-                                        )[0]
-                    for i, t in enumerate(teval)])
-
-
-        keys = ["E", "B", "G"]
-        errs = []
-
-        Nerr = Neval[100:] #ignore first 10 e-folds
-        l = len(Nerr)//10
-
-        for i, key in enumerate(keys):
-            spl = CubicSpline( vals.N, (vals.a/vals.kh)**4*getattr(vals, key) )(Nerr) #interpolate GEF solution
-            #average error over 1 e-fold to dampen impact of short time-scale spikes
-            errs.append( np.average( abs( (FMbM[100:,i]-spl) / spl )[-10*l:].reshape(l, 10), 1) )
-        #Create e-fold bins of 1-efold corresponding to the error arrays in errs
-        Nerr = np.average( Nerr[-10*l:].reshape(l, 10), 1)
-        Nerr = np.round(Nerr, 1)
-
-        print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:")
-        for i, key in enumerate(keys):
-            err = errs[i]
-            errind = np.where(err == max(err))
-            maxerr = np.round(100*err[errind][0], 1)
-            Nmaxerr = Nerr[errind][0]#np.round(Nerr[errind][0], 1)
-            errend = np.round(100*err[-1], 1)
-            Nerrend = Nerr[-1]#np.round(Nerr[-1], 1)
-            print(f"-- {key} --")
-            print(f"maximum relative deviation: {maxerr}% at N={Nmaxerr}")
-            print(f"final relative deviation: {errend}% at N={Nerrend}")
-
+    def ModeByModeCrossCheck(self, MbM, spec):
+        errs, Nerr = MbM.CompareToBackgroundSolution(spec, epsabs=1e-20, epsrel=1e-4)
+        
         lowerrinds = []
         agreement=True
         for err in errs:              
@@ -180,9 +145,11 @@ class GEFSolver:
 
         N0 = Nerr[min(lowerrinds)]
 
-        ind = np.where(Neval <= N0)[0][-1]
+        ind = np.where(spec["N"] <= N0)[0][-1]
 
-        return agreement, ind
+        ReInitSlice = spec.TSlice(ind)
+
+        return agreement, ReInitSlice
     
     def UpdateGEFSolution(self, solold, solnew):
         if solold==None:
@@ -202,37 +169,36 @@ class GEFSolver:
         yini = self.__Initialise(vals, self.ntr)
         return t0, yini, vals
     
-    def InitialiseFromMbM(self, sol, MbM, t, ks, modes):
+    def InitialiseFromMbM(self, sol, MbM, ReInitSpec):
         def NewInitialiser():
             ntr = self.ntr
             rtol = self.rtol
 
+            treinit = ReInitSpec["t"]
+
             #Create array of initial data at time t based on ODE-solution
             yini = np.zeros((sol.y.shape[0]))
             for i in range(sol.y.shape[0]):
-                yini[i] = CubicSpline(sol.t, sol.y[i,:])(t)
+                yini[i] = CubicSpline(sol.t, sol.y[i,:])(treinit)
 
             #reiinitialise Temp using "Initialise" to zero out all GEF-bilinear values
             Temp = deepcopy(self.iniVals)
-            self.ParseArrToUnitSystem(t, yini, Temp) 
+            self.ParseArrToUnitSystem(treinit, yini, Temp) 
             ytmp = self.__Initialise(Temp, ntr)
             gaugeinds = np.where(ytmp==0.)[0]
 
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
-                                    [MbM.EBGnFromModes(
-                                                        t, ks,
-                                                        modes["Ap"], modes["Am"],
-                                                        modes["dAp"], modes["dAm"],
-                                                        n=n,epsabs=1e-20, epsrel=rtol*1e-2
-                                                        )[0]
-                                    for n in range(1,ntr+1)]
+                                    [
+                                        MbM.IntegrateSpecSlice(ReInitSpec, n=n,epsabs=1e-20, epsrel=rtol*1e-2)[0]
+                                    for n in range(1,ntr+1)
+                                    ]
                                     ).reshape(3*ntr)
             
             #Prepare value system for solver
-            self.ParseArrToUnitSystem(t, yini, Temp)
+            self.ParseArrToUnitSystem(treinit, yini, Temp)
 
-            return t, yini, Temp
+            return treinit, yini, Temp
         return NewInitialiser
         
     def ParseArrToUnitSystem(self, t, y, vals):

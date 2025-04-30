@@ -489,10 +489,12 @@ class PowSpecT:
         if ModePath==None:
             ModePath = f"../Modes/Modes+Beta{x.__beta}+M6_16.dat"
         
-        tgrid, Ngrid, kgrid, Ap, dAp, Am, dAm = ReadMode(ModePath)
-        Ngrid = np.array(list(Ngrid))
+        spec = ReadMode(ModePath)
+        Ngrid = spec["N"]
+        tgrid = spec["t"]
+        kgrid = spec["k"]
 
-        GaugeModes = {"+":(Ap, dAp), "-":(Am, dAm)}
+        GaugeModes = {"+":(spec["Ap"], spec["dAp"]), "-":(spec["Am"], spec["dAm"])}
 
         if N==None:
             N = x.maxN
