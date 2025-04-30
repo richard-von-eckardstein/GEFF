@@ -1,6 +1,6 @@
 import numpy as np
 from src.EoMsANDFunctions.ClassicEoMs import *
-from src.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox, WhittakerExact
+from src.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox
 from src.EoMsANDFunctions.Utility import Heaviside
 from src.Solver.Events import Event
 

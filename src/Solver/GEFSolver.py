@@ -59,7 +59,7 @@ class GEFSolver:
         while not(done) and attempt<3:
             attempt +=1
             solnew, vals = self.GEFAlgorithm(reachNend, ensureConvergence, maxattempts)
-            sol = self.UpdateGEFSolution(sol, solnew)
+            sol = self.UpdateSol(sol, solnew)
             self.ParseArrToUnitSystem(sol.t, sol.y, vals)
 
             if nmodes!=None:
@@ -103,7 +103,7 @@ class GEFSolver:
 
                 if reachNend and ensureConvergence:
                     Ninf = sol.events["End of inflation"]["N"][-1]
-                    if np.log10(abs(Ninf-Nend)) < -1: 
+                    if abs(Ninf-Nend) < 0.1: 
                         done=True
                     else:
                         attempts+=1
@@ -155,13 +155,20 @@ class GEFSolver:
 
         return agreement, ReInitSlice
     
-    def UpdateGEFSolution(self, solold, solnew):
+    def UpdateSol(self, solold, solnew):
         if solold==None:
             return solnew
         else:
             sol = solold
             indoverlap = np.where(solnew.t[0] > solold.t)[0][-1]
             sol.t = np.concatenate([solold.t[:indoverlap], solnew.t])
+
+            if solold.y.shape[0] < solnew.y.shape[0]:
+                #if ntr increased from one solution to the next, fill up solold with zeros to match solnew
+                fillshape = (solnew.y.shape[0] - solold.y.shape[0], solold.y.shape[1])
+                yfill = np.zeros( fillshape )
+                solold.y = np.concatenate([solold.y, yfill], axis=0)
+
             sol.y = np.concatenate([solold.y[:,:indoverlap], solnew.y], axis=1)
             sol.events.update(solnew.events)
             sol.nfev +=sol.nfev
@@ -181,7 +188,9 @@ class GEFSolver:
             treinit = ReInitSpec["t"]
 
             #Use the original "Initialise" to zero out all GEF-bilinear values
-            _, ytmp, Temp = self.InitialiseFromSlowRoll()
+            Temp = deepcopy(self.iniVals)
+            Temp.N.value = ReInitSpec["N"]
+            ytmp = self.__Initialise(Temp, ntr)
             gaugeinds = np.where(ytmp==0.)[0]
 
             #Append initial data at time t based on the original ODE-solution

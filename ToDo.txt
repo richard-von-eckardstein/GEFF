@@ -1,14 +1,22 @@
 ModeByMode:
-    - Documentation
     - ReadMode
-    -  Split ModeByMode Solver and SpecFunctions? 
+    - Split ModeByMode Solver and SpecFunctions? 
 
 Tensor:
-    - store and load Part
-    - split solver and PT? -> Probably PT and GW split
+    - store and load PT
 
 GEF:
     - how to deal with end of inflation Event?
     - How to get Nend when loading data (repurcussions for PT)
     - Better way to track gauge-field indices
     - GEFAlgorithm: less unnecessary attempt trackers
+    - Longterm:
+        x TimeStep, UpdateVals etc.: more streamlined
+
+General:
+    - Documentation
+    - New Models
+    - File structure
+        x Config, GEF, Spec, Tensor File
+        x Config knows about settings, GEF, Spec, and Tensor location
+    
