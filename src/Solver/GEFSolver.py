@@ -89,9 +89,7 @@ class GEFSolver:
                 PrintSolution(sol)
             return sol
         else:
-            print("GEF run was unsuccessful, returning last GEF solution.")
-
-        return sol
+            raise RuntimeError(f"GEF did not complete after {attempt} attempts.")
     
     def GEFAlgorithm(self, reachNend=True, ensureConvergence=True, maxattempts=5):
         if reachNend: Nend=60 #set default Nend
@@ -110,6 +108,7 @@ class GEFSolver:
                         print("To verify a consistent run, checking stability against increasing ntr.")
                         self.IncreaseNtr(5)
                         Nend = Ninf
+                        attempts+=1
                 else:
                     done=True
             except TruncationError:

@@ -153,21 +153,21 @@ class PowSpecT:
     PTAnalyitcal():
         From a given GEF result, compute the analytical estimate of the tensor power spectrum from axion inflation.
     """
-    def __init__(x, G):
+    def __init__(x, values):
         #Set GEF results to Hubble units.
-        if G.units: G.Unitless()
+        values.SetUnits(False)
         
-        a = G.vals["a"]
-        H = G.vals["H"]
+        a = values.a
+        H = values.H
         
-        Nend = G.EndOfInflation()
-        N = G.vals["N"]
+        Nend = values.N[-1]
+        N = values.N
 
-        x.__omega = G.omega
+        x.__omega = values.H0
         
         #Assess if the end of inflation is reached for this run
-        if np.log10(abs(max(N) - Nend)) > -2:
-            print("This GEF run has not run reached the end of inflation. The code will assume Nend = max(N). Proceed with caution!")
+        """if np.log10(abs(max(N) - Nend)) > -2:
+            print("This GEF run has not run reached the end of inflation. The code will assume Nend = max(N). Proceed with caution!")"""
         maxN = min(max(N), Nend)
         x.maxN = maxN
             
@@ -176,18 +176,17 @@ class PowSpecT:
         x.mink = 1e4
 
         #Define Useful quantities
-        x.__beta = G.beta
 
-        x.__t = G.vals["t"]
+        x.__t = values.t
         x.__N = N
         x.__H = H
-        x.__xi= G.vals["xi"]
+        x.__xi= values.xi
 
         
         x.__af = CubicSpline(x.__t, a)
         x.__Hf = CubicSpline(x.__t, H)
         x.__HN = CubicSpline(x.__N, x.__H)
-        x.__khN = CubicSpline(N, G.vals["kh"])
+        x.__khN = CubicSpline(N, values.kh)
 
         #Obtain eta as a functio of time
         deta = lambda t, y: 1/x.__af(t)
@@ -485,9 +484,6 @@ class PowSpecT:
         """
 
         ks, tstarts = x._InitialKTN_(k, mode="k")
-
-        if ModePath==None:
-            ModePath = f"../Modes/Modes+Beta{x.__beta}+M6_16.dat"
         
         spec = ReadMode(ModePath)
         Ngrid = spec["N"]
