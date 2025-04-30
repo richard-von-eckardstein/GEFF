@@ -5,8 +5,8 @@ ModeByMode:
 
 Tensor:
     - store and load Part
-    - split solver and PT?
+    - split solver and PT? -> Probably PT and GW split
 
 GEF:
     - how to deal with end of inflation Event?
-    
+    - How to treat model paths?

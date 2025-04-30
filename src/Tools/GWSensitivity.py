@@ -11,6 +11,8 @@ from scipy.integrate import simps
 
 h = 0.67
 
+basepath = os.path.dirname(os.path.abspath(__file__))
+
 
 def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25):
     """
@@ -37,7 +39,8 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
         the updated plot.
     """
     #the path to the sensitivity curve data
-    path = os.path.abspath(inspect.getfile(src.GEF)).replace("GEF.py", "Tools/power-law-integrated_sensitivities/")
+    print(basepath)
+    path = os.path.join(basepath, "power-law-integrated_sensitivities/")
     arr = os.listdir(path)
     
     #Obtain List of experiments and running experiments
@@ -94,10 +97,13 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
         if dic[key]["running"]:
             ax.fill_between(f, max(SCurve)*np.ones(f.shape), SCurve, color=dic[key]["col"], alpha=alpha)
         ax.plot(f, SCurve, color=dic[key]["col"])
+
+    ax.set_yscale("log")
+    ax.set_xscale("log")
     return ax
 
 def ComputeSNR(OmegaSignal, fSignal, experiment, tobs=1.):
-    path = os.path.abspath(inspect.getfile(src.GEF)).replace("GEF.py", "Tools/strains/")
+    path = os.path.join(basepath, "strains/")
     arr = os.listdir(path)
 
     exp = [a.replace("strain_","").replace(".dat", "") for a in arr ]

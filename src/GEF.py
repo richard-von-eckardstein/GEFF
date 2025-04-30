@@ -13,7 +13,8 @@ from copy import deepcopy
 
 
 def ModelLoader(modelname):
-    modelpath = os.path.join("Models/", modelname+".py")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    modelpath = os.path.join(current_dir, f"Models/{modelname}.py")
     #Check if Model exists
     try:
         #Load ModelAttributes from GEFFile
