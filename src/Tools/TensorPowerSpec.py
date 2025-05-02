@@ -543,7 +543,7 @@ class PowSpecT:
             elif key=="vac":
                 PT["tot"] += PT[key]
 
-        return k, PT
+        return kgrid, PT
     
     def PTAnalytical(self) -> Tuple[ArrayLike,dict]:
         """
