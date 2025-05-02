@@ -667,7 +667,7 @@ class GEF:
 
         print(f"The solver aims at reaching t={tend}")
 
-        t0, yini, events, eventdic = x.SetupSolver(reachNend=True, atol=atol)
+        t0, yini, events, eventdic = x.SetupSolver(reachNend=reachNend, atol=atol)
 
         t.start()
 
@@ -726,28 +726,32 @@ class GEF:
                             done=False
             
         t.stop()
-        nfevs = 0
-        y = []
-        t = []
-        for s in sols:
-            t.append(s.t)
-            y.append(s.y)
-            nfevs +=sol.nfev
+        if len(events)!=0:
+            nfevs = 0
+            y = []
+            t = []
+            for s in sols:
+                t.append(s.t)
+                y.append(s.y)
+                nfevs +=sol.nfev
 
-        t = np.concatenate(t)
-        y = np.concatenate(y, axis=1)
+        
+            t = np.concatenate(t)
+            y = np.concatenate(y, axis=1)
 
-        sol.t = t
-        sol.y = y
-        sol.nfev = nfevs
+            sol.t = t
+            sol.y = y
+            sol.nfev = nfevs
 
-        for eventname in (eventdic.keys()):
-            try:
-                eventdic[eventname]["t"] = np.round(np.concatenate(eventdic[eventname]["t"]), 1)
-                eventdic[eventname]["N"] = np.round(np.concatenate(eventdic[eventname]["N"]), 3)
-            except ValueError:
-                eventdic[eventname]["t"] = np.array(eventdic[eventname]["t"])
-                eventdic[eventname]["N"] = np.array(eventdic[eventname]["N"])
+            for eventname in (eventdic.keys()):
+                try:
+                    eventdic[eventname]["t"] = np.round(np.concatenate(eventdic[eventname]["t"]), 1)
+                    eventdic[eventname]["N"] = np.round(np.concatenate(eventdic[eventname]["N"]), 3)
+                except ValueError:
+                    eventdic[eventname]["t"] = np.array(eventdic[eventname]["t"])
+                    eventdic[eventname]["N"] = np.array(eventdic[eventname]["N"])
+
+            sol.events = eventdic
 
 
         sol.events = eventdic
@@ -1005,8 +1009,8 @@ class GEF:
             x.vals["kh"] = x.vals["kh"]/omega
             if (x.SEModel == "KDep"):
                 x.vals["kS"] = x.vals["kS"]/omega
-                x.vals["sigmaEk"] = x.vals["sigmaEk"]/omega
-                x.vals["sigmaBk"] = x.vals["sigmaBk"]/omega
+                """x.vals["sigmaEk"] = x.vals["sigmaEk"]/omega
+                x.vals["sigmaBk"] = x.vals["sigmaBk"]/omega"""
                 x.vals["EBar"] = x.vals["EBar"]/(omega)**4
                 x.vals["BBar"] = x.vals["BBar"]/(omega)**4
                 x.vals["GBar"] = x.vals["GBar"]/(omega)**4
@@ -1039,8 +1043,8 @@ class GEF:
             x.vals["kh"] = x.vals["kh"]*omega
             if (x.SEModel == "KDep"):
                 x.vals["kS"] = x.vals["kS"]*omega
-                x.vals["sigmaEk"] = x.vals["sigmaEk"]*omega
-                x.vals["sigmaBk"] = x.vals["sigmaBk"]*omega
+                """x.vals["sigmaEk"] = x.vals["sigmaEk"]*omega
+                x.vals["sigmaBk"] = x.vals["sigmaBk"]*omega"""
                 x.vals["EBar"] = x.vals["EBar"]*(omega)**4
                 x.vals["BBar"] = x.vals["BBar"]*(omega)**4
                 x.vals["GBar"] = x.vals["GBar"]*(omega)**4
