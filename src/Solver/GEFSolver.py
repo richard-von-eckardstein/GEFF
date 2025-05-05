@@ -83,7 +83,7 @@ class GEFSolver:
             else:
                 done=True
         
-        if attempt<=3:
+        if done:
             print("GEF run successfully completed.")
             if printstats:
                 PrintSolution(sol)
