@@ -19,7 +19,7 @@ def Initialise(vals, ntr):
     yini[1] = vals.phi.value
     yini[2] = vals.dphi.value
 
-    vals.kh.SetValue( abs(vals.dphi)*vals.dI(vals.phi))
+    vals.kh.SetValue( abs(vals.dphi)*vals.dI(vals.phi) )
     yini[3] = np.log(vals.kh.value)
 
     #currently, all gauge-field expectation values are assumed to be 0 at initialisation

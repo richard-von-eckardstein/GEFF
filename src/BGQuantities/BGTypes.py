@@ -150,8 +150,8 @@ class BGFunc(Quantity):
     def GetConversion(self):
         return self.__Conversion
 
-def DefineQuantity(Qname, H0, MP, func=False):
-    if not(func):
+def DefineQuantity(Qname, H0, MP, isfunc=False):
+    if not(isfunc):
         class Val(BGVal):
             name=Qname
             u_H0 = H0
@@ -161,7 +161,7 @@ def DefineQuantity(Qname, H0, MP, func=False):
 
         return Val
     
-    elif func:
+    elif isfunc:
         class Func(BGFunc):
             name=Qname
             u_H0 = H0
@@ -198,13 +198,17 @@ class BGSystem:
         delattr(self, f"_{name}")
         return
     
+    def AddQuantity(self, name, H0units, MPunits, isfunc=False):
+        setattr(self, f"_{name}",
+                 DefineQuantity(name, H0units, MPunits, isfunc=isfunc))
+    
     def AddValue(self, name, value, H0units, MPunits):
-        setattr(self, f"_{name}", DefineQuantity(name, H0units, MPunits, func=False))
+        self.AddQuantity(name, H0units, MPunits, isfunc=False)
         self.Initialise(name)(value)
         return
     
     def AddFunction(self, name, function, H0units, MPunits):
-        setattr(self, f"_{name}", DefineQuantity(name, H0units, MPunits, func=True))
+        self.AddQuantity(name, H0units, MPunits, isfunc=True)
         self.Initialise(name)(function)
         return
         
