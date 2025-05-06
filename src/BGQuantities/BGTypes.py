@@ -1,257 +1,287 @@
 import numpy as np
 from copy import deepcopy
+import inspect
+
+class Quantity:
+    name= ""
+    u_H0 = 0
+    u_MP = 0
+
+    def __repr__(self):
+        return f"{self.name}(H0={self.u_H0}, MP={self.u_MP})"
+
+class BGVal(Quantity):
+    def __init__(self, value, BGSystem):
+        super().__init__()
+        self.value = value
+        self.__units = BGSystem.GetUnits()
+        self.massdim = self.u_H0+self.u_MP
+        self.__Conversion = (BGSystem.H0**self.u_H0*BGSystem.MP**self.u_MP)
+
+    def __str__(self):
+        if self.__units==None:
+            return f"{self.name}: {self.value}"
+        if self.__units==False:
+            return f"{self.name} (Unitless): {self.value}"
+        if self.__units==True:
+            return f"{self.name} (Unitful): {self.value}"
     
+    def __getitem__(self, idx):
+        return self.value[idx]
+    
+    def __len__(self):
+        return len(self.value)
+    
+    def __round__(self):
+        return round(self.value)
+    
+    def __abs__(self):
+        return abs(self.value)
+    
+    def __neg__(self):
+        return -self.value
+    
+    def __pos__(self):
+        return +self.value
+    
+    def __add__(self, other):
+        return self.value + other
+        
+    __radd__ = __add__
+    
+    def __sub__(self, other):
+        return self.value - other
+        
+    def __rsub__(self, other):
+        return other - self.value
+
+    def __mul__(self, other):
+        return self.value * other
+        
+    __rmul__ = __mul__
+    
+    def __floordiv__(self, other):
+        return self.value // other
+        
+    def __rfloordiv__(self, other):
+        return other // self.value
+    
+    def __truediv__(self, other):
+        return self.value / other
+        
+    def __rtruediv__(self, other):
+        return other / self.value
+    
+    def __mod__(self, other):
+        return self.value % other
+    
+    def __pow__(self, other):
+        #BGVal should never be exponentiated by another BGVal
+        return self.value ** other
+    
+    def __eq__(self, other):
+        return self.value == other
+            
+    def __ne__(self, other):
+        return self.value != other
+    
+    def __lt__(self, other):
+        return self.value < other
+
+    def __gt__(self, other):
+        return self.value > other
+
+    def __le__(self, other):
+        return  self.value <= other
+
+    def __ge__(self, other):
+        return  self.value >= other
+    
+    def GetUnits(self):
+        return self.__units
+    
+    def SetUnits(self, units):
+        
+        if isinstance(self.value, type(None)):
+            self.__units=units
+            return
+        
+        if units:
+            self.__Unitful()
+        elif not(units):
+            self.__Unitless()
+        return
+
+    def __Unitless(self):
+        if self.__units:
+            self.value /= self.__Conversion
+        self.__units=False
+        return
+    
+    def __Unitful(self):
+        if not(self.__units):
+            self.value *= self.__Conversion
+        self.__units=True
+        return
+    
+    def SetValue(self, value):
+        #set the value of the array element assuming the units of the BG system
+        self.value = np.asarray(value)
+        return
+    
+    def GetConversion(self):
+        return self.__Conversion
+    
+class BGFunc(Quantity):
+    def __init__(self, func, BGSystem):
+        super().__init__()
+        self.__basefunc = func
+        self.__Conversion = (BGSystem.H0**self.u_H0*BGSystem.MP**self.u_MP)
+
+    def __call__(self, value):
+        if isinstance(value, BGVal):
+            valueconversion = value.GetConversion()
+            pow = (1 - value.GetUnits())
+            return self.__basefunc(value*valueconversion**pow)/self.__Conversion**pow 
+        
+    def GetBaseFunc(self):
+        return self.__basefunc
+    
+    def GetConversion(self):
+        return self.__Conversion
+
+def DefineQuantity(Qname, H0, MP, func=False):
+    if not(func):
+        class Val(BGVal):
+            name=Qname
+            u_H0 = H0
+            u_MP = MP
+            def __init__(self, value, BGSystem):
+                super().__init__(value, BGSystem)
+
+        return Val
+    
+    elif func:
+        class Func(BGFunc):
+            name=Qname
+            u_H0 = H0
+            u_MP = MP
+            def __init__(self, func, BGSystem):
+                super().__init__(func, BGSystem)
+
+        return Func
+
 class BGSystem:
-    def __init__(self, values, functions, H0, MP):
+    def __init__(self, quantities, H0, MP):
         self.H0 = H0
         self.MP = MP
         self.__units=True
-        for key, item in values.items():
-            #initialise value in dictionary with given name and unit conversion. Value is assumed Unitful
-            self.AddValue(key, item["value"], item["H0"], item["MP"])
-        for key, item in functions.items():
-            self.AddFunction(key, item["func"], item["H0"], item["MP"])
+        for quantity in quantities:
+            setattr(self, f"_{quantity.name}", quantity)
         
+    @classmethod
+    def InitialiseFromBGSystem(cls, system):
+        H0 = system.H0
+        MP = system.MP
+        quantities = system.ObjectSet()
+        newinstance = cls(quantities, H0, MP)
+        return newinstance
 
-    def AddValue(self, name, value, H0units, MPunits):
-        setattr(self, name, self.BGVal(name, value, H0units, MPunits, self))
+    def Initialise(self, quantity):
+        def init(obj):
+            q = getattr(self, f"_{quantity}")
+            setattr(self, quantity, q(obj, self))
+        return init
+
+    def Remove(self, name):
+        delattr(self, name)
+        delattr(self, f"_{name}")
         return
     
-    def RemoveValue(self, name):
-        delattr(self, name)
+    def AddValue(self, name, value, H0units, MPunits):
+        setattr(self, f"_{name}", DefineQuantity(name, H0units, MPunits, func=False))
+        self.Initialise(name)(value)
         return
     
     def AddFunction(self, name, function, H0units, MPunits):
-        setattr(self, name, self.BGFunc(name, function, H0units, MPunits, self))
-        
-    def RemoveFunction(self, name):
-        delattr(self, name)
+        setattr(self, f"_{name}", DefineQuantity(name, H0units, MPunits, func=True))
+        self.Initialise(name)(function)
         return
         
     def SetUnits(self, units):
         for var in vars(self):
             obj = getattr(self, var)
-            if isinstance(obj, self.BGVal):
+            if isinstance(obj, BGVal):
                 obj.SetUnits(units)
         self.__units=units
         return
 
     def GetUnits(self):
         return self.__units
-
-    def ValuesList(self):
-        valuelist = []
-        for var in vars(self):
-            obj = getattr(self, var)
-            if isinstance(obj, self.BGVal):
-                valuelist.append(obj.name)
-        return valuelist
-
-    def FunctionsList(self):
-        funclist = []
-        for var in vars(self):
-            obj = getattr(self, var)
-            if isinstance(obj, self.BGFunc):
-                funclist.append(obj.name)
-        return funclist
     
+    def ObjectSet(self):
+        objects = []
+        for var in vars(self):
+            obj = getattr(self, var)
+            if inspect.isclass(obj):
+                if issubclass(obj, Quantity):
+                    objects.append(obj)      
+        return set(objects)
+    
+    def ValList(self):
+        vals = []
+        for var in vars(self):
+            obj = getattr(self, var)
+            if isinstance(obj, BGVal):
+                vals.append(obj)    
+        return vals
+
+    def FuncList(self):
+        funcs = []
+        for var in vars(self):
+            obj = getattr(self, var)
+            if isinstance(obj, BGFunc):
+                    funcs.append(obj)      
+        return set(funcs)
+    
+    def ObjectNames(self):
+        names = []
+        for obj in self.ObjectSet():
+            names.append(obj.name)
+        return names
+
+    def ValueNames(self):
+        names = []
+        for val in self.ValList():
+            names.append(val.name)
+        return names
+
+    def FunctionNames(self):
+        names = []
+        for val in self.FuncList():
+            names.append(val.name)
+        return names
+
     def CreateCopySystem(self):
-        values = self.ValuesList()
-        funcs = self.FunctionsList()
-        valuedic = dict(zip(values, [{"value":None, "H0":0, "MP":0} for v in values]))
+        units = self.GetUnits()
+        newsystem = BGSystem.InitialiseFromBGSystem(self)
+        self.SetUnits(True)
+
+        values = self.ValList()
+        funcs = self.FuncList()
+        
         for value in values:
-            obj = getattr(self, value)
-            valuedic[value]["value"] = deepcopy(obj.value)
-            valuedic[value]["H0"] = obj.u_H0
-            valuedic[value]["MP"] = obj.u_MP
+            obj = deepcopy(value.value)
+            newsystem.Initialise(value.name)(obj)
 
-        funcdic = dict(zip(funcs, [{"func":None, "H0":0, "MP":0} for f in funcs]))
         for func in funcs:
-            obj = getattr(self, func)
-            funcdic[func]["func"] = obj.GetBaseFunc()
-            funcdic[func]["H0"] = obj.u_H0
-            funcdic[func]["MP"] = obj.u_MP
+            obj = func.GetBaseFunc()
+            newsystem.Initialise(func.name)(obj)
         
-        return BGSystem(valuedic, funcdic, self.H0, self.MP)
-    
-    class BGVal:
-        def __init__(self, name, value, H0units, MPunits, BGSystem):
-            self.value = value
-            self.name = name
-            self.__units = BGSystem.GetUnits()
-            self.u_H0 = H0units
-            self.u_MP = MPunits
-            self.massdim = self.u_H0+self.u_MP
-            self.__Conversion = (BGSystem.H0**H0units*BGSystem.MP**MPunits)
-
-        def __str__(self):
-            if self.__units==None:
-                return f"{self.name}: {self.value}"
-            if self.__units==False:
-                return f"{self.name} (Unitless): {self.value}"
-            if self.__units==True:
-                return f"{self.name} (Unitful): {self.value}"
+        self.SetUnits(units)
         
-        def __repr__(self):
-            return f"BGVal(name='{self.name}', H0Units={self.u_H0}, MPunits={self.u_MP})"
+        return newsystem
         
-        def __getitem__(self, idx):
-            return self.value[idx]
-        
-        def __len__(self):
-            return len(self.value)
-        
-        def __round__(self):
-            return round(self.value)
-        
-        def __abs__(self):
-            return abs(self.value)
-        
-        def __neg__(self):
-            return -self.value
-        
-        def __pos__(self):
-            return +self.value
-        
-        def __add__(self, other):
-            """if isinstance(other, BGVal):
-                assert (self.massdim==other.massdim)
-                #always add quantities with units
-                return (self.value*self.__Conversion**(1-self.__units) 
-                        + other.value*other.GetConversion()**(1-other.GetUnits()))"""
-            return self.value + other
-            
-        __radd__ = __add__
-        
-        def __sub__(self, other):
-            """if isinstance(other, BGVal):
-                assert (self.massdim==other.massdim)
-                #always add quantities with units
-                return (self.value*self.__Conversion**(1-self.__units) 
-                        - other.value*other.GetConversion()**(1-other.GetUnits()))"""
-            return self.value - other
-            
-        def __rsub__(self, other):
-            return other - self.value
-
-        def __mul__(self, other):
-            return self.value * other
-            """if isinstance(other, BGVal):
-                return self.value * other.value
-            else:
-                return self.value * other"""
-            
-        __rmul__ = __mul__
-        
-        def __floordiv__(self, other):
-            return self.value // other
-            
-        def __rfloordiv__(self, other):
-            return other // self.value
-        
-        def __truediv__(self, other):
-            return self.value / other
-            """if isinstance(other, BGVal):
-                return self.value / other.value
-            else:
-                return self.value / other"""
-            
-        def __rtruediv__(self, other):
-            return other / self.value
-            """if isinstance(other, BGVal):
-                return other.value / self.value
-            else:
-                return other / self.value"""
-        
-        def __mod__(self, other):
-            return self.value % other
-        
-        def __pow__(self, other):
-            #BGVal should never be exponentiated by another BGVal
-            return self.value ** other
-        
-        def __eq__(self, other):
-            return self.value == other
-                
-        def __ne__(self, other):
-            return self.value != other
-        
-        def __lt__(self, other):
-            return self.value < other
-
-        def __gt__(self, other):
-            return self.value > other
-
-        def __le__(self, other):
-            return  self.value <= other
-
-        def __ge__(self, other):
-            return  self.value >= other
-        
-        def GetUnits(self):
-            return self.__units
-        
-        def SetUnits(self, units):
-            
-            if isinstance(self.value, type(None)):
-                self.__units=units
-                return
-            
-            if units:
-                self.__Unitful()
-            elif not(units):
-                self.__Unitless()
-            return
-
-        def __Unitless(self):
-            if self.__units:
-                self.value /= self.__Conversion
-            self.__units=False
-            return
-        
-        def __Unitful(self):
-            if not(self.__units):
-                self.value *= self.__Conversion
-            self.__units=True
-            return
-        
-        def SetValue(self, value):
-            #set the value of the array element assuming the units of the BG system
-            self.value = np.asarray(value)
-            return
-        
-        def GetConversion(self):
-            return self.__Conversion
-    
-
-    class BGFunc:
-        def __init__(self, name, func, H0units, MPunits, BGSystem):
-            self.u_H0 = H0units
-            self.u_MP = MPunits
-            self.__basefunc = func
-            self.name = name
-            self.__Conversion = (BGSystem.H0**H0units*BGSystem.MP**MPunits)
-
-        def __call__(self, value):
-            if isinstance(value, BGSystem.BGVal):
-                valueconversion = value.GetConversion()
-                pow = (1 - value.GetUnits())
-                return self.__basefunc(value*valueconversion**pow)/self.__Conversion**pow 
-            
-        def GetBaseFunc(self):
-            return self.__basefunc
-        
-        def GetConversion(self):
-            return self.__Conversion
-
-
-
-
-
-
-
-    
-
 
 
 
