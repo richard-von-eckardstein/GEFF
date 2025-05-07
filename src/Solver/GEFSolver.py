@@ -56,7 +56,7 @@ class GEFSolver:
         done=False
         sol = None
         attempt=0
-        while not(done) and attempt<3:
+        while not(done) and attempt<maxattempts:
             attempt +=1
             solnew, vals = self.GEFAlgorithm(reachNend, ensureConvergence, maxattempts)
             sol = self.UpdateSol(sol, solnew)
