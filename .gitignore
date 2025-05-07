@@ -4,8 +4,11 @@ Plots/
 OldGEF/
 Notebooks/
 Config/
-src/Tools/power-law-integrated_sensitivities/
 .ipynb_checkpoints/
 __pycache__
 *.zip
 *.dat
+
+!src/Data/EffDoF.dat
+!src/Data/strains/*
+!src/Data/power-law-integrated_sensitivities/*
