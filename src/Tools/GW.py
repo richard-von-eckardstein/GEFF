@@ -5,15 +5,13 @@ import pandas as pd
 import os
 import random
 
-from ptarcade.models_utils import g_rho, g_rho_0, g_s, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
+from src.Utility import g_rho, g_rho_freq, g_rho_0, g_s, g_s_freq, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
 
 from scipy.interpolate import CubicSpline
 from scipy.integrate import simps
 
 from numpy.typing import ArrayLike
 from typing import Tuple
-
-h = 0.67
 
 class OmegaGW:
     def __init__(self, values):
@@ -107,7 +105,7 @@ class OmegaGW:
             TransferRH = 1/(1. - 0.22*(f/frh)**1.5 + 0.65*(f/frh)**2)
             TransferRH = np.where(np.log(f/fend) < 0, TransferRH, np.zeros(f.shape))
 
-        OmegaGW = h**2*omega_r/24  * PT * (g_rho(f, True)/g_rho_0) * (g_s_0/g_s(f, True))**(4/3) * TransferRH
+        OmegaGW = h**2*omega_r/24  * PT * (g_rho_freq(f)/g_rho_0) * (g_s_0/g_s_freq(f))**(4/3) * TransferRH
         
         return OmegaGW, f
 
@@ -144,7 +142,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
     """
     #the path to the sensitivity curve data
     print(basepath)
-    path = os.path.join(basepath, "power-law-integrated_sensitivities/")
+    path = os.path.join(basepath, "../Data/power-law-integrated_sensitivities/")
     arr = os.listdir(path)
     
     #Obtain List of experiments and running experiments
@@ -207,7 +205,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
     return ax
 
 def ComputeSNR(OmegaSignal, fSignal, experiment, tobs=1.):
-    path = os.path.join(basepath, "strains/")
+    path = os.path.join(basepath, "../Data/strains/")
     arr = os.listdir(path)
 
     exp = [a.replace("strain_","").replace(".dat", "") for a in arr ]
