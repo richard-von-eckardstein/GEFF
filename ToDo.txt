@@ -19,4 +19,8 @@ General:
     - File structure
         x Config, GEF, Spec, Tensor File
         x Config knows about settings, GEF, Spec, and Tensor location
+
+SEModesl:
+    - treat modelSettings
+    - treat ModeEoM
     

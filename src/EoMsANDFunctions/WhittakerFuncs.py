@@ -68,6 +68,50 @@ def WhittakerApprox(xi):
         Fterm = WhittakerExact(xi, 0.)
     return Fterm
 
+def WhittakerApproxSE(xieff, s):
+    if (abs(xieff) >= 4):
+        Fterm = np.zeros((3, 2))
+        sgnsort = int((1-np.sign(xieff))/2)
+        
+        xi = abs(xieff)
+        r = xi + np.sqrt(xi**2 + s**2 + s)
+        psi = 2*np.sqrt(xi**2 + s**2 + s)/r
+        rpsi = (psi/r**2)**(1/3)
+        spsi = 5*s/psi**(2/3)
+        
+        g1 = math.gamma(2/3)**2
+        g2 = math.gamma(1/3)**2
+        
+        t1 = 3**(1/3)*g1/np.pi
+        t2 = -2/(5*np.sqrt(3))*(1+spsi)
+        t3 = g2/(3**(1/3)*25*np.pi)*(1+spsi)**2
+        t4 = 3**(1/3)*4*g1/(1575)*(1-27*spsi)
+        t5 = 4*np.sqrt(3)/(875)*(-27/11+2*spsi + spsi**2)
+        Fterm[0, sgnsort] = (psi/r)**(1/3)*(t1 + t2*rpsi + t3*rpsi**2 + t4*rpsi**3 + t5*rpsi**4)
+
+        t1 = 1
+        t2 = s/(16*xi**2)*(3*xi-r)/r
+        t3 = s**2/(4*xi*r)
+        Fterm[0, 1-sgnsort] = 2*np.sqrt(xi/r)*(t1 + t2 + t3)
+
+        t1 = g2/(3**(1/3)*np.pi)
+        t2 = 4*np.sqrt(3)/35
+        t3 = -16*g2/(3**(1/3)*225*np.pi)
+        Fterm[1, sgnsort] = (r/psi)**(1/3)*(t1 + t2*rpsi**2 + t3*rpsi**3)
+
+        Fterm[1, 1-sgnsort] = 0.5*(r/xi)**(1/2)
+
+        t1 = 1/np.sqrt(3)
+        t2 = -g2/(3**(1/3)*5*np.pi)*(1+spsi)
+        t3 = 3**(1/3)*6*g1/(35*np.pi)
+        t4 = -4*np.sqrt(3)/(175)*(1+spsi)
+        Fterm[2, sgnsort] = t1 + t2*rpsi + t3*rpsi**2 + t4*rpsi**3
+
+        Fterm[2, 1-sgnsort] = -((3*xi -r)/xi + 8*s)/(16*np.sqrt(xi*r))
+    else:
+        Fterm = WhittakerExact(xi, s)
+    return Fterm
+
 def WhittakerExact(xi, s):
     r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
     
