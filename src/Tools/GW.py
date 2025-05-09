@@ -204,7 +204,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
     ax.set_xscale("log")
     return ax
 
-def ComputeSNR(OmegaSignal, fSignal, experiment, tobs=1.):
+def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
     path = os.path.join(basepath, "../Data/strains/")
     arr = os.listdir(path)
 
