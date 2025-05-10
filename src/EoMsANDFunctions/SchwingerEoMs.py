@@ -22,8 +22,8 @@ def EoMlnkhSE(vals):
     dHdt = 0.#vals.vals["Hprime"]# #approximation  dHdt = alphaH**2  (slow-roll)
 
     xieffprime = (-dHdt * xieff + 
-                      (vals.ddIddphi(vals.phi)*vals.dphi**2 
-                       + vals.dIdphi(vals.phi)*vals.ddphi
+                      (vals.ddI(vals.phi)*vals.dphi**2 
+                       + vals.dI(vals.phi)*vals.ddphi
                         + a*dsigmaBdt)/2
                      )/H
     sEprime = (-dHdt * s + a*dsigmaEdt/2)/H
@@ -33,15 +33,13 @@ def EoMlnkhSE(vals):
     return fcprime/kh
 
 def EoMDelta(vals):
-    return vals.sigmaE*vals.delta
+    return -vals.sigmaE*vals.delta
 
 def EoMrhoChi(vals):
     return (vals.sigmaE*vals.E - vals.sigmaB*vals.G - 4*vals.H*vals.rhoChi)
 
 
-
-
-def EoMF(vals, F, W, dlnkhdt):
+def EoMFSE(vals, F, W, dlnkhdt):
     FE = F[:,0]
     FB = F[:,1]
     FG = F[:,2]
@@ -50,30 +48,33 @@ def EoMF(vals, F, W, dlnkhdt):
     a = vals.a
     scale = kh/a
 
+    sE = vals.sigmaE
+    sB = vals.sigmaB
+
     W[2,1] = -W[2,1]
 
     ntr = FE.shape[0]-1 #subtract 1 for index 0 
 
-    bdrF = dlnkhdt*np.array([[(W[j,0] + (-1)**i*W[j,1]) for j in range(3)]
+    bdrF = dlnkhdt*vals.delta*np.array([[(W[j,0] + (-1)**i*W[j,1]) for j in range(3)]
                                 for i in range(ntr+1)]) / (4*np.pi**2)
 
-    ScalarCpl = (vals.dI(vals.phi)*vals.dphi)
+    ScalarCpl = (vals.dI(vals.phi)*vals.dphi + sB)
 
     dFdt = np.zeros(bdrF.shape)
 
     for n in range(ntr): #all bilinear up to ntr-1
-        dFdt[n,0] = (bdrF[n, 0] - (4+n)*dlnkhdt*FE[n] - 2*scale*FG[n+1] + 2*ScalarCpl*FG[n])
+        dFdt[n,0] = (bdrF[n, 0] - (4+n)*dlnkhdt*FE[n] - 2*sE*FE[n] - 2*scale*FG[n+1] + 2*ScalarCpl*FG[n])
 
         dFdt[n,1] = (bdrF[n, 1] - (4+n)*dlnkhdt*FB[n] + 2*scale*FG[n+1])
 
-        dFdt[n,2] = (bdrF[n, 2] - (4+n)*dlnkhdt*FG[n] + scale*(FE[n+1] - FB[n+1]) + ScalarCpl*FB[n])
+        dFdt[n,2] = (bdrF[n, 2] - (4+n)*dlnkhdt*FG[n] - sE*FG[n] + scale*(FE[n+1] - FB[n+1]) + ScalarCpl*FB[n])
 
     #bilinears at truncation order ntr
-    dFdt[-1,0] = (bdrF[-1,0] -  (4+ntr)*dlnkhdt*FE[-1] - 2*scale*FG[-2] + 2*ScalarCpl*FG[-1])
+    dFdt[-1,0] = (bdrF[-1,0] -  (4+ntr)*dlnkhdt*FE[-1] - 2*sE*FE[-1] - 2*scale*FG[-2] + 2*ScalarCpl*FG[-1])
 
     dFdt[-1,1] = (bdrF[-1,1] - (4+ntr)*dlnkhdt*FB[-1] + 2*scale*FG[-2]) 
 
-    dFdt[-1,2] = (bdrF[-1,2] - (4+ntr)*dlnkhdt*FG[-1] + scale*(FE[-2] - FB[-2]) + ScalarCpl*FB[-1])
+    dFdt[-1,2] = (bdrF[-1,2] - (4+ntr)*dlnkhdt*FG[-1] - sE*FG[-1] + scale*(FE[-2] - FB[-2]) + ScalarCpl*FB[-1])
 
     return dFdt
 

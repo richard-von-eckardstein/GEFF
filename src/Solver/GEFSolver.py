@@ -40,7 +40,7 @@ class GEFSolver:
         self.MbMSettings = MbMSettings
 
     def __ode(self, t, y, vals, atol=1e-20, rtol=1e-6):
-        self.__UpdateVals(t, y, vals)
+        self.__UpdateVals(t, y, vals, atol=atol, rtol=rtol)
         dydt = self.TimeStep(t, y, vals, atol=atol, rtol=rtol)
         return dydt
 

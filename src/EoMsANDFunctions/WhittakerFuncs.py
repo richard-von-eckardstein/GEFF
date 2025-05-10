@@ -109,7 +109,7 @@ def WhittakerApproxSE(xieff, s):
 
         Fterm[2, 1-sgnsort] = -((3*xi -r)/xi + 8*s)/(16*np.sqrt(xi*r))
     else:
-        Fterm = WhittakerExact(xi, s)
+        Fterm = WhittakerExact(xieff, s)
     return Fterm
 
 def WhittakerExact(xi, s):

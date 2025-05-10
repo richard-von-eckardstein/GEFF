@@ -24,10 +24,10 @@ modelRhos = [rhoFerm]
 
 modelSettings = {"picture": "mixed"}
 
-conductivity = ComputeImprovedSigma
+conductivity = np.vectorize(ComputeImprovedSigma)
 
 def Initialise(vals, ntr):
-    yini = np.zeros((ntr+1)*3+4)
+    yini = np.zeros((ntr+1)*3+6)
 
     yini[0] = vals.N.value
     yini[1] = vals.phi.value
@@ -43,7 +43,7 @@ def Initialise(vals, ntr):
     #currently, all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
 
-def UpdateVals(t, y, vals):
+def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.t.SetValue(t)
     vals.N.SetValue(y[0])
     vals.a.SetValue(np.exp(y[0]))
@@ -59,17 +59,15 @@ def UpdateVals(t, y, vals):
     vals.E.SetValue( y[6]*np.exp(4*(y[3]-y[0])))
     vals.B.SetValue( y[7]*np.exp(4*(y[3]-y[0])))
     vals.G.SetValue( y[8]*np.exp(4*(y[3]-y[0])))
-    return
 
-def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
+    vals.H.SetValue( FriedmannSE(vals) )
 
-    dydt = np.zeros(y.shape)
+    sigmaE, sigmaB, ks = conductivity(
+        vals.a.value, vals.H.value,
+          vals.E.value, vals.B.value, vals.G.value
+          , "", vals.H0) # How do I treat model settings?
 
-    vals.H.SetValue( FriedmannSE(vals))
-
-    sigmaE, sigmaB, ks = conductivity # How do I treat model settings?
-
-    eps = max(abs(y[0])*rtol, atol)
+    eps = np.vectorize(max)(abs(y[0])*rtol, atol)
     GlobalFerm = Heaviside(np.log(ks/(vals.a*vals.H)), eps)
     vals.sigmaE.SetValue(GlobalFerm*sigmaE)
     vals.sigmaB.SetValue(GlobalFerm*sigmaB)
@@ -79,6 +77,11 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.xieff.SetValue(vals.xi + vals.sigmaB/(2*vals.H))
 
     vals.ddphi.SetValue(EoMphi(vals))
+    return
+
+def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
+
+    dydt = np.zeros(y.shape)
 
     dydt[0] = vals.H.value
     dydt[1] = vals.dphi.value
@@ -99,14 +102,14 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
 
     Fcol = y[6:].shape[0]//3
     F = y[6:].reshape(Fcol,3)
-    W = WhittakerApproxSE(vals.xi.value)
+    W = WhittakerApproxSE(vals.xieff.value, vals.s.value)
     dFdt = EoMFSE(vals, F, W, dlnkhdt)
     dydt[6:] = dFdt.reshape(Fcol*3)
 
     return dydt
 
 #Event 1:
-def EndOfInflationFunc(t, y, vals, atol, rtol):
+def EndOfInflationFunc(t, y, vals, atol=1e-20, rtol=1e-6):
     ratio = vals.H0/vals.MP
     dphi = y[2]
     V = vals.V.GetBaseFunc()(vals.MP*y[1])/vals.V.GetConversion()
