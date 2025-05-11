@@ -132,17 +132,52 @@ class BGVal(Quantity):
     def GetConversion(self):
         return self.__Conversion
     
+#Needs to be tested!!!!
 class BGFunc(Quantity):
+    Args = []
     def __init__(self, func, BGSystem):
         super().__init__()
+        try:
+            testargs = [1.0 for arg in self.Args]
+            func(*testargs)
+        except TypeError:
+            raise TypeError("The number of non-default arguments of 'func' needs to match 'len(self.Args)'.")
         self.__basefunc = func
+
+        self.__units = BGSystem.GetUnits()
+        self.__ArgConversions = [(BGSystem.H0**arg.u_H0*BGSystem.MP**arg.u_MP)
+                                 for arg in self.Args]
         self.__Conversion = (BGSystem.H0**self.u_H0*BGSystem.MP**self.u_MP)
 
-    def __call__(self, value):
-        if isinstance(value, BGVal):
-            valueconversion = value.GetConversion()
-            pow = (1 - value.GetUnits())
-            return self.__basefunc(value*valueconversion**pow)/self.__Conversion**pow 
+    def __call__(self, *args):
+        arglist = []
+        units = self.GetUnits()
+        for i, arg in enumerate(args):
+            if isinstance(arg, BGVal):
+                assert self.__ArgConversions[i] == arg.GetConversion()
+                pow = (1 - arg.GetUnits())
+                arglist.append(arg.value*arg.GetConversion()**pow)
+            else:
+                arglist.append(arg*self.__ArgConversions[i]**(1-units))
+        return self.__basefunc(*arglist)*self.__Conversion**(1-units)
+        
+    def GetUnits(self):
+        return self.__units
+    
+    def SetUnits(self, units):
+        if units:
+            self.__Unitful()
+        elif not(units):
+            self.__Unitless()
+        return
+    
+    def __Unitless(self):
+        self.__units=False
+        return
+    
+    def __Unitful(self):
+        self.__units=True
+        return
         
     def GetBaseFunc(self):
         return self.__basefunc
@@ -150,26 +185,26 @@ class BGFunc(Quantity):
     def GetConversion(self):
         return self.__Conversion
 
-def DefineQuantity(Qname, H0, MP, isfunc=False):
-    if not(isfunc):
-        class Val(BGVal):
-            name=Qname
-            u_H0 = H0
-            u_MP = MP
-            def __init__(self, value, BGSystem):
-                super().__init__(value, BGSystem)
+def DefineQuantity(Qname, H0, MP):
+    class Val(BGVal):
+        name=Qname
+        u_H0 = H0
+        u_MP = MP
+        def __init__(self, value, BGSystem):
+            super().__init__(value, BGSystem)
 
-        return Val
-    
-    elif isfunc:
-        class Func(BGFunc):
-            name=Qname
-            u_H0 = H0
-            u_MP = MP
-            def __init__(self, func, BGSystem):
-                super().__init__(func, BGSystem)
+    return Val
 
-        return Func
+def DefineFunction(Qname, args, H0, MP):
+    class Func(BGFunc):
+        name=Qname
+        u_H0 = H0
+        u_MP = MP
+        Args = args
+        def __init__(self, func, BGSystem):
+            super().__init__(func, BGSystem)
+
+    return Func
 
 class BGSystem:
     def __init__(self, quantities, H0, MP):
