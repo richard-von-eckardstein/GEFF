@@ -30,12 +30,12 @@ auxiliary = {
 
 #Inflaton potential:
 inflatonpotential = {
-    DefineQuantity("V", 2, 2, func=True), #scalar potential
-    DefineQuantity("dV", 2, 2, func=True), #scalar-potential derivative
+    DefineQuantity("V", 2, 2, isfunc=True), #scalar potential
+    DefineQuantity("dV", 2, 2, isfunc=True), #scalar-potential derivative
 }
 
 #Inflaton--gauge-field coupling:
 coupling = {
-    DefineQuantity("dI", 0, -1, func=True), #scalar potential
-    DefineQuantity("ddI", 0, -2, func=True), #scalar-potential derivative
+    DefineQuantity("dI", 0, -1, isfunc=True), #scalar potential
+    DefineQuantity("ddI", 0, -2, isfunc=True), #scalar-potential derivative
 }
