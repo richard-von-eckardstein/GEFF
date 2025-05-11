@@ -31,7 +31,7 @@ def ReadMode(file):
     return spec
 
 
-def ModeEoM(y : ArrayLike, k : float, a : float, SclrCpl : float, sigmaE : float=0., sigmaB : float=0.):
+def ModeEoMOld(y : ArrayLike, k : float, a : float, SclrCpl : float, sigmaE : float=0., sigmaB : float=0.):
     """
     Compute the time derivative of the gauge-field mode and its derivatives for a fixed comoving wavenumber at a given moment of time t
 
@@ -146,6 +146,7 @@ class GaugeSpec(dict):
 
 class ModeByMode:
     #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
+    ModeEoM = ModeEoMOld
     def __init__(self, values, settings):
         """
         A class used to solve the gauge-field mode equation for axion inflation based on a given GEF solution.
@@ -331,7 +332,7 @@ class ModeByMode:
             deltaf  = lambda x: 1.0
             
             #Define ODE to solve (sigmaE=0, sigmaB=0)
-            ode = lambda t, y: ModeEoM(y, k, self.__af(t), self.__SclrCplf(t))
+            ode = lambda t, y: self.ModeEoM(y, k, self.__af(t), self.__SclrCplf(t))
         else:
             #Treat sigma's depending on KDep or not
             if self.__SE in ["KDep", "Del1"]:
@@ -355,7 +356,7 @@ class ModeByMode:
                              1., -1/2*sigmaEf(tstart)*self.__af(tstart)/k, 0, -1.])*np.sqrt( deltaf(tstart) )
             
             #Define ODE to solve
-            ode = lambda t, y: ModeEoM( y, k, self.__af(t), self.__SclrCplf(t), sigmaEf(t), sigmaBf(t) )
+            ode = lambda t, y: self.ModeEoM( y, k, self.__af(t), self.__SclrCplf(t), sigmaEf(t), sigmaBf(t) )
         
         #parse teval input
         if len(teval)==0:

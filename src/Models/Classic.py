@@ -25,7 +25,7 @@ def Initialise(vals, ntr):
     #currently, all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
 
-def UpdateVals(t, y, vals):
+def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.t.SetValue(t)
     vals.N.SetValue(y[0])
     vals.a.SetValue(np.exp(y[0]))
