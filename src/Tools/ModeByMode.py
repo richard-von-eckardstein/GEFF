@@ -6,6 +6,7 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 import os
 from numpy.typing import ArrayLike
+from src.BGQuantities.BGTypes import BGSystem
 
 alpha=0
 
@@ -31,7 +32,7 @@ def ReadMode(file):
     return spec
 
 
-def ModeEoMOld(y : ArrayLike, k : float, a : float, SclrCpl : float, sigmaE : float=0., sigmaB : float=0.):
+def ModeEoMOld(y : ArrayLike, k : float, a : float, phi : float, dphi : float, dI):
     """
     Compute the time derivative of the gauge-field mode and its derivatives for a fixed comoving wavenumber at a given moment of time t
 
@@ -45,13 +46,13 @@ def ModeEoMOld(y : ArrayLike, k : float, a : float, SclrCpl : float, sigmaE : fl
         the comoving wavenumber in Hubble units
     a : float
         the scalefactor at time t
-    SclrCpl : float
-        coupling induced by the axion velocity at time t, beta/M_P*dphidt (in Hubble units)
-    sigmaE : float
-        electric damping term induced by fermions (only relevant for Schwinger effect runs)
-    sigmaB : float
-        magnetic damping term induced by fermions (only relevant for Schwinger effect runs)
-
+    phi : float
+        the inflaton field at time t
+    dphi : float:
+        the inflaton velocity at time t
+    dI : func:
+        the coupling function dI(phi) = beta/Mpl
+        
     Returns
     -------
     dydt : array
@@ -61,29 +62,28 @@ def ModeEoMOld(y : ArrayLike, k : float, a : float, SclrCpl : float, sigmaE : fl
     
     dydt = np.zeros(y.size)
     
-    drag = a**(alpha) * sigmaE
-    dis1 = k * a**(alpha-1)
-    dis2 = SclrCpl + a**(alpha) * sigmaB
+    dis1 = k / a
+    dis2 = dI(phi)*dphi
 
     #positive helicity
     lam = 1.
     #Real Part
-    dydt[0] = y[1]*(k/a)*a**(alpha)
-    dydt[1] = -( drag * y[1] + (dis1  - lam * dis2) * y[0] )
+    dydt[0] = y[1]*dis1
+    dydt[1] = -(dis1  - lam * dis2) * y[0]
     
     #Imaginary Part
-    dydt[2] = y[3]*(k/a)*a**(alpha)
-    dydt[3] = -( drag * y[3] + (dis1  - lam * dis2) * y[2] )
+    dydt[2] = y[3]*dis1
+    dydt[3] = -(dis1  - lam * dis2) * y[2]
     
     #negative helicity
     lam = -1.
     #Real Part
-    dydt[4] = y[5]*(k/a)*a**(alpha)
-    dydt[5] = -( drag * y[5] + (dis1  - lam * dis2) * y[4] )
+    dydt[4] = y[5]*dis1
+    dydt[5] = -(dis1  - lam * dis2) * y[4]
     
     #Imaginary Part
-    dydt[6] = y[7]*(k/a)*a**(alpha)
-    dydt[7] = -( drag * y[7] + (dis1  - lam * dis2) * y[6] )
+    dydt[6] = y[7]*dis1
+    dydt[7] = -(dis1  - lam * dis2) * y[6]
     
     return dydt
 
@@ -143,11 +143,23 @@ class GaugeSpec(dict):
         output_df.to_csv(path)
         
         return
+    
+def ModeSolver(ModeEq, BGQuantities):
+    class ModeSolver(ModeByMode):
+        ModeEoM = staticmethod(ModeEq)
+        EoMKwargs = BGQuantities
+
+        def __init__(self, values):
+            super().__init__(values)
+            
+
 
 class ModeByMode:
     #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
-    ModeEoM = ModeEoMOld
-    def __init__(self, values, settings):
+    ModeEoM = staticmethod(ModeEoMOld)
+    EoMKwargs = ["a", "dI", "phi", "dphi"]
+
+    def __init__(self, values, settings={}):
         """
         A class used to solve the gauge-field mode equation for axion inflation based on a given GEF solution.
         Can be used to internally verify the consistency of the GEF solution. All quantities throught are treated in Hubble units.
@@ -213,8 +225,19 @@ class ModeByMode:
         kh = values.kh
         a = values.a
 
+        ValueDic = {}
+        FuncDic = {}
+        for obj in self.EoMKwargs:    
+            val = getattr(values, obj)
+            if isinstance(val, BGSystem.BGVal):
+                func = CubicSpline(self.__t, val)
+                ValueDic[obj] = func
+            elif isinstance(val, BGSystem.BGFunc):
+                FuncDic[obj] = val
+        self.__ValueKwargs = ValueDic
+        self.__FuncKwargs = FuncDic
+
         self.__af = CubicSpline(self.__t, a)
-        self.__SclrCplf = CubicSpline( self.__t, values.dI(values.phi)*values.dphi.value )
         self.__khf = CubicSpline(self.__t, kh)
 
         for key in ["E", "B", "G"]:
@@ -297,6 +320,14 @@ class ModeByMode:
 
         return k, tstart
     
+    def DefineOde(self, k):
+        def ode(t, y):
+            valuekwargs = {}
+            for key, item in self.__ValueKwargs.items():
+                valuekwargs[key] = item(t)
+            return self.ModeEoM(y, k, **valuekwargs, **self.__FuncKwargs)
+        return ode
+    
     def ComputeMode(self, k, tstart, teval=[], atol=1e-3, rtol=1e-5):
         """
         Input
@@ -332,7 +363,7 @@ class ModeByMode:
             deltaf  = lambda x: 1.0
             
             #Define ODE to solve (sigmaE=0, sigmaB=0)
-            ode = lambda t, y: self.ModeEoM(y, k, self.__af(t), self.__SclrCplf(t))
+            ode = self.DefineOde(k)
         else:
             #Treat sigma's depending on KDep or not
             if self.__SE in ["KDep", "Del1"]:
