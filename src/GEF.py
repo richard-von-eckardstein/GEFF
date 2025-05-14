@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 from src.BGQuantities import DefaultQuantities
-from src.BGQuantities.BGTypes import BGSystem
+from src.BGQuantities.BGTypes import BGSystem, Val, Func
 
 from src.Solver.GEFSolver import GEFSolver
 
@@ -71,25 +71,24 @@ class GEF(BGSystem):
         self.beta = beta
         
         #Define background quantities
-        valuedic = self.__PrepareQuantities(model.modelQuantities, iniVals)
-        #Define background functions
-        functiondic = self.__PrepareFunctions(model.modelFunctions, Funcs)
+        quantities = self.__DefineQuantities(model.modelQuantities)
 
         #Compute H0 from initial conditions
-        rhoInf = 0.5*valuedic["dphi"]["value"]**2 + functiondic["V"]["func"](valuedic["phi"]["value"])
-        rhoEM = (valuedic["E"]["value"] + valuedic["B"]["value"])/2
-        rhoExtra = [rho(valuedic) for rho in model.modelRhos]
+        rhoInf = 0.5*iniVals["dphi"]**2 + Funcs["V"](iniVals["phi"])
+        rhoEM = 0.
+        rhoExtra = [iniVals[rho] for rho in model.modelRhos]
+
         H0 = np.sqrt( (rhoInf + rhoEM + sum(rhoExtra))/3 )
         MP = 1.
 
         #Define the GEFClass as a BGSystem using the background quantities, functions and unit conversions
-        super().__init__(valuedic, functiondic, H0, MP)
+        super().__init__(quantities, H0, MP)
 
         #Configure model settings
         self.__ConfigureModelSettings(model.modelSettings, userSettings)
 
         #Create the GEF solver class
-        self.__SetupGEFSolver(model)
+        self.__SetupGEFSolver(model, iniVals, Funcs)
 
         #Add information about storage
         self.GEFData = GEFData
@@ -124,85 +123,46 @@ class GEF(BGSystem):
             self.settings = settings
         return
     
-    def __SetupGEFSolver(self, model):
-        inivals = self.CreateCopySystem()
-        inivals.SetUnits(False)
+    def __SetupGEFSolver(self, model, iniVals, Funcs):
+        for obj in self.ObjectSet():
+            if issubclass(obj, Val):
+                self.Initialise(obj.name)(0.)
+            if issubclass(obj, Func):
+                self.Initialise(obj.name)(lambda x: 0.)
+
+        for key, item in iniVals.items():
+            self.Initialise(key)(item)
+        for key, item in Funcs.items():
+            self.Initialise(key)(item)
+
+        if not("dI" in Funcs.keys()):
+            self.Initialise("dI")(lambda x: float(self.beta))
+        if not("ddI" in Funcs.keys()):
+            self.Initialise("ddI")(lambda x: 0.)
+
+        self.SetUnits(False)
 
         self.Solver = GEFSolver(
                                 model.UpdateVals, model.TimeStep, model.Initialise,
-                                    model.events, inivals,
+                                    model.events, self,
                                     MbMSettings={} # EDIT FOR SE
                                 )
         self.completed=False
         
         return
     
-    def __PrepareQuantities(self, modelSpecific, iniVals):
+    def __DefineQuantities(self, modelSpecific):
+        quantities = set()
         #Get default quantities which are always present in every GEF run
-        spacetime = DefaultQuantities.spacetime
-        inflaton = DefaultQuantities.inflaton
-        gaugefield = DefaultQuantities.gaugefield
-        auxiliary = DefaultQuantities.auxiliary
-        
-        #concatenate dictionary and update default values according to model
-        quantities = deepcopy(spacetime | inflaton | gaugefield | auxiliary)
-        quantities.update(deepcopy(modelSpecific))
+        quantities.update(DefaultQuantities.spacetime)
+        quantities.update(DefaultQuantities.inflaton)
+        quantities.update(DefaultQuantities.gaugefield)
+        quantities.update(DefaultQuantities.auxiliary)
+        quantities.update(DefaultQuantities.inflatonpotential)
+        quantities.update(DefaultQuantities.coupling)
+        quantities.update(modelSpecific)
 
-        necessarykeys = []
-
-        #initialise GEFValues
-        for key, item in quantities.items(): 
-            #Check if a complete GEF value requires knowledge of this value.
-            item.setdefault("optional", True) #If the "optional flag is not set, it is assumed the key is optional"
-            if not(item["optional"]):
-                necessarykeys.append(key)
-            #default key is not longer needed from here on out
-            item.pop("optional")
-    
-            #Add initial data
-            if key in iniVals.keys():
-                #Initial data from input
-                item["value"]=iniVals[key]
-            else:
-                try:
-                    #initial data from default
-                    item["value"] = item["default"]
-                    item.pop("default")
-                except:
-                    item["value"] = None
-                    if key in necessarykeys:
-                        warnings.warn(f"No default value set for '{key}'")
-                    
-            self.__necessarykeys = necessarykeys
         return quantities
-    
-    def __PrepareFunctions(self, modelSpecific, Funcs):
-        #Get default functions which are always present in every GEF run
-        inflatonpotential = DefaultQuantities.inflatonpotential
-        coupling = DefaultQuantities.coupling
-        
-        #concatenate dictionary of functions and update default functions according to model
-        functions = deepcopy(inflatonpotential | coupling)
-        functions.update(deepcopy(modelSpecific))
-
-        functions["dI"]["func"] = lambda x: float(self.beta)
-        functions["ddI"]["func"] = lambda x: 0.
-
-        #initialise GEFFunctions
-        for key, item in functions.items():
-            if key in ["dI", "ddI"]:
-                #inflaton--gauge field coupling initialised separetly
-                func = item["func"]
-            else:
-                #Check if Function is passed by the User via Funcs
-                try:
-                    func = Funcs[key]
-                except:
-                    raise KeyError(f"'Funcs' needs to declare the function '{key}'")
-            item["func"] = func
-            #Define the function as a BGFunc
-
-        return functions
     
     def PrintNecessaryKeys(self):
         print(f"Necessary keys for this GEF-setup are:\n{self.__necessarykeys}")
@@ -226,16 +186,11 @@ class GEF(BGSystem):
 
         data = dict(zip(input_df.columns[1:],input_df.values[:,1:].T))
 
-        #Check if data file is complete
-        for key in self.__necessarykeys:
-            if key not in data.keys():
-                raise KeyError(f"The file you provided does not contain information on the parameter'{key}'. Please provide a complete data file")
-
         #Befor starting to load, check that the file is compatible with the GEF setup.
-        valuelist = self.ValuesList()
+        names = self.ObjectNames()
         for key in data.keys():
-            if not(key in valuelist):
-                raise AttributeError(f"The data table you tried to load contains an unkown value: '{key}'")
+            if not(key in names):
+                raise AttributeError(f"The data table you tried to load contains an unkown quantity: '{key}'")
         
         #Store current units to switch back to later
         units=self.GetUnits()
@@ -244,8 +199,7 @@ class GEF(BGSystem):
         self.SetUnits(False)
         #Load data into background-value attributes
         for key, values in data.items():
-            obj = getattr(self, key)
-            obj.SetValue(values)
+            self.Initialise(key)(values)
         self.SetUnits(units)
         self.completed=True
 
@@ -255,37 +209,32 @@ class GEF(BGSystem):
         if self.GEFData==None:
             print("You did not specify the file under which to store the GEF data. Set 'GEFData' to the location where you want to save your data.")
         else:
-            path = self.GEFData
+            valuelist = self.ValList()
+            if valuelist==[]:
+                print("No data to store.")
+                return
+            else:
+                path = self.GEFData
 
-            #Create a dictionary used to create pandas data table
-            dic = {}
+                #Create a dictionary used to create pandas data table
+                dic = {}
 
-            #remember the original units of the GEF
-            units=self.GetUnits()
+                #remember the original units of the GEF
+                units=self.GetUnits()
 
-            #Data is always stored unitless
-            self.SetUnits(False)
+                #Data is always stored unitless
+                self.SetUnits(False)
 
-            valuelist = self.ValuesList()
-            for key in valuelist:
-                obj = getattr(self, key)
-                #Make sure to not store unitialised BGVal instances
-                if isinstance(obj.value, type(None)):
-                    #If a necessary key is not initialised, the data cannot be stored. Unitialised optional keys are ignored.
-                    if (key in self.__necessarykeys):
-                        #restore original units before raising error
-                        self.SetUnits(units)
-                        raise ValueError(f"Incomplete data. No values assigned to '{key}'.")
-                else:
-                    #Add the quantities value to the dictionary
-                    dic[key] = obj.value
-            
-            #Create pandas data frame and store the dictionary under the user-specified path
-            output_df = pd.DataFrame(dic)  
-            output_df.to_csv(path)
+                for val in valuelist:
+                    key = val.name
+                    dic[key] = val.value
+                
+                #Create pandas data frame and store the dictionary under the user-specified path
+                output_df = pd.DataFrame(dic)  
+                output_df.to_csv(path)
 
-            #after storing data, restore original units
-            self.SetUnits(units)
+                #after storing data, restore original units
+                self.SetUnits(units)
         return
     
     def EndOfInflation(x, tol=1e-4):
