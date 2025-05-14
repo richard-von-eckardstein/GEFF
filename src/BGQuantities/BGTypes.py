@@ -191,16 +191,28 @@ class Func(Quantity):
                                  for arg in self.Args]
         self.__Conversion = (BGSystem.H0**self.u_H0*BGSystem.MP**self.u_MP)
 
+        
+
     def __call__(self, *args):
         arglist = []
         units = self.GetUnits()
+        """def floathandler(x, argn=i):
+            return x*self.__ArgConversions[i]**(1-units)
+        
+        def Valhandler(x, args=i):
+            assert self.__ArgConversions[i] == arg.GetConversion()
+            pow = (1 - arg.GetUnits())
+
+        typedic = {Val: Valhandler}"""
+
         for i, arg in enumerate(args):
             if isinstance(arg, Val):
-                assert self.__ArgConversions[i] == arg.GetConversion()
+                #assert self.__ArgConversions[i] == arg.GetConversion()
                 pow = (1 - arg.GetUnits())
                 arglist.append(arg.value*arg.GetConversion()**pow)
             else:
                 arglist.append(arg*self.__ArgConversions[i]**(1-units))
+        
         return self.__basefunc(*arglist)/self.__Conversion**(1-units)
         
     def GetUnits(self):
