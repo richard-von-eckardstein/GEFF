@@ -194,18 +194,23 @@ class Func(Quantity):
         
 
     def __call__(self, *args):
-        arglist = []
         units = self.GetUnits()
-        """def floathandler(x, argn=i):
+        def floathandler(x, i):
             return x*self.__ArgConversions[i]**(1-units)
         
-        def Valhandler(x, args=i):
-            assert self.__ArgConversions[i] == arg.GetConversion()
-            pow = (1 - arg.GetUnits())
+        def Valhandler(x, i):
+            conv = x.GetConversion()
+            assert self.__ArgConversions[i] == conv
+            pow = (1 - x.GetUnits())
+            return x*conv**pow
 
-        typedic = {Val: Valhandler}"""
+        typedic = {Val : Valhandler}
 
-        for i, arg in enumerate(args):
+        args = [typedic.get(arg.__class__.__bases__[0], floathandler)(arg, i) for i, arg in enumerate(args)]
+
+        return self.__basefunc(*args)/self.__Conversion**(1-units)
+
+        """for i, arg in enumerate(args):
             if isinstance(arg, Val):
                 #assert self.__ArgConversions[i] == arg.GetConversion()
                 pow = (1 - arg.GetUnits())
@@ -213,7 +218,7 @@ class Func(Quantity):
             else:
                 arglist.append(arg*self.__ArgConversions[i]**(1-units))
         
-        return self.__basefunc(*arglist)/self.__Conversion**(1-units)
+        return self.__basefunc(*arglist)/self.__Conversion**(1-units)"""
         
     def GetUnits(self):
         return self.__units
