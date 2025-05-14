@@ -17,11 +17,11 @@ class TestBGFunc():
         return 415.2975
 
     def sys(self):
-        x = BGVal("x", 2, 0)
+        x = BGVal("x", 1, 1)
         y = BGVal("y", 1, 0)
-        f1 = BGFunc("f1", [x], 2, 2)
-        f2 = BGFunc("f2", [x, y], 3, 1)
-        U = BGSystem([x, y, f1, f2], 0.5, 2.0)
+        f1 = BGFunc("f1", [x], 3, 1)
+        f2 = BGFunc("f2", [x, y], 1, 3)
+        U = BGSystem([x, y, f1, f2], 0.55, 0.32)
         return U
     
     def inst(self, func, nargs):
@@ -36,51 +36,156 @@ class TestBGFunc():
     
     #test single-variable function
     
-    def test_class_single(self):
-        x = BGVal("x", 1, 1)
+    def test_class(self):
+        #single-variable function
+        x = BGVal("x", 2, 0)
         f = BGFunc("f", [x], 2, 2)
         assert f.name == "f"
         assert f.dtype == np.float64
         assert f.u_H0 == 2
         assert f.u_MP == 2
         for arg in f.Args:
-            assert arg == x
+            assert arg in [x]
+
+        #multivariate function
+        x = BGVal("x", 1, 1)
+        y = BGVal("y", 1, 0)
+        f = BGFunc("f", [x, y], 3, 1)
+        assert f.name == "f"
+        assert f.dtype == np.float64
+        assert f.u_H0 == 3
+        assert f.u_MP == 1
+        for arg in f.Args:
+            assert arg in [x, y]
     
-    def test_init_single(self, func1, func2):
+    def test_init(self, func1, func2):
+        #Initialise single-variable function
         f = self.inst(func1, 1)
         randval = random.random()
         assert f.GetBaseFunc()(randval) == func1(randval) 
         assert f.GetUnits() == True
-        assert f.GetConversion() == 0.5**2 * 2.0**2
+        assert f.GetConversion() == 0.55**3 * 0.32**1
         assert len(f.GetArgConversions()) == 1
         for argconversion in f.GetArgConversions():
-            assert argconversion == 0.5**2 * 2.0**0
+            assert argconversion == 0.55**1 * 0.32**1
 
+        #Initialise multivariate function
+        f = self.inst(func2, 2)
+        rval1 = random.random()
+        rval2 = random.random()
+        assert f.GetBaseFunc()(rval1, rval2) == func2(rval1, rval2) 
+        assert f.GetUnits() == True
+        assert f.GetConversion() == 0.55**1 * 0.32**3
+        assert len(f.GetArgConversions()) == 2
+        expectargconversion = [0.55**1 * 0.32**1, 0.55**1 * 0.32**0]
+        for i, argconversion in enumerate(f.GetArgConversions()):
+            assert argconversion == expectargconversion[i]
+
+        #Check that instantiating func with wrong variable count raises error
         with pytest.raises(TypeError) as exc_info:
             f = self.inst(func2, 1)
+        with pytest.raises(TypeError) as exc_info:
+            f = self.inst(func1, 2)
+        with pytest.raises(TypeError) as exc_info:
+            f = self.inst(lambda x, y, z: 1.0, 1)
+        with pytest.raises(TypeError) as exc_info:
+            f = self.inst(lambda x, y, z: 1.0, 2)
 
+        #Checkt that instantiating func which does not return an np.floating type raises error
         with pytest.raises(ValueError) as exc_info:
             f = self.inst(lambda x: "hi", 1)
-            f = self.inst(lambda x: BGVal, 1)
-            f = self.inst(lambda x: BGVal("x",2, 1), 1)
+        with pytest.raises(ValueError) as exc_info:
+            f = self.inst(lambda x, y: "hi", 2)
+
+    def test_Units(self, func1):
+        f = self.inst(func1, 1)
+        f.SetUnits(True)
+        assert f.GetUnits() == True
+        f.SetUnits(False)
+        assert f.GetUnits() == False
 
     #evaluate function
-    def test_Call_single(self):
-        pass
+    def test_Call_single(self, func1):
+        f = self.inst(func1, 1)
+        randval = random.random()
+        x = self.instarg("x", randval)
 
-    
+        #With Units:
+        f.SetUnits(True)
+        assert f(randval) == func1(randval)
+        x.SetUnits(True)
+        assert f(x) == func1(randval)
+        x.SetUnits(False)
+        assert f(x) == func1(randval)
 
+        #Without Units:
+        f.SetUnits(False)
+        assert f(randval) == func1(randval*f.GetArgConversions()[0])/f.GetConversion()
+        x.SetUnits(True)
+        assert f(x) == func1(randval)/f.GetConversion()
+        x.SetUnits(False)
+        assert f(x) == func1(randval)/f.GetConversion()
 
+        #Check that error occurs when calling with BGVal and incorrect signature:
+        y = self.instarg("y", randval)
+        with pytest.raises(AssertionError) as exc_info:
+            f.SetUnits(True)
+            f(y)
 
+        #Check call with multiple args:
+        with pytest.raises(Exception) as exc_info:
+            f(1.0, 1.0)
 
+    def test_Call_multi(self, func2):
+        f = self.inst(func2, 2)
+        r1 = random.random()
+        r2 = random.random()
+        x = self.instarg("x", r1)
+        y = self.instarg("y", r2)
 
+        #With Units:
+        f.SetUnits(True)
+        assert f(r1, r2) == func2(r1, r2)
+        #All permutations of units
+        bools = [True, False]
+        for boolx in bools:
+            for booly in bools:
+                x.SetUnits(boolx)
+                y.SetUnits(booly)      
+                assert f(r1, y) == func2(r1, r2)
+                assert f(x, r2) == func2(r1, r2)
+                assert f(x, y) == func2(r1, r2)
 
-    #evaluate function
-    #convert units
+        #Without Units:
+        f.SetUnits(False)
+        #All permutations of units
+        assert f(r1, r2) == func2(r1*f.GetArgConversions()[0],
+                                   r2*f.GetArgConversions()[1])/f.GetConversion()
+        #All permutations of units
+        bools = [True, False]
+        for boolx in bools:
+            for booly in bools:
+                x.SetUnits(boolx)
+                y.SetUnits(booly)      
+                assert f(r1, y) == func2(r1*f.GetArgConversions()[0],
+                                   r2)/f.GetConversion()
+                assert f(x, r2) == func2(r1,
+                                   r2*f.GetArgConversions()[1])/f.GetConversion()
+                assert f(x, y) == func2(r1, r2)/f.GetConversion()
 
-    #test mutli-variate function
+        f.SetUnits(True)
+        #Check that inverting order of args yields Error
+        with pytest.raises(AssertionError) as exc_info:
+            assert f(1/137, 2.0) == f(2.0, 1/137)
 
-    #test function returning multiple values (should raise Error)
+        #Check that error occurs when calling with BGVal and incorrect signature:
+        with pytest.raises(AssertionError) as exc_info:
+            f(y, x)
 
-    #test function returning a string or other bad datatype (should raise Error)
-    pass
+        #Check call with multiple args:
+        with pytest.raises(Exception) as exc_info:
+            f(1.0, 1.0, 2.0)
+        
+        #Check call with single args:
+        with pytest.raises(Exception) as exc_info:
+            f(1.0)

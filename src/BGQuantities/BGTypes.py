@@ -201,7 +201,7 @@ class Func(Quantity):
                 arglist.append(arg.value*arg.GetConversion()**pow)
             else:
                 arglist.append(arg*self.__ArgConversions[i]**(1-units))
-        return self.__basefunc(*arglist)*self.__Conversion**(1-units)
+        return self.__basefunc(*arglist)/self.__Conversion**(1-units)
         
     def GetUnits(self):
         return self.__units

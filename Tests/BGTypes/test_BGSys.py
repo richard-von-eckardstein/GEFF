@@ -17,20 +17,20 @@ class TestBGSystem():
         x = BGVal("x", 2, 1)
         f = BGFunc("f", [x], 2, 1)
         U = BGSystem([x, f],
-                        0.5, 2)
+                        0.55, 0.32)
         return U
     
     def test_init(self):
         U = self.createSys()
-        assert U.H0 == 0.5
-        assert U.MP == 2
+        assert U.H0 == 0.55
+        assert U.MP == 0.32
 
     def test_InitialiseValue(self):
         U = self.createSys()
         U.Initialise("x")(10)
         assert isinstance(U.x, Val)
         assert U.x.value == 10
-        assert U.x.GetConversion() == 0.5**2 * 2
+        assert U.x.GetConversion() == 0.55**2 * 0.32
 
     def test_InitialiseFunc(self):
         U = self.createSys()
@@ -40,7 +40,7 @@ class TestBGSystem():
         assert callable(U.f)
         randval = random.random()
         assert U.f.GetBaseFunc()(randval) == func(randval) 
-        assert U.f.GetConversion() == 0.5**2*2
+        assert U.f.GetConversion() == 0.55**2 * 0.32
     
     def test_InitialiseUnknown(self):
         U = self.createSys()

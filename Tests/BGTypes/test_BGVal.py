@@ -21,7 +21,7 @@ class TestBGVal():
 
     def sys(self):
         x = BGVal("x", 2, 1)
-        U = BGSystem([x], 0.5, 2.0)
+        U = BGSystem([x], 0.55, 0.32)
         return U
     
     def inst(self, val):
@@ -41,7 +41,7 @@ class TestBGVal():
         assert x.massdim==3
         assert np.issubdtype(x.value.dtype, np.floating)
         assert x.GetUnits() == True
-        assert x.GetConversion() == 0.5**2 * 2.0
+        assert x.GetConversion() == 0.55**2 * 0.32
 
     def test_InitFroma1(self, a1):
         x = self.inst(a1)
@@ -55,7 +55,7 @@ class TestBGVal():
 
         x.SetUnits(False)
         assert not(x.GetUnits())
-        assert x.value == v1/(0.5**2 * 2.0)
+        assert x.value == v1/(0.55**2 * 0.32)
 
     def test_str(self, v1):
         x = self.inst(v1)
@@ -135,7 +135,6 @@ class TestBGVal():
         y = self.inst(v2)
         assert x%5 == v1%5
         with pytest.raises(Exception) as exec_info:
-            x%v2
             x%y
 
     def test_pow(self, v1, v2):
