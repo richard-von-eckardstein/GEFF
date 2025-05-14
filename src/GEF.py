@@ -124,30 +124,27 @@ class GEF(BGSystem):
         return
     
     def __SetupGEFSolver(self, model, iniVals, Funcs):
-        solversys = BGSystem.InitialiseFromBGSystem(self)
-
-
-        for obj in solversys.ObjectSet():
+        for obj in self.ObjectSet():
             if issubclass(obj, Val):
-                solversys.Initialise(obj.name)(0.)
+                self.Initialise(obj.name)(0.)
             if issubclass(obj, Func):
-                solversys.Initialise(obj.name)(lambda x: 0.)
+                self.Initialise(obj.name)(lambda x: 0.)
 
         for key, item in iniVals.items():
-            solversys.Initialise(key)(item)
+            self.Initialise(key)(item)
         for key, item in Funcs.items():
-            solversys.Initialise(key)(item)
+            self.Initialise(key)(item)
 
         if not("dI" in Funcs.keys()):
-            solversys.Initialise("dI")(lambda x: float(self.beta))
+            self.Initialise("dI")(lambda x: float(self.beta))
         if not("ddI" in Funcs.keys()):
-            solversys.Initialise("ddI")(lambda x: 0.)
+            self.Initialise("ddI")(lambda x: 0.)
 
-        solversys.SetUnits(False)
+        self.SetUnits(False)
 
         self.Solver = GEFSolver(
                                 model.UpdateVals, model.TimeStep, model.Initialise,
-                                    model.events, solversys,
+                                    model.events, self,
                                     MbMSettings={} # EDIT FOR SE
                                 )
         self.completed=False
