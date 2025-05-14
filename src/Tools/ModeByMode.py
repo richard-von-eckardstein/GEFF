@@ -6,7 +6,7 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 import os
 from numpy.typing import ArrayLike
-from src.BGQuantities.BGTypes import BGSystem
+from src.BGQuantities.BGTypes import BGSystem, Func, Val
 
 alpha=0
 
@@ -229,10 +229,10 @@ class ModeByMode:
         FuncDic = {}
         for obj in self.EoMKwargs:    
             val = getattr(values, obj)
-            if isinstance(val, BGSystem.BGVal):
+            if isinstance(val, Val):
                 func = CubicSpline(self.__t, val)
                 ValueDic[obj] = func
-            elif isinstance(val, BGSystem.BGFunc):
+            elif isinstance(val, Func):
                 FuncDic[obj] = val
         self.__ValueKwargs = ValueDic
         self.__FuncKwargs = FuncDic
@@ -363,7 +363,13 @@ class ModeByMode:
             deltaf  = lambda x: 1.0
             
             #Define ODE to solve (sigmaE=0, sigmaB=0)
-            ode = self.DefineOde(k)
+            #ode = self.DefineOde(k)
+            a = self.__af(tstart)
+            ode = lambda t, y: self.ModeEoM(y, k,
+                                            self.__ValueKwargs["a"](t),
+                                            self.__ValueKwargs["phi"](t),
+                                            self.__ValueKwargs["dphi"](t),
+                                            self.__FuncKwargs["dI"])
         else:
             #Treat sigma's depending on KDep or not
             if self.__SE in ["KDep", "Del1"]:
