@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 from src.BGQuantities import DefaultQuantities
-from src.BGQuantities.BGTypes import BGSystem
+from src.BGQuantities.BGTypes import BGSystem, Val, Func
 
 from src.Solver.GEFSolver import GEFSolver
 
@@ -127,8 +127,11 @@ class GEF(BGSystem):
         solversys = BGSystem.InitialiseFromBGSystem(self)
 
 
-        for name in solversys.ObjectNames():
-            solversys.Initialise(name)(0.)
+        for obj in solversys.ObjectSet():
+            if issubclass(obj, Val):
+                solversys.Initialise(obj.name)(0.)
+            if issubclass(obj, Func):
+                solversys.Initialise(obj.name)(lambda x: 0.)
 
         for key, item in iniVals.items():
             solversys.Initialise(key)(item)

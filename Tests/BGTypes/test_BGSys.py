@@ -80,10 +80,19 @@ class TestBGSystem():
     def test_AddObj(self):
         U = self.createSys()
         U.AddBGVal("y", 0, 2)
-        U.AddBGFunc("g", ["y"], 2, 0)
+        U.AddBGFunc("g", [U._y], 2, 0)
         names = U.ObjectNames()
         assert "y" in names
         assert "g" in names
+
+    def test_AddVal(self):
+        U = self.createSys()
+        U.AddValue("y", 3.0, 0, 2)
+        U.AddFunction("g", [U._y], lambda x: x, 2, 0)
+        names = U.ObjectNames()
+        assert "y" in names
+        assert "g" in names
+
 
     def test_SetUnitsFalse(self):
         U = self.createSys()

@@ -14,7 +14,11 @@ class TestBGFunc():
     
     @pytest.fixture
     def v1(self):
-        return 415.2975
+        return 41.2
+    
+    @pytest.fixture
+    def v2(self):
+        return 90.12
 
     def sys(self):
         x = BGVal("x", 1, 1)
@@ -58,11 +62,10 @@ class TestBGFunc():
         for arg in f.Args:
             assert arg in [x, y]
     
-    def test_init(self, func1, func2):
+    def test_init(self, func1, func2, v1, v2):
         #Initialise single-variable function
         f = self.inst(func1, 1)
-        randval = random.random()
-        assert f.GetBaseFunc()(randval) == func1(randval) 
+        assert f.GetBaseFunc()(v1) == func1(v1) 
         assert f.GetUnits() == True
         assert f.GetConversion() == 0.55**3 * 0.32**1
         assert len(f.GetArgConversions()) == 1
@@ -71,9 +74,7 @@ class TestBGFunc():
 
         #Initialise multivariate function
         f = self.inst(func2, 2)
-        rval1 = random.random()
-        rval2 = random.random()
-        assert f.GetBaseFunc()(rval1, rval2) == func2(rval1, rval2) 
+        assert f.GetBaseFunc()(v1, v2) == func2(v1, v2) 
         assert f.GetUnits() == True
         assert f.GetConversion() == 0.55**1 * 0.32**3
         assert len(f.GetArgConversions()) == 2
@@ -105,29 +106,28 @@ class TestBGFunc():
         assert f.GetUnits() == False
 
     #evaluate function
-    def test_Call_single(self, func1):
+    def test_Call_single(self, func1, v1):
         f = self.inst(func1, 1)
-        randval = random.random()
-        x = self.instarg("x", randval)
+        x = self.instarg("x", v1)
 
         #With Units:
         f.SetUnits(True)
-        assert f(randval) == func1(randval)
+        assert f(v1) == func1(v1)
         x.SetUnits(True)
-        assert f(x) == func1(randval)
+        assert f(x) == func1(v1)
         x.SetUnits(False)
-        assert f(x) == func1(randval)
+        assert f(x) == func1(v1)
 
         #Without Units:
         f.SetUnits(False)
-        assert f(randval) == func1(randval*f.GetArgConversions()[0])/f.GetConversion()
+        assert f(v1) == func1(v1*f.GetArgConversions()[0])/f.GetConversion()
         x.SetUnits(True)
-        assert f(x) == func1(randval)/f.GetConversion()
+        assert f(x) == func1(v1)/f.GetConversion()
         x.SetUnits(False)
-        assert f(x) == func1(randval)/f.GetConversion()
+        assert f(x) == func1(v1)/f.GetConversion()
 
         #Check that error occurs when calling with BGVal and incorrect signature:
-        y = self.instarg("y", randval)
+        y = self.instarg("y", v1)
         with pytest.raises(AssertionError) as exc_info:
             f.SetUnits(True)
             f(y)
@@ -136,42 +136,40 @@ class TestBGFunc():
         with pytest.raises(Exception) as exc_info:
             f(1.0, 1.0)
 
-    def test_Call_multi(self, func2):
+    def test_Call_multi(self, func2, v1, v2):
         f = self.inst(func2, 2)
-        r1 = random.random()
-        r2 = random.random()
-        x = self.instarg("x", r1)
-        y = self.instarg("y", r2)
+        x = self.instarg("x", v1)
+        y = self.instarg("y", v2)
 
         #With Units:
         f.SetUnits(True)
-        assert f(r1, r2) == func2(r1, r2)
+        assert f(v1, v2) == func2(v1, v2)
         #All permutations of units
         bools = [True, False]
         for boolx in bools:
             for booly in bools:
                 x.SetUnits(boolx)
                 y.SetUnits(booly)      
-                assert f(r1, y) == func2(r1, r2)
-                assert f(x, r2) == func2(r1, r2)
-                assert f(x, y) == func2(r1, r2)
+                assert f(v1, y) == func2(v1, v2)
+                assert f(x, v2) == func2(v1, v2)
+                assert f(x, y) == func2(v1, v2)
 
         #Without Units:
         f.SetUnits(False)
         #All permutations of units
-        assert f(r1, r2) == func2(r1*f.GetArgConversions()[0],
-                                   r2*f.GetArgConversions()[1])/f.GetConversion()
+        assert f(v1, v2) == func2(v1*f.GetArgConversions()[0],
+                                   v2*f.GetArgConversions()[1])/f.GetConversion()
         #All permutations of units
         bools = [True, False]
         for boolx in bools:
             for booly in bools:
                 x.SetUnits(boolx)
                 y.SetUnits(booly)      
-                assert f(r1, y) == func2(r1*f.GetArgConversions()[0],
-                                   r2)/f.GetConversion()
-                assert f(x, r2) == func2(r1,
-                                   r2*f.GetArgConversions()[1])/f.GetConversion()
-                assert f(x, y) == func2(r1, r2)/f.GetConversion()
+                assert f(v1, y) == func2(v1*f.GetArgConversions()[0],
+                                   v2)/f.GetConversion()
+                assert f(x, v2) == func2(v1,
+                                   v2*f.GetArgConversions()[1])/f.GetConversion()
+                assert f(x, y) == func2(v1, v2)/f.GetConversion()
 
         f.SetUnits(True)
         #Check that inverting order of args yields Error

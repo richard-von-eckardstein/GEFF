@@ -282,7 +282,7 @@ class BGSystem:
         return
     
     def AddBGFunc(self, name, args, H0units, MPunits):
-        setattr(self, f"__{name}",
+        setattr(self, f"_{name}",
                  BGFunc(name, args, H0units, MPunits))
         return
     
@@ -299,7 +299,7 @@ class BGSystem:
     def SetUnits(self, units):
         for var in vars(self):
             obj = getattr(self, var)
-            if isinstance(obj, Val) or isinstance(obj, Func):
+            if isinstance(obj, Quantity):
                 obj.SetUnits(units)
         self.__units=units
         return

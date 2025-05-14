@@ -1,41 +1,35 @@
-from src.BGQuantities.BGTypes import DefineQuantity
-#Space--time variables:
-spacetime = {
-    DefineQuantity("t", -1, 0), #physical time
-    DefineQuantity("N", 0, 0), #e-folds
-    DefineQuantity("a", 0, 0), #scale factor
-    DefineQuantity("H", 1, 0) #Hubble rate
-}
+from src.BGQuantities.BGTypes import BGVal, BGFunc
 
+#Space--time variables:
+t=BGVal("t", -1, 0) #physical time
+N=BGVal("N", 0, 0) #e-folds
+a=BGVal("a", 0, 0) #scale factor
+H=BGVal("H", 1, 0) #Hubble rate
+spacetime = {t, N, a, H}
 
 #Inflaton  variables:
-inflaton = {
-    DefineQuantity("phi", 0, 1), #inflaton field
-    DefineQuantity("dphi", 1, 1), #inflaton velocity
-    DefineQuantity("ddphi", 2, 1) #inflaton acceleration
-}
+phi=BGVal("phi", 0, 1) #inflaton field
+dphi=BGVal("dphi", 1, 1) #inflaton velocity
+ddphi=BGVal("ddphi", 2, 1) #inflaton acceleration
+inflaton = {phi, dphi, ddphi}
 
-#Gauge-field variables:
-gaugefield = {
-    DefineQuantity("E", 4, 0), #electric field expectation value
-    DefineQuantity("B", 4, 0), #magnetic field expectation value
-    DefineQuantity("G", 4, 0)#-EdotB expectation value
-}
-
-#Auxiliary quantities:
-auxiliary = {
-    DefineQuantity("xi", 0, 0), #instability parameter
-    DefineQuantity("kh", 1, 0) #instability scale
-}
-
-#Inflaton potential:
-inflatonpotential = {
-    DefineQuantity("V", 2, 2, isfunc=True), #scalar potential
-    DefineQuantity("dV", 2, 2, isfunc=True), #scalar-potential derivative
-}
+#Inflaton potential
+V=BGFunc("V", [phi], 2, 2) #scalar potential
+dV=BGFunc("dV", [phi], 2, 2) #scalar-potential derivative
+inflatonpotential={V, dV}
 
 #Inflaton--gauge-field coupling:
-coupling = {
-    DefineQuantity("dI", 0, -1, isfunc=True), #scalar potential
-    DefineQuantity("ddI", 0, -2, isfunc=True), #scalar-potential derivative
-}
+dI=BGFunc("dI", [phi], 0, -1) #scalar potential
+ddI=BGFunc("ddI", [phi], 0, -2) #scalar-potential derivative
+coupling = {dI, ddI}
+
+#Gauge-field variables:
+E=BGVal("E", 4, 0) #electric field expectation value
+B=BGVal("B", 4, 0) #magnetic field expectation value
+G=BGVal("G", 4, 0) #-EdotB expectation value
+gaugefield = {E, B, G}
+
+#Auxiliary quantities:
+xi=BGVal("xi", 0, 0) #instability parameter
+kh=BGVal("kh", 1, 0) #instability scale
+auxiliary = {xi, kh}
