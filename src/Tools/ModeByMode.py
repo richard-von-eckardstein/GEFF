@@ -3,10 +3,11 @@ from scipy.integrate import solve_ivp
 from scipy.integrate import quad
 import pandas as pd
 from scipy.interpolate import CubicSpline
-from scipy.optimize import fsolve
+
 import os
-from numpy.typing import ArrayLike
+
 from src.BGQuantities.BGTypes import BGSystem, Func, Val
+from src.EoMsANDFunctions.ClassicEoMs import ModeEoMClassic as ModeEoM
 
 alpha=0
 
@@ -30,62 +31,6 @@ def ReadMode(file):
                     "Ap":Ap, "dAp":dAp, "Am":Am, "dAm":dAm})
     
     return spec
-
-
-def ModeEoMOld(y : ArrayLike, k : float, a : float, phi : float, dphi : float, dI):
-    """
-    Compute the time derivative of the gauge-field mode and its derivatives for a fixed comoving wavenumber at a given moment of time t
-
-    Parameters
-    ----------
-    y : numpy.array
-        contains the gauge-field mode and its derivatives for both helicities +/- (in Hubble units).
-        y[0/4] = Re( sqrt(2k)*A(t,k,+/-) ), y[2/6] = Im( sqrt(2k)*A(t,k,+/-) )
-        y[1/5] = Re( sqrt(2/k)*dAdeta(t,k,+/-) ), y[3/7] = Im( sqrt(2/k)*dAdeta(t,k,+/-) ), eta being conformal time, a*deta = dt
-    k : float
-        the comoving wavenumber in Hubble units
-    a : float
-        the scalefactor at time t
-    phi : float
-        the inflaton field at time t
-    dphi : float:
-        the inflaton velocity at time t
-    dI : func:
-        the coupling function dI(phi) = beta/Mpl
-        
-    Returns
-    -------
-    dydt : array
-        an array of time derivatives of y
-
-    """
-    
-    dydt = np.zeros(y.size)
-    
-    dis1 = k / a
-    dis2 = dI(phi)*dphi
-
-    #positive helicity
-    lam = 1.
-    #Real Part
-    dydt[0] = y[1]*dis1
-    dydt[1] = -(dis1  - lam * dis2) * y[0]
-    
-    #Imaginary Part
-    dydt[2] = y[3]*dis1
-    dydt[3] = -(dis1  - lam * dis2) * y[2]
-    
-    #negative helicity
-    lam = -1.
-    #Real Part
-    dydt[4] = y[5]*dis1
-    dydt[5] = -(dis1  - lam * dis2) * y[4]
-    
-    #Imaginary Part
-    dydt[6] = y[7]*dis1
-    dydt[7] = -(dis1  - lam * dis2) * y[6]
-    
-    return dydt
 
 class GaugeSpec(dict):
     def __init__(self, modedic):
@@ -144,22 +89,21 @@ class GaugeSpec(dict):
         
         return
     
-def ModeSolver(ModeEq, BGQuantities):
+def ModeSolver(ModeEq, BGEoMKwargs):
     class ModeSolver(ModeByMode):
         ModeEoM = staticmethod(ModeEq)
-        EoMKwargs = BGQuantities
-
+        EoMKwargs = BGEoMKwargs
         def __init__(self, values):
             super().__init__(values)
-            
+    return ModeSolver
 
 
 class ModeByMode:
     #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
-    ModeEoM = staticmethod(ModeEoMOld)
-    EoMKwargs = ["a", "dI", "phi", "dphi"]
+    ModeEoM = staticmethod(ModeEoM)
+    EoMKwargs = ["a", "H", "xi"]
 
-    def __init__(self, values, settings={}):
+    def __init__(self, values):
         """
         A class used to solve the gauge-field mode equation for axion inflation based on a given GEF solution.
         Can be used to internally verify the consistency of the GEF solution. All quantities throught are treated in Hubble units.
@@ -240,7 +184,7 @@ class ModeByMode:
         self.__af = CubicSpline(self.__t, a)
         self.__khf = CubicSpline(self.__t, kh)
 
-        for key in ["E", "B", "G"]:
+        """for key in ["E", "B", "G"]:
             func = CubicSpline(self.__N, (a/kh)**4 * getattr(values, key))
             setattr(self, f"__{key}f", func)
         
@@ -257,7 +201,7 @@ class ModeByMode:
                 self.__kFerm = kh
 
         except:
-            self.__SE = None
+            self.__SE = None"""
         
         deta = lambda t, y: 1/self.__af(t)
         
@@ -328,6 +272,11 @@ class ModeByMode:
             return self.ModeEoM(y, k, **valuekwargs, **self.__FuncKwargs)
         return ode
     
+    def DefOde2(self, k):
+        def ode(t, y):
+            return self.ModeEoM(t, y, k, **self.__ValueKwargs)
+        return ode
+    
     def ComputeMode(self, k, tstart, teval=[], atol=1e-3, rtol=1e-5):
         """
         Input
@@ -357,35 +306,36 @@ class ModeByMode:
         """
 
         #Setup initial modes and ODE depending on Schwinger effect mode
-        if self.__SE == None:
-            #Initial conditions for y and dydt for both helicities (rescaled appropriately)
-            yini = np.array([1., 0, 0, -1., 1, 0, 0, -1.])
-            deltaf  = lambda x: 1.0
-            
-            #Define ODE to solve (sigmaE=0, sigmaB=0)
-            #ode = self.DefineOde(k)
-            a = self.__af(tstart)
-            ode = lambda t, y: self.ModeEoM(y, k,
-                                            self.__ValueKwargs["a"](t),
-                                            self.__ValueKwargs["phi"](t),
-                                            self.__ValueKwargs["dphi"](t),
-                                            self.__FuncKwargs["dI"])
-        else:
-            #Treat sigma's depending on KDep or not
-            if self.__SE in ["KDep", "Del1"]:
-                tcross = self.__t[np.where(self.__kFerm/k < 1)][-1]
-                if tstart > tcross: tstart = tcross
-                sigmaEk = np.heaviside( self.__kFerm - k, 0.5)*self.__sigmaE
-                sigmaBk = np.heaviside( self.__kFerm - k, 0.5)*self.__sigmaB
+        #if self.__SE == None:
+        #Initial conditions for y and dydt for both helicities (rescaled appropriately)
+        yini = np.array([1., 0, 0, -1., 1, 0, 0, -1.])
+        deltaf  = lambda x: 1.0
+        
+        #Define ODE to solve (sigmaE=0, sigmaB=0)
+        #ode = self.DefineOde(k)
+        """ode = lambda t, y: self.ModeEoM(y, k,
+                                        self.__ValueKwargs["a"](t),
+                                        self.__ValueKwargs["xi"](t),
+                                        self.__ValueKwargs["H"](t))"""
+        #ode = self.DefineOde(k)
+        ode = self.DefOde2(k)
 
-                sigmaEf = CubicSpline(self.__t, sigmaEk)
-                sigmaBf = CubicSpline(self.__t, sigmaBk)
+        """#else:
+        #Treat sigma's depending on KDep or not
+        if self.__SE in ["KDep", "Del1"]:
+            tcross = self.__t[np.where(self.__kFerm/k < 1)][-1]
+            if tstart > tcross: tstart = tcross
+            sigmaEk = np.heaviside( self.__kFerm - k, 0.5)*self.__sigmaE
+            sigmaBk = np.heaviside( self.__kFerm - k, 0.5)*self.__sigmaB
 
-                deltaf  = np.vectorize(lambda x: 1.0) #we always initialse modes while k > kFerm
-            elif self.__SE=="Old":
-                sigmaEf = CubicSpline(self.__t, self.__sigmaE)
-                sigmaBf = CubicSpline(self.__t, self.__sigmaB)
-                deltaf  = CubicSpline(self.__t, self.__delta)
+            sigmaEf = CubicSpline(self.__t, sigmaEk)
+            sigmaBf = CubicSpline(self.__t, sigmaBk)
+
+            deltaf  = np.vectorize(lambda x: 1.0) #we always initialse modes while k > kFerm
+        elif self.__SE=="Old":
+            sigmaEf = CubicSpline(self.__t, self.__sigmaE)
+            sigmaBf = CubicSpline(self.__t, self.__sigmaB)
+            deltaf  = CubicSpline(self.__t, self.__delta)
                 
 
             #Initial conditions for y and dydt for both helicities (rescaled appropriately)
@@ -393,7 +343,7 @@ class ModeByMode:
                              1., -1/2*sigmaEf(tstart)*self.__af(tstart)/k, 0, -1.])*np.sqrt( deltaf(tstart) )
             
             #Define ODE to solve
-            ode = lambda t, y: self.ModeEoM( y, k, self.__af(t), self.__SclrCplf(t), sigmaEf(t), sigmaBf(t) )
+            ode = lambda t, y: self.ModeEoM( y, k, self.__af(t), self.__SclrCplf(t), sigmaEf(t), sigmaBf(t) )"""
         
         #parse teval input
         if len(teval)==0:
@@ -457,6 +407,7 @@ class ModeByMode:
                     "Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
 
         return spec
+    
     
     def IntegrateSpec(self, spec:GaugeSpec, n : int=0, epsabs=1e-20, epsrel=1e-4):
         tdim = spec.GetDim()["tdim"]

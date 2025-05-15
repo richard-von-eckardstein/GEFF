@@ -1,7 +1,5 @@
 import numpy as np
 
-from src.Tools.ModeByMode import ModeByMode
-
 from scipy.integrate import solve_ivp
 from scipy.interpolate import CubicSpline
 
@@ -27,7 +25,7 @@ def PrintSolution(sol):
     return
 
 class GEFSolver:
-    def __init__(self, UpdateVals, TimeStep, Initialise, events, iniVals, MbMSettings):
+    def __init__(self, UpdateVals, TimeStep, Initialise, events, ModeByMode, iniVals):
         self.__Initialise = Initialise
         self.iniVals = iniVals
         self.InitialConditions = self.InitialiseFromSlowRoll
@@ -37,7 +35,7 @@ class GEFSolver:
 
         self.Events = events
 
-        self.MbMSettings = MbMSettings
+        self.ModeByMode = ModeByMode
 
     def __ode(self, t, y, vals, atol=1e-20, rtol=1e-6):
         self.__UpdateVals(t, y, vals, atol=atol, rtol=rtol)
@@ -64,7 +62,7 @@ class GEFSolver:
 
             if nmodes!=None:
                 print("Using last successful GEF solution to compute gauge-field mode functions.")
-                MbM = ModeByMode(vals, self.MbMSettings)
+                MbM = self.ModeByMode(vals)
                 spec = MbM.ComputeModeSpectrum(nmodes)
 
                 

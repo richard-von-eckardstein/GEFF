@@ -87,6 +87,8 @@ class GEF(BGSystem):
         #Configure model settings
         self.__ConfigureModelSettings(model.modelSettings, userSettings)
 
+        self.MbM = model.ModeByMode
+
         #Create the GEF solver class
         self.__SetupGEFSolver(model, iniVals, Funcs)
 
@@ -144,9 +146,7 @@ class GEF(BGSystem):
 
         self.Solver = GEFSolver(
                                 model.UpdateVals, model.TimeStep, model.Initialise,
-                                    model.events, self,
-                                    MbMSettings={} # EDIT FOR SE
-                                )
+                                    model.events, model.ModeSolver, self)
         self.completed=False
         
         return
