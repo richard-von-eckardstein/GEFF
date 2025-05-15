@@ -7,7 +7,7 @@ from scipy.interpolate import CubicSpline
 import os
 
 from src.BGQuantities.BGTypes import BGSystem, Func, Val
-from src.EoMsANDFunctions.ClassicEoMs import ModeEoMClassic as ModeEoM
+from src.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
 
 alpha=0
 
@@ -100,8 +100,10 @@ def ModeSolver(ModeEq, BGEoMKwargs):
 
 class ModeByMode:
     #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
-    ModeEoM = staticmethod(ModeEoM)
-    EoMKwargs = ["a", "H", "xi"]
+    ModeEoM = staticmethod(ModeEoMClassic)
+    EoMKwargs = {"a":None, "H":None, "xi":None}
+    Init = staticmethod(BDClassic)
+    InitKwargs = {}
 
     def __init__(self, values):
         """
@@ -169,25 +171,24 @@ class ModeByMode:
         kh = values.kh
         a = values.a
 
-        ValueDic = {}
-        FuncDic = {}
-        for obj in self.EoMKwargs:    
-            val = getattr(values, obj)
+        for key in self.EoMKwargs.keys(): 
+            val = getattr(values, key)
             if isinstance(val, Val):
-                func = CubicSpline(self.__t, val)
-                ValueDic[obj] = func
-            elif isinstance(val, Func):
-                FuncDic[obj] = val
-        self.__ValueKwargs = ValueDic
-        self.__FuncKwargs = FuncDic
+                self.EoMKwargs[key] = CubicSpline(self.__t, val)
+        
+        for key in self.InitKwargs.keys(): 
+            val = getattr(values, key)
+            if isinstance(val, Val):
+                self.InitKwargs[key] = CubicSpline(self.__t, val)
 
         self.__af = CubicSpline(self.__t, a)
         self.__khf = CubicSpline(self.__t, kh)
 
-        """for key in ["E", "B", "G"]:
+        for key in ["E", "B", "G"]:
             func = CubicSpline(self.__N, (a/kh)**4 * getattr(values, key))
             setattr(self, f"__{key}f", func)
-        
+            
+        """
         #Assess if the GEF run incorporates Fermions
         try:
             self.__SE = settings["SEModel"]
@@ -263,19 +264,7 @@ class ModeByMode:
             raise KeyError
 
         return k, tstart
-    
-    def DefineOde(self, k):
-        def ode(t, y):
-            valuekwargs = {}
-            for key, item in self.__ValueKwargs.items():
-                valuekwargs[key] = item(t)
-            return self.ModeEoM(y, k, **valuekwargs, **self.__FuncKwargs)
-        return ode
-    
-    def DefOde2(self, k):
-        def ode(t, y):
-            return self.ModeEoM(t, y, k, **self.__ValueKwargs)
-        return ode
+
     
     def ComputeMode(self, k, tstart, teval=[], atol=1e-3, rtol=1e-5):
         """
@@ -308,17 +297,10 @@ class ModeByMode:
         #Setup initial modes and ODE depending on Schwinger effect mode
         #if self.__SE == None:
         #Initial conditions for y and dydt for both helicities (rescaled appropriately)
-        yini = np.array([1., 0, 0, -1., 1, 0, 0, -1.])
+        yini = self.Init(tstart, k, **self.__InitKwargs)
         deltaf  = lambda x: 1.0
-        
-        #Define ODE to solve (sigmaE=0, sigmaB=0)
-        #ode = self.DefineOde(k)
-        """ode = lambda t, y: self.ModeEoM(y, k,
-                                        self.__ValueKwargs["a"](t),
-                                        self.__ValueKwargs["xi"](t),
-                                        self.__ValueKwargs["H"](t))"""
-        #ode = self.DefineOde(k)
-        ode = self.DefOde2(k)
+
+        ode = lambda t, y: self.ModeEoM(t, y, k, **self.__EoMKwargs)
 
         """#else:
         #Treat sigma's depending on KDep or not
@@ -363,15 +345,18 @@ class ModeByMode:
         sol = solve_ivp(ode, [tstart, tmax], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
         
         #the mode was in vacuum before tstart
-        vac = list( (np.exp(-1j*eta*k)*np.sqrt( delta ))[:istart] )
-        dvac = list( (-1j*np.exp(-1j*eta*k)*np.sqrt( delta ))[:istart]  )
+        vac = yini.reshape(-1, 1) * np.exp(-1j*k*eta[:istart]).reshape(1, -1)
 
         #Create array of mode evolution stringing together vacuum and non-vacuum time evolutions to get evolution from t0 to tend
-        yp = np.array( vac + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )
-        dyp = np.array( dvac + list( (sol.y[1,:] + 1j*sol.y[3,:])*np.exp(-1j*k*eta[istart]) ) )
+        yp = np.array( list(vac[0,:] + 1j*vac[2,:])
+                       + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )
+        dyp = np.array( list(vac[1,:] + 1j*vac[3,:])
+                       + list( (sol.y[1,:] + 1j*sol.y[3,:])*np.exp(-1j*k*eta[istart]) ) )
         
-        ym = np.array( vac + list( (sol.y[4,:] + 1j*sol.y[6,:])*np.exp(-1j*k*eta[istart]) ) )
-        dym = np.array( dvac + list( (sol.y[5,:] + 1j*sol.y[7,:])*np.exp(-1j*k*eta[istart]) ) )
+        ym = np.array( list(vac[4,:] + 1j*vac[6,:])
+                       + vac + list( (sol.y[4,:] + 1j*sol.y[6,:])*np.exp(-1j*k*eta[istart]) ) )
+        dym = np.array( list(vac[5,:] + 1j*vac[7,:])
+                        + list( (sol.y[5,:] + 1j*sol.y[7,:])*np.exp(-1j*k*eta[istart]) ) )
 
         return yp, dyp, ym, dym
     

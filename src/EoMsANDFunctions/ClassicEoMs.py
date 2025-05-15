@@ -1,6 +1,4 @@
 import numpy as np
-from numpy.typing import ArrayLike
-from scipy.interpolate import CubicSpline
 
 def Friedmann(vals):
     Hsq = (1/3) * (0.5 * vals.dphi**2 + vals.V(vals.phi) + vals.H0**2*( 0.5*(vals.E+vals.B) ) ) 
@@ -61,60 +59,4 @@ def EoMF(vals, F, W, dlnkhdt):
     dFdt[-1,2] = (bdrF[-1,2] - (4+ntr)*dlnkhdt*FG[-1] + scale*(FE[-2] - FB[-2]) + ScalarCpl*FB[-1])
 
     return dFdt
-
-def ModeEoMClassic(t: float, y : ArrayLike, k : float, a : CubicSpline, xi : CubicSpline, H : CubicSpline):
-    """
-    Compute the time derivative of the gauge-field mode and its derivatives for a fixed comoving wavenumber at a given moment of time t
-
-    Parameters
-    ----------
-    y : numpy.array
-        contains the gauge-field mode and its derivatives for both helicities +/- (in Hubble units).
-        y[0/4] = Re( sqrt(2k)*A(t,k,+/-) ), y[2/6] = Im( sqrt(2k)*A(t,k,+/-) )
-        y[1/5] = Re( sqrt(2/k)*dAdeta(t,k,+/-) ), y[3/7] = Im( sqrt(2/k)*dAdeta(t,k,+/-) ), eta being conformal time, a*deta = dt
-    k : float
-        the comoving wavenumber in Hubble units
-    a : float
-        the scalefactor at time t
-    phi : float
-        the inflaton field at time t
-    dphi : float:
-        the inflaton velocity at time t
-    dI : func:
-        the coupling function dI(phi) = beta/Mpl
-        
-    Returns
-    -------
-    dydt : array
-        an array of time derivatives of y
-
-    """
-    
-    dydt = np.zeros(y.size)
-    
-    dis1 = k / a(t)
-    dis2 = 2*H(t)*xi(t)
-
-    #positive helicity
-    lam = 1.
-    #Real Part
-    dydt[0] = y[1]*dis1
-    dydt[1] = -(dis1  - lam * dis2) * y[0]
-    
-    #Imaginary Part
-    dydt[2] = y[3]*dis1
-    dydt[3] = -(dis1  - lam * dis2) * y[2]
-    
-    #negative helicity
-    lam = -1.
-    #Real Part
-    dydt[4] = y[5]*dis1
-    dydt[5] = -(dis1  - lam * dis2) * y[4]
-    
-    #Imaginary Part
-    dydt[6] = y[7]*dis1
-    dydt[7] = -(dis1  - lam * dis2) * y[6]
-    
-    return dydt
-
 

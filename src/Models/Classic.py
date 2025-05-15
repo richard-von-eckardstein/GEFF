@@ -2,6 +2,7 @@ import numpy as np
 from src.EoMsANDFunctions.ClassicEoMs import *
 from src.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox
 from src.EoMsANDFunctions.AuxiliaryFuncs import Heaviside
+from src.EoMsANDFunctions.ModeEoMs import ModeEoMClassic
 from src.Solver.Events import Event
 from src.Tools.ModeByMode import ModeSolver
 
@@ -66,6 +67,8 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     dydt[4:] = dFdt.reshape(Fcol*3)
 
     return dydt
+
+
 
 ModeByMode = ModeSolver(ModeEoMClassic, ["a", "xi", "H"])
 
