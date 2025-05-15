@@ -301,7 +301,6 @@ class ModeByMode:
         #if self.__SE == None:
         #Initial conditions for y and dydt for both helicities (rescaled appropriately)
         yini = self.BDInit(tstart, k, **self.InitKwargs)
-        deltaf  = lambda x: 1.0
 
         ode = lambda t, y: self.ModeEoM(t, y, k, **self.EoMKwargs)
 
@@ -337,19 +336,19 @@ class ModeByMode:
         
         #conformal time needed for relative phases
         eta = self.__etaf(teval)
-        delta = deltaf(teval)
 
         istart = 0
         while teval[istart]<tstart:
             istart+=1
-        teval = teval[istart:]
         
         #Solve differential equation from tstart to tmax
-        sol = solve_ivp(ode, [tstart, tmax], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
+        sol = solve_ivp(ode, [tstart, tmax], yini, t_eval=teval[istart:], method="RK45", atol=atol, rtol=rtol)
         
         #the mode was in vacuum before tstart
-        
-        vac = yini.reshape(-1, 1) * (np.exp(-1j*k*eta[:istart])).reshape(1, -1)
+
+        yvac = np.array([self.BDInit(t, k, **self.InitKwargs) for t in teval[:istart]]).T 
+        phasevac = (np.exp(-1j*k*eta[:istart]))
+        vac = yvac * phasevac
 
         #Create array of mode evolution stringing together vacuum and non-vacuum time evolutions to get evolution from t0 to tend
         yp = np.array( list(vac[0,:] + 1j*vac[2,:])
