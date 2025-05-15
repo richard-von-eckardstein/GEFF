@@ -200,7 +200,7 @@ class Func(Quantity):
         
         def Valhandler(x, i):
             conv = x.GetConversion()
-            #assert self.__ArgConversions[i] == conv
+            assert self.__ArgConversions[i] == conv
             pow = (1 - x.GetUnits())
             return x*conv**pow
 

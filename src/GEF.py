@@ -146,7 +146,7 @@ class GEF(BGSystem):
 
         self.Solver = GEFSolver(
                                 model.UpdateVals, model.TimeStep, model.Initialise,
-                                    model.events, model.ModeSolver, self)
+                                    model.events, model.ModeByMode, self)
         self.completed=False
         
         return

@@ -2,7 +2,7 @@ import numpy as np
 from src.EoMsANDFunctions.ClassicEoMs import *
 from src.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox
 from src.EoMsANDFunctions.AuxiliaryFuncs import Heaviside
-from src.EoMsANDFunctions.ModeEoMs import ModeEoMClassic
+from src.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
 from src.Solver.Events import Event
 from src.Tools.ModeByMode import ModeSolver
 
@@ -68,9 +68,8 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
 
     return dydt
 
-
-
-ModeByMode = ModeSolver(ModeEoMClassic, ["a", "xi", "H"])
+ModeByMode = ModeSolver(ModeEq=ModeEoMClassic, EoMkeys=["a", "xi", "H"],
+                         BDInitEq=BDClassic, Initkeys=[])
 
 #Event 1:
 def EndOfInflationFunc(t, y, vals, atol, rtol):

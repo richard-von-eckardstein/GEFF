@@ -22,7 +22,7 @@ if __name__ == "__main__":
 
     G.LoadGEFData()
 
-    MbM = ModeByMode(G, settings={})
+    MbM = G.MbM(G)
 
     spec = MbM.ComputeModeSpectrum(20)
 

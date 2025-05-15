@@ -89,10 +89,13 @@ class GaugeSpec(dict):
         
         return
     
-def ModeSolver(ModeEq, BGEoMKwargs):
+def ModeSolver(ModeEq, EoMkeys, BDInitEq, Initkeys):
     class ModeSolver(ModeByMode):
         ModeEoM = staticmethod(ModeEq)
-        EoMKwargs = BGEoMKwargs
+        EoMKwargs = dict(zip(EoMkeys, [None for x in EoMkeys]))
+
+        BDInit = staticmethod(BDInitEq)
+        InitKwargs = dict(zip(Initkeys, [None for x in Initkeys]))
         def __init__(self, values):
             super().__init__(values)
     return ModeSolver
@@ -102,7 +105,7 @@ class ModeByMode:
     #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
     ModeEoM = staticmethod(ModeEoMClassic)
     EoMKwargs = {"a":None, "H":None, "xi":None}
-    Init = staticmethod(BDClassic)
+    BDInit = staticmethod(BDClassic)
     InitKwargs = {}
 
     def __init__(self, values):
@@ -297,10 +300,10 @@ class ModeByMode:
         #Setup initial modes and ODE depending on Schwinger effect mode
         #if self.__SE == None:
         #Initial conditions for y and dydt for both helicities (rescaled appropriately)
-        yini = self.Init(tstart, k, **self.__InitKwargs)
+        yini = self.BDInit(tstart, k, **self.InitKwargs)
         deltaf  = lambda x: 1.0
 
-        ode = lambda t, y: self.ModeEoM(t, y, k, **self.__EoMKwargs)
+        ode = lambda t, y: self.ModeEoM(t, y, k, **self.EoMKwargs)
 
         """#else:
         #Treat sigma's depending on KDep or not
@@ -345,7 +348,8 @@ class ModeByMode:
         sol = solve_ivp(ode, [tstart, tmax], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
         
         #the mode was in vacuum before tstart
-        vac = yini.reshape(-1, 1) * np.exp(-1j*k*eta[:istart]).reshape(1, -1)
+        
+        vac = yini.reshape(-1, 1) * (np.exp(-1j*k*eta[:istart])).reshape(1, -1)
 
         #Create array of mode evolution stringing together vacuum and non-vacuum time evolutions to get evolution from t0 to tend
         yp = np.array( list(vac[0,:] + 1j*vac[2,:])
@@ -354,7 +358,7 @@ class ModeByMode:
                        + list( (sol.y[1,:] + 1j*sol.y[3,:])*np.exp(-1j*k*eta[istart]) ) )
         
         ym = np.array( list(vac[4,:] + 1j*vac[6,:])
-                       + vac + list( (sol.y[4,:] + 1j*sol.y[6,:])*np.exp(-1j*k*eta[istart]) ) )
+                       + list( (sol.y[4,:] + 1j*sol.y[6,:])*np.exp(-1j*k*eta[istart]) ) )
         dym = np.array( list(vac[5,:] + 1j*vac[7,:])
                         + list( (sol.y[5,:] + 1j*sol.y[7,:])*np.exp(-1j*k*eta[istart]) ) )
 
