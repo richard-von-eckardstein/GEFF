@@ -4,23 +4,26 @@ from src.EoMsANDFunctions.SchwingerEoMs import *
 from src.EoMsANDFunctions.WhittakerFuncs import WhittakerApproxSE
 from src.EoMsANDFunctions.AuxiliaryFuncs import Heaviside
 from src.EoMsANDFunctions.Conductivities import *
+from src.EoMsANDFunctions.ModeEoMs import ModeEoMSchwinger, BDDamped
 from src.Solver.Events import Event
+from src.Tools.ModeByMode import ModeSolver
+from src.BGQuantities.BGTypes import BGVal, BGFunc
 
 name = "SE-Old"
 
-modelQuantities = {
-                "sigmaE": {"H0":1, "MP":0, "optional":False}, #electric damping
-                "sigmaB": {"H0":1, "MP":0, "optional":False}, #magnetic damping
-                "delta": {"H0":0, "MP":0, "default":1, "optional":False}, #integrated electric damping
-                "xieff": {"H0":0, "MP":0}, #effective instability parameter
-                "s": {"H0":0, "MP":0}, #electric damping parameter,
-                "rhoChi": {"H0":4, "MP":0, "default":0., "optional":False} #Fermion energy density 
-                }   
+sigmaE=BGVal("sigmaE", 1, 0) #electric damping
+sigmaB=BGVal("sigmaB", 1, 0) #magnetic damping 
+delta=BGVal("delta", 0, 0) #integrated electric damping
+xieff=BGVal("xieff", 0, 0) #effective instability parameter
+s=BGVal("s", 0, 0) #electric damping parameter,
+rhoChi=BGVal("rhoChi", 4, 0)#Fermion energy density 
+
+
+modelQuantities = {sigmaE, sigmaB, delta, xieff, s, rhoChi}   
 
 modelFunctions = {}
 
-rhoFerm = lambda dic: dic["rhoChi"]["value"]
-modelRhos = [rhoFerm]
+modelRhos = ["rhoChi"]
 
 modelSettings = {"picture": "mixed"}
 
@@ -108,7 +111,8 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
 
     return dydt
 
-
+ModeByMode = ModeSolver(ModeEq=ModeEoMSchwinger, EoMkeys=["a", "xieff", "H", "sigmaE"],
+                         BDInitEq=BDDamped, Initkeys=["delta"])
 
 #Event 1:
 def EndOfInflationFunc(t, y, vals, atol=1e-20, rtol=1e-6):

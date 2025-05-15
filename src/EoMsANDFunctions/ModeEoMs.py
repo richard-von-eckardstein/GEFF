@@ -57,14 +57,21 @@ def ModeEoMClassic(t: float, y : ArrayLike, k : float, a : CubicSpline, xi : Cub
     dydt[7] = -(dis1  - lam * dis2) * y[6]
     
     return dydt
+"""
+def BDDamped(t : float, k : float, a: CubicSpline, sigmaE: CubicSpline, delta : CubicSpline):
+    yini = np.array([1., -1/2*sigmaE(t)*a(t)/k, 0, -1.,
+                     1., -1/2*sigmaE(t)*a(t)/k, 0, -1.])*np.sqrt( delta(t) )
+    return yini"""
 
-def DampedBD(t, float, k : float, delta : CubicSpline):
-    pass
+def BDDamped(t : float, k : float, delta : CubicSpline):
+    yini = np.array([1., 0, 0, -1.,
+                     1., 0, 0, -1.])*np.sqrt( delta(t) )
+    return yini
 
 
 def ModeEoMSchwinger(t: float, y : ArrayLike, k : float,
-                    a : CubicSpline, xi : CubicSpline, H : CubicSpline,
-                    sigmaE : CubicSpline, sigmaB : CubicSpline):
+                    a : CubicSpline, xieff : CubicSpline, H : CubicSpline,
+                    sigmaE : CubicSpline):
     """
     Compute the time derivative of the gauge-field mode and its derivatives for a fixed comoving wavenumber at a given moment of time t
 
@@ -94,7 +101,7 @@ def ModeEoMSchwinger(t: float, y : ArrayLike, k : float,
     
     drag = sigmaE(t)
     dis1 = k / a(t)
-    dis2 = 2*H(t)*xi(t) + sigmaB(t)
+    dis2 = 2*H(t)*xieff(t)
 
     #positive helicity
     lam = 1.

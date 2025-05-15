@@ -96,6 +96,7 @@ def ModeSolver(ModeEq, EoMkeys, BDInitEq, Initkeys):
 
         BDInit = staticmethod(BDInitEq)
         InitKwargs = dict(zip(Initkeys, [None for x in Initkeys]))
+        
         def __init__(self, values):
             super().__init__(values)
     return ModeSolver

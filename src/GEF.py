@@ -209,7 +209,7 @@ class GEF(BGSystem):
         if self.GEFData==None:
             print("You did not specify the file under which to store the GEF data. Set 'GEFData' to the location where you want to save your data.")
         else:
-            valuelist = self.ValList()
+            valuelist = self.ValueList()
             if valuelist==[]:
                 print("No data to store.")
                 return
