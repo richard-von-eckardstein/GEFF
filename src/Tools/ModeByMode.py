@@ -380,7 +380,7 @@ class ModeByMode:
             logks = np.sort(np.concatenate([logks, newvals]))
         return logks
         
-    def ComputeModeSpectrum(self, nvals, Nstep=0.1, atol=1e-3, rtol=1e-5):
+    def ComputeModeSpectrum(self, nvals, Nstep=0.1, atol=1e-5, rtol=1e-5):
         logks = self.WavenumberArray(nvals)
 
         ks, tstart = self.InitialKTN(np.exp(logks), mode="k")

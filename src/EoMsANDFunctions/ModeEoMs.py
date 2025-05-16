@@ -63,9 +63,9 @@ def BDDamped(t : float, k : float, a: CubicSpline, sigmaE: CubicSpline, delta : 
                      1., -1/2*sigmaE(t)*a(t)/k, 0, -1.])*np.sqrt( delta(t) )
     return yini"""
 
-def BDDamped(t : float, k : float, delta : CubicSpline):
-    yini = np.array([1., 0, 0, -1.,
-                     1., 0, 0, -1.])*np.sqrt( delta(t) )
+def BDDamped(t : float, k : float, a : CubicSpline, delta : CubicSpline, sigmaE : CubicSpline):
+    yini = np.array([1., -1/2*sigmaE(t)*a(t)/k, 0, -1.,
+                     1., -1/2*sigmaE(t)*a(t)/k, 0, -1.])*np.sqrt( delta(t) )
     return yini
 
 

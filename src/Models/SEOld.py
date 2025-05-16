@@ -18,7 +18,6 @@ xieff=BGVal("xieff", 0, 0) #effective instability parameter
 s=BGVal("s", 0, 0) #electric damping parameter,
 rhoChi=BGVal("rhoChi", 4, 0)#Fermion energy density 
 
-
 modelQuantities = {sigmaE, sigmaB, delta, xieff, s, rhoChi}   
 
 modelFunctions = {}
@@ -112,7 +111,7 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     return dydt
 
 ModeByMode = ModeSolver(ModeEq=ModeEoMSchwinger, EoMkeys=["a", "xieff", "H", "sigmaE"],
-                         BDInitEq=BDDamped, Initkeys=["delta"])
+                         BDInitEq=BDDamped, Initkeys=["a", "delta", "sigmaE"])
 
 #Event 1:
 def EndOfInflationFunc(t, y, vals, atol=1e-20, rtol=1e-6):
