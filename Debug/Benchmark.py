@@ -43,7 +43,10 @@ def Benchmark(model, setting, loadGEF=True, loadspec=True):
         G.LoadGEFData()
 
     if loadspec:
-        spec = ReadMode(MbMPath)
+        try:
+            spec = ReadMode(MbMPath)
+        except:
+            print("No spectrum found, proceeding without.")
     else:
         spec = None
 
