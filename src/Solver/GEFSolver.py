@@ -42,7 +42,7 @@ class GEFSolver:
         dydt = self.TimeStep(t, y, vals, atol=atol, rtol=rtol)
         return dydt
 
-    def RunGEF(self, ntr, tend, atol, rtol, nmodes=500, printstats=True, **AlgorithmKwargs):
+    def RunGEF(self, ntr, tend, atol, rtol, nmodes=500, printstats=True, MbMattempts=5, **AlgorithmKwargs):
         self.ntr=ntr
         self.tend=tend
         self.atol=atol
@@ -54,7 +54,7 @@ class GEFSolver:
         done=False
         sol = None
         attempt=0
-        while not(done) and attempt<maxattempts:
+        while not(done) and attempt<MbMattempts:
             attempt +=1
             solnew, vals = self.GEFAlgorithm(reachNend, ensureConvergence, maxattempts)
             sol = self.UpdateSol(sol, solnew)
