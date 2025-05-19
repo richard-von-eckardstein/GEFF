@@ -24,7 +24,7 @@ def EoMlnkh(vals):
                 
     return fcprime/kh
 
-def EoMF(vals, F, W, dlnkhdt):
+def EoMFOld(vals, F, W, dlnkhdt):
     FE = F[:,0]
     FB = F[:,1]
     FG = F[:,2]
@@ -60,3 +60,33 @@ def EoMF(vals, F, W, dlnkhdt):
 
     return dFdt
 
+def EoMF(vals, F, W, dlnkhdt):
+    FE = F[:,0]
+    FB = F[:,1]
+    FG = F[:,2]
+
+    kh = vals.kh
+    a = vals.a
+    scale = kh/a
+
+    W[2,1] = -W[2,1]
+
+    ns = np.arange(0,  FE.shape[0])
+
+    lams = (-1)**ns
+
+    bdrF = dlnkhdt / (4*np.pi**2) * (np.tensordot(np.ones_like(lams), W[:,0], axes=0) + np.tensordot(lams, W[:,1], axes=0))
+
+    ScalarCpl = (vals.dI(vals.phi)*vals.dphi)
+
+    dFdt = np.zeros_like(bdrF)
+
+    dFdt[:-1,0] = (bdrF[:-1,0] - (4+ns[:-1])*dlnkhdt*FE[:-1] - 2*scale*FG[1:] + 2*ScalarCpl*FG[:-1])
+    dFdt[:-1,1] = (bdrF[:-1,1] - (4+ns[:-1])*dlnkhdt*FB[:-1] + 2*scale*FG[1:])
+    dFdt[:-1,2] = (bdrF[:-1,2] - (4+ns[:-1])*dlnkhdt*FG[:-1] + scale*(FE[1:] - FB[1:]) + ScalarCpl*FB[:-1])
+
+    dFdt[-1,0] = (bdrF[-1,0] -  (4+ns[-1])*dlnkhdt*FE[-1] - 2*scale*FG[-2] + 2*ScalarCpl*FG[-1])
+    dFdt[-1,1] = (bdrF[-1,1] - (4+ns[-1])*dlnkhdt*FB[-1] + 2*scale*FG[-2]) 
+    dFdt[-1,2] = (bdrF[-1,2] - (4+ns[-1])*dlnkhdt*FG[-1] + scale*(FE[-2] - FB[-2]) + ScalarCpl*FB[-1])
+
+    return dFdt

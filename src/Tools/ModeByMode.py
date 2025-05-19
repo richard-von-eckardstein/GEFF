@@ -89,13 +89,15 @@ class GaugeSpec(dict):
         
         return
     
-def ModeSolver(ModeEq, EoMkeys, BDInitEq, Initkeys):
+def ModeSolver(ModeEq, EoMkeys, BDInitEq, Initkeys, default_atol=1e-3):
     class ModeSolver(ModeByMode):
         ModeEoM = staticmethod(ModeEq)
         EoMKwargs = dict(zip(EoMkeys, [None for x in EoMkeys]))
 
         BDInit = staticmethod(BDInitEq)
         InitKwargs = dict(zip(Initkeys, [None for x in Initkeys]))
+
+        atol=default_atol
         
         def __init__(self, values):
             super().__init__(values)
@@ -108,6 +110,7 @@ class ModeByMode:
     EoMKwargs = {"a":None, "H":None, "xi":None}
     BDInit = staticmethod(BDClassic)
     InitKwargs = {}
+    atol=1e-3
 
     def __init__(self, values):
         """
@@ -270,7 +273,7 @@ class ModeByMode:
         return k, tstart
 
     
-    def ComputeMode(self, k, tstart, teval=[], atol=1e-3, rtol=1e-5):
+    def ComputeMode(self, k, tstart, teval=[], atol=None, rtol=1e-5):
         """
         Input
         -----
@@ -341,6 +344,9 @@ class ModeByMode:
         istart = 0
         while teval[istart]<tstart:
             istart+=1
+
+        if atol==None:
+            atol = self.atol
         
         #Solve differential equation from tstart to tmax
         sol = solve_ivp(ode, [tstart, tmax], yini, t_eval=teval[istart:], method="RK45", atol=atol, rtol=rtol)
@@ -380,7 +386,7 @@ class ModeByMode:
             logks = np.sort(np.concatenate([logks, newvals]))
         return logks
         
-    def ComputeModeSpectrum(self, nvals, Nstep=0.1, atol=1e-5, rtol=1e-5):
+    def ComputeModeSpectrum(self, nvals, Nstep=0.1, atol=None, rtol=1e-5):
         logks = self.WavenumberArray(nvals)
 
         ks, tstart = self.InitialKTN(np.exp(logks), mode="k")
@@ -388,6 +394,9 @@ class ModeByMode:
         Neval = np.arange(5, max(self.__N), Nstep)
 
         teval = CubicSpline(self.__N, self.__t)(Neval)
+
+        if atol==None:
+            atol = self.atol
 
         modes = np.array([self.ComputeMode(k, tstart[i], teval=teval, atol=atol, rtol=rtol)
                   for i, k in enumerate(ks)])
