@@ -11,6 +11,14 @@ import os
 import warnings
 from copy import deepcopy
 
+def SpecifyModelSettings(model, settings={}):
+    for key, item in settings.items():
+        try:
+            model.modelSettings[key] = item
+        except AttributeError:
+            print(f"Ignoring unknown model setting '{key}'.")
+    
+    return
 
 def ModelLoader(modelname):
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +32,6 @@ def ModelLoader(modelname):
         return mod
     except:
         raise FileNotFoundError(f"No model found under '{modelpath}'")
-
 
 class GEF(BGSystem):
     """
@@ -64,6 +71,9 @@ class GEF(BGSystem):
         #Get Model attributes
         model = ModelLoader(model)
 
+        #Configure model settings
+        SpecifyModelSettings(model, userSettings)
+
         #Set GEF-name
         self.__name = model.name
 
@@ -83,9 +93,6 @@ class GEF(BGSystem):
 
         #Define the GEFClass as a BGSystem using the background quantities, functions and unit conversions
         super().__init__(quantities, H0, MP)
-
-        #Configure model settings
-        self.__ConfigureModelSettings(model.modelSettings, userSettings)
 
         self.MbM = model.ModeByMode
 
@@ -108,22 +115,6 @@ class GEF(BGSystem):
         #Add coupling strength
         string += f"beta={self.beta}"
         return string
-
-    def __ConfigureModelSettings(self, modelSettings, userSettings):
-        settings = {}
-        #Check if user specified any model settings, if not, use default settings
-        for setting in modelSettings.keys():
-            try:
-                settings[setting] = userSettings[setting]
-            except:
-                settings[setting] = modelSettings[setting]
-        
-        #pass settings-dictionary to class
-        if settings == {}:
-            self.settings = None
-        else:
-            self.settings = settings
-        return
     
     def __SetupGEFSolver(self, model, iniVals, Funcs):
         for obj in self.ObjectSet():
@@ -163,10 +154,6 @@ class GEF(BGSystem):
         quantities.update(modelSpecific)
 
         return quantities
-    
-    def PrintNecessaryKeys(self):
-        print(f"Necessary keys for this GEF-setup are:\n{self.__necessarykeys}")
-
 
     def LoadGEFData(self):
         #Check if GEF has a file path associated with it

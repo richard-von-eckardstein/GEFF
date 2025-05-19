@@ -482,15 +482,18 @@ class ModeByMode:
         errs = []
 
         Neval = spec["N"]
-        Nerr = Neval[100:] #ignore first 10 e-folds
-        l = len(Nerr)//10
+
+        #Create e-fold bins of 1-efold corresponding to the error arrays in errs
+        Nerr = np.concatenate([np.arange(20, Neval[-1], 1), np.array([Neval[-1]])])
 
         for i, key in enumerate(keys):
-            spl = getattr(self, f"__{key}f")(Nerr) #call interpolated GEF solution
+            spl = getattr(self, f"__{key}f")(Neval) #call interpolated GEF solution
             #average error over 1 e-fold to dampen impact of short time-scale spikes
-            errs.append( np.average( abs( (FMbM[100:,i]-spl) / spl )[-10*l:].reshape(l, 10), 1) )
-        #Create e-fold bins of 1-efold corresponding to the error arrays in errs
-        Nerr = np.average( Nerr[-10*l:].reshape(l, 10), 1)
+            err =  abs( (FMbM[:,i]-spl) / spl )
+            sum, _  = np.histogram(Neval, bins=Nerr-0.5, weights=err)
+            count, _  = np.histogram(Neval, bins=Nerr-0.5)
+            errs.append(sum/count)
+    
         Nerr = np.round(Nerr, 1)
         if verbose:
             print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:")
