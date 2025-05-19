@@ -18,7 +18,7 @@ def ComputeSigmaCollinear(a, H, E, B, G, pic, H0):
             
             return sigmaE, sigmaB, ks
 
-def ComputeImprovedSigma(a, H, E, B, G, pic, H0):
+def ComputeImprovedSigma(a, H, E, B, G, H0):
     Sigma = np.sqrt((E - B)**2 + 4*G**2)
     if Sigma<=0:
         return 0., 0., 0.

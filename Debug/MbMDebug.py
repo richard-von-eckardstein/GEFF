@@ -16,5 +16,3 @@ if __name__ == "__main__":
 
     MbM = G.MbM(G)
 
-    MbM.CompareToBackgroundSolution(spec)
-

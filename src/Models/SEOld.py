@@ -24,9 +24,23 @@ modelFunctions = {}
 
 modelRhos = ["rhoChi"]
 
-modelSettings = {"picture": "mixed"}
+modelSettings = {"pic": "mixed"}
 
-conductivity = np.vectorize(ComputeImprovedSigma)
+def DefineConductivity(settings):
+    def CollinearConductivity(frac):
+        def conductivity(a, H, E, B, G, H0):
+            return ComputeSigmaCollinear(a, H, E, B, G, frac, H0)
+        return conductivity
+
+    if settings["pic"]=="mixed":
+        return ComputeImprovedSigma
+    elif settings["pic"]=="electric":
+        return CollinearConductivity(-1.0)
+    elif settings["pic"]=="magnetic":
+        return CollinearConductivity(1.0)
+    else:
+        print("Hi there")
+        raise Exception("Unknown choice for setting 'picture'")
 
 def Initialise(vals, ntr):
     yini = np.zeros((ntr+1)*3+6)
@@ -41,6 +55,9 @@ def Initialise(vals, ntr):
     #initialise delta and rhoChi
     yini[4] = vals.delta.value
     yini[5] = vals.rhoChi.value
+
+    global conductivity
+    conductivity = np.vectorize(DefineConductivity(modelSettings))
 
     #currently, all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
@@ -67,7 +84,7 @@ def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
     sigmaE, sigmaB, ks = conductivity(
         vals.a.value, vals.H.value,
           vals.E.value, vals.B.value, vals.G.value
-          , "", vals.H0) # How do I treat model settings?
+          , vals.H0) # How do I treat model settings?
 
     eps = np.vectorize(max)(abs(y[0])*rtol, atol)
     GlobalFerm = Heaviside(np.log(ks/(vals.a*vals.H)), eps)
@@ -111,7 +128,7 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     return dydt
 
 ModeByMode = ModeSolver(ModeEq=ModeEoMSchwinger, EoMkeys=["a", "xieff", "H", "sigmaE"],
-                         BDInitEq=BDDamped, Initkeys=["a", "delta", "sigmaE"], default_atol=1e-3)
+                         BDInitEq=BDDamped, Initkeys=["a", "delta", "sigmaE"], default_atol=1e-5)
 
 #Event 1:
 def EndOfInflationFunc(t, y, vals, atol=1e-20, rtol=1e-6):

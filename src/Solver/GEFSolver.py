@@ -119,6 +119,7 @@ class GEFSolver:
                     break
                 print("A truncation error occured")
                 self.IncreaseNtr(10)
+
         
         if attempts>maxattempts:
             print(f"The run did not finish after {maxattempts} attempts.")

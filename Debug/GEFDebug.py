@@ -12,5 +12,9 @@ if __name__ == "__main__":
     model="Classic"
     setting={}
 
-    G, spec = Benchmark(model, setting)
+    G, spec = Benchmark(model, setting, loadGEF=False, loadspec=False)
+
+    sol = G.Solver.RunGEF(100, 120, 1e-20, 1e-6, nmodes=None, ensureConvergence=False)
+
+
 
