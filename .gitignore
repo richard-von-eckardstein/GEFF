@@ -12,4 +12,4 @@ __pycache__
 !src/Data/EffDoF.dat
 !src/Data/strains/*
 !src/Data/power-law-integrated_sensitivities/*
-!Debug/Data/*
+!Debug/DebugData.zip
