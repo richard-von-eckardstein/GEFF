@@ -25,7 +25,7 @@ def EoMlnkh(vals):
                 
     return fcprime/kh
 
-def EoMF(vals, F, W, dlnkhdt, L=1):
+def EoMF(vals, F, W, dlnkhdt, L=10):
     FE = F[:,0]
     FB = F[:,1]
     FG = F[:,2]
@@ -40,15 +40,22 @@ def EoMF(vals, F, W, dlnkhdt, L=1):
 
     lams = (-1)**ns
 
-    bdrF = dlnkhdt / (4*np.pi**2) * (np.tensordot(np.ones_like(lams), W[:,0], axes=0) + np.tensordot(lams, W[:,1], axes=0))
+    bdrF = (
+            dlnkhdt / (4*np.pi**2) 
+            * (np.tensordot(np.ones_like(lams), W[:,0], axes=0)
+                + np.tensordot(lams, W[:,1], axes=0))
+            )
 
     ScalarCpl = (vals.dI(vals.phi)*vals.dphi)
 
     dFdt = np.zeros_like(bdrF)
 
-    dFdt[:-1,0] = (bdrF[:-1,0] - (4+ns[:-1])*dlnkhdt*FE[:-1] - 2*scale*FG[1:] + 2*ScalarCpl*FG[:-1])
-    dFdt[:-1,1] = (bdrF[:-1,1] - (4+ns[:-1])*dlnkhdt*FB[:-1] + 2*scale*FG[1:])
-    dFdt[:-1,2] = (bdrF[:-1,2] - (4+ns[:-1])*dlnkhdt*FG[:-1] + scale*(FE[1:] - FB[1:]) + ScalarCpl*FB[:-1])
+    dFdt[:-1,0] = (bdrF[:-1,0] - (4+ns[:-1])*dlnkhdt*FE[:-1]
+                    - 2*scale*FG[1:] + 2*ScalarCpl*FG[:-1])
+    dFdt[:-1,1] = (bdrF[:-1,1] - (4+ns[:-1])*dlnkhdt*FB[:-1]
+                    + 2*scale*FG[1:])
+    dFdt[:-1,2] = (bdrF[:-1,2] - (4+ns[:-1])*dlnkhdt*FG[:-1]
+                    + scale*(FE[1:] - FB[1:]) + ScalarCpl*FB[:-1])
 
     #truncation conditions:
     ls = np.arange(1, L+1, 1)
@@ -57,8 +64,11 @@ def EoMF(vals, F, W, dlnkhdt, L=1):
     FBtr = np.sum( (-1)**(ls-1) * facl * (scale)**(-2*ls) * FB[-2*ls+1], axis=0 )
     FGtr = np.sum( (-1)**(ls-1) * facl * (scale)**(-2*ls) * FG[-2*ls+1], axis=0 )
 
-    dFdt[-1,0] = (bdrF[-1,0] -  (4+ns[-1])*dlnkhdt*FE[-1] - 2*scale*FGtr + 2*ScalarCpl*FG[-1])
-    dFdt[-1,1] = (bdrF[-1,1] - (4+ns[-1])*dlnkhdt*FB[-1] + 2*scale*FGtr) 
-    dFdt[-1,2] = (bdrF[-1,2] - (4+ns[-1])*dlnkhdt*FG[-1] + scale*(FEtr - FBtr) + ScalarCpl*FB[-1])
+    dFdt[-1,0] = (bdrF[-1,0] -  (4+ns[-1])*dlnkhdt*FE[-1]
+                   - 2*scale*FGtr + 2*ScalarCpl*FG[-1])
+    dFdt[-1,1] = (bdrF[-1,1] - (4+ns[-1])*dlnkhdt*FB[-1]
+                   + 2*scale*FGtr) 
+    dFdt[-1,2] = (bdrF[-1,2] - (4+ns[-1])*dlnkhdt*FG[-1]
+                   + scale*(FEtr - FBtr) + ScalarCpl*FB[-1])
 
     return dFdt
