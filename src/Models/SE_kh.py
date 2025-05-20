@@ -4,7 +4,7 @@ from src.EoMsANDFunctions.SchwingerEoMs import *
 from src.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox
 from src.EoMsANDFunctions.AuxiliaryFuncs import Heaviside
 from src.EoMsANDFunctions.Conductivities import *
-from src.EoMsANDFunctions.ModeEoMs import ModeEoMSchwinger, BDClassic
+from src.EoMsANDFunctions.ModeEoMs import ModeEoMSchwinger_kS, BDClassic
 from src.Solver.Events import Event
 from src.Tools.ModeByMode import ModeSolver
 from src.BGQuantities.BGTypes import BGVal, BGFunc
@@ -15,8 +15,9 @@ sigmaE=BGVal("sigmaE", 1, 0) #electric damping
 sigmaB=BGVal("sigmaB", 1, 0) #magnetic damping 
 xieff=BGVal("xieff", 0, 0) #effective instability parameter
 rhoChi=BGVal("rhoChi", 4, 0)#Fermion energy density 
+kS=BGVal("kS", 1, 0)#Fermion energy density 
 
-modelQuantities = {sigmaE, sigmaB, xieff, rhoChi}   
+modelQuantities = {sigmaE, sigmaB, xieff, rhoChi, kS}   
 
 modelFunctions = {}
 
@@ -68,6 +69,7 @@ def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.dphi.SetValue(y[2])
 
     vals.kh.SetValue(np.exp(y[3]))
+    vals.kS.SetValue(vals.kh.value)
 
     vals.rhoChi.SetValue(y[4])
 
@@ -108,22 +110,22 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-y[3]+10*eps, eps)
     dydt[3] = dlnkhdt
 
-    dydt[4] = EoMDelta(vals)
-    dydt[5] = EoMrhoChi(vals)
+    dydt[4] = EoMrhoChi(vals)
 
-    Fcol = y[6:].shape[0]//3
-    F = y[6:].reshape(Fcol,3)
+    Fcol = y[5:].shape[0]//3
+    F = y[5:].reshape(Fcol,3)
     W = WhittakerApprox(vals.xi)
     dFdt = EoMFSE(F, vals.kh,
                   vals.a, 2*vals.H*vals.xieff,
                     vals.sigmaE, 1.0,
                         W, dlnkhdt)
-    dydt[6:] = dFdt.reshape(Fcol*3)
+    dydt[5:] = dFdt.reshape(Fcol*3)
 
     return dydt
 
-ModeByMode = ModeSolver(ModeEq=ModeEoMSchwinger, EoMkeys=["a", "xieff", "H", "sigmaE"],
-                         BDInitEq=BDClassic, Initkeys=[], default_atol=1e-5)
+ModeByMode = ModeSolver(ModeEq=ModeEoMSchwinger_kS,
+                         EoMkeys=["a", "xi", "H", "sigmaE", "sigmaB", "kS"],
+                         BDInitEq=BDClassic, Initkeys=[], default_atol=1e-3)
 
 #Event 1:
 def EndOfInflationFunc(t, y, vals, atol=1e-20, rtol=1e-6):

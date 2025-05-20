@@ -471,15 +471,21 @@ class ModeByMode:
 
         Neval = spec["N"]
 
+        Nmax = Neval[-1]
+
         #Create e-fold bins of 1-efold corresponding to the error arrays in errs
-        Nerr = np.concatenate([np.arange(20, Neval[-1], 1), np.array([Neval[-1]])])
+        if Nmax%1>0.5:
+            Nerr = np.concatenate([np.arange(20, Nmax, 1), np.array([Nmax])])
+        else:
+            Nerr = np.concatenate([np.arange(20, Nmax-1, 1), np.array([Nmax])])
+        Nbins = np.concatenate([np.arange(19.5, Nmax, 1), np.array([Nmax])])
 
         for i, key in enumerate(keys):
             spl = getattr(self, f"__{key}f")(Neval) #call interpolated GEF solution
             #average error over 1 e-fold to dampen impact of short time-scale spikes
             err =  abs( (FMbM[:,i]-spl) / spl )
-            sum, _  = np.histogram(Neval, bins=Nerr-0.5, weights=err)
-            count, _  = np.histogram(Neval, bins=Nerr-0.5)
+            sum, _  = np.histogram(Neval, bins=Nbins, weights=err)
+            count, _  = np.histogram(Neval, bins=Nbins)
             errs.append(sum/count)
     
         Nerr = np.round(Nerr, 1)

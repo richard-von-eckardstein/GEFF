@@ -57,11 +57,6 @@ def ModeEoMClassic(t: float, y : ArrayLike, k : float, a : CubicSpline, xi : Cub
     dydt[7] = -(dis1  - lam * dis2) * y[6]
     
     return dydt
-"""
-def BDDamped(t : float, k : float, a: CubicSpline, sigmaE: CubicSpline, delta : CubicSpline):
-    yini = np.array([1., -1/2*sigmaE(t)*a(t)/k, 0, -1.,
-                     1., -1/2*sigmaE(t)*a(t)/k, 0, -1.])*np.sqrt( delta(t) )
-    return yini"""
 
 def BDDamped(t : float, k : float, a : CubicSpline, delta : CubicSpline, sigmaE : CubicSpline):
     yini = np.array([1., -1/2*sigmaE(t)*a(t)/k, 0, -1.,
@@ -102,6 +97,64 @@ def ModeEoMSchwinger(t: float, y : ArrayLike, k : float,
     drag = sigmaE(t)
     dis1 = k / a(t)
     dis2 = 2*H(t)*xieff(t)
+
+    #positive helicity
+    lam = 1.
+    #Real Part
+    dydt[0] = y[1]*dis1
+    dydt[1] = - drag * y[1] - (dis1  - lam * dis2) * y[0]
+    
+    #Imaginary Part
+    dydt[2] = y[3]*dis1
+    dydt[3] = - drag * y[3] - (dis1  - lam * dis2) * y[2]
+    
+    #negative helicity
+    lam = -1.
+    #Real Part
+    dydt[4] = y[5]*dis1
+    dydt[5] = - drag * y[5] - (dis1  - lam * dis2) * y[4]
+    
+    #Imaginary Part
+    dydt[6] = y[7]*dis1
+    dydt[7] = - drag * y[7] - (dis1  - lam * dis2) * y[6]
+    
+    return dydt
+
+def ModeEoMSchwinger_kS(t: float, y : ArrayLike, k : float,
+                    a : CubicSpline, xi : CubicSpline, H : CubicSpline,
+                    sigmaE : CubicSpline, sigmaB : CubicSpline, kS : CubicSpline):
+    """
+    Compute the time derivative of the gauge-field mode and its derivatives for a fixed comoving wavenumber at a given moment of time t
+
+    Parameters
+    ----------
+    y : numpy.array
+        contains the gauge-field mode and its derivatives for both helicities +/- (in Hubble units).
+        y[0/4] = Re( sqrt(2k)*A(t,k,+/-) ), y[2/6] = Im( sqrt(2k)*A(t,k,+/-) )
+        y[1/5] = Re( sqrt(2/k)*dAdeta(t,k,+/-) ), y[3/7] = Im( sqrt(2/k)*dAdeta(t,k,+/-) ), eta being conformal time, a*deta = dt
+    k : float
+        the comoving wavenumber in Hubble units
+    a : CubicSpline
+        the scale factor interpolated over time t
+    xi : float
+        the instability parameter interpolated over time t
+    H : float
+        the Hubble rate interpolated over time t
+        
+    Returns
+    -------
+    dydt : array
+        an array of time derivatives of y
+
+    """
+    
+    dydt = np.zeros_like(y)
+
+    theta = np.heaviside(kS(t) - k, 0.5)
+    
+    drag = theta*sigmaE(t)
+    dis1 = k / a(t)
+    dis2 = 2*H(t)*xi(t) + theta*sigmaB(t)
 
     #positive helicity
     lam = 1.
