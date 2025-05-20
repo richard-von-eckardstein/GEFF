@@ -301,11 +301,10 @@ class ModeByMode:
             the derivative of the negative helicity modes (rescaled), sqrt(2/k)*dAdeta(teval, k, -)
         """
 
-        #Setup initial modes and ODE depending on Schwinger effect mode
-        #if self.__SE == None:
         #Initial conditions for y and dydt for both helicities (rescaled appropriately)
         yini = self.BDInit(tstart, k, **self.InitKwargs)
-
+        
+        #Define ODE
         ode = lambda t, y: self.ModeEoM(t, y, k, **self.EoMKwargs)
 
         """#else:
@@ -320,18 +319,7 @@ class ModeByMode:
             sigmaBf = CubicSpline(self.__t, sigmaBk)
 
             deltaf  = np.vectorize(lambda x: 1.0) #we always initialse modes while k > kFerm
-        elif self.__SE=="Old":
-            sigmaEf = CubicSpline(self.__t, self.__sigmaE)
-            sigmaBf = CubicSpline(self.__t, self.__sigmaB)
-            deltaf  = CubicSpline(self.__t, self.__delta)
-                
-
-            #Initial conditions for y and dydt for both helicities (rescaled appropriately)
-            yini = np.array([1., -1/2*sigmaEf(tstart)*self.__af(tstart)/k, 0, -1.,
-                             1., -1/2*sigmaEf(tstart)*self.__af(tstart)/k, 0, -1.])*np.sqrt( deltaf(tstart) )
-            
-            #Define ODE to solve
-            ode = lambda t, y: self.ModeEoM( y, k, self.__af(t), self.__SclrCplf(t), sigmaEf(t), sigmaBf(t) )"""
+            """
         
         #parse teval input
         if len(teval)==0:

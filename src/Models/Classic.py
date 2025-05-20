@@ -63,7 +63,7 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     Fcol = y[4:].shape[0]//3
     F = y[4:].reshape(Fcol,3)
     W = WhittakerApprox(vals.xi.value)
-    dFdt = EoMF(vals, F, W, dlnkhdt, L=5)
+    dFdt = EoMF(F, vals.a, vals.kh, 2*vals.H*vals.xi, W, dlnkhdt)
     
     dydt[4:] = dFdt.reshape(Fcol*3)
 
