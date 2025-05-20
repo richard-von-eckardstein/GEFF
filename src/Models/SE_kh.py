@@ -1,10 +1,10 @@
 import numpy as np
-from src.EoMsANDFunctions.ClassicEoMs import EoMphi
+from src.EoMsANDFunctions.ClassicEoMs import EoMphi, EoMlnkh
 from src.EoMsANDFunctions.SchwingerEoMs import *
-from src.EoMsANDFunctions.WhittakerFuncs import WhittakerApproxSE
+from src.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox
 from src.EoMsANDFunctions.AuxiliaryFuncs import Heaviside
 from src.EoMsANDFunctions.Conductivities import *
-from src.EoMsANDFunctions.ModeEoMs import ModeEoMSchwinger, BDDamped
+from src.EoMsANDFunctions.ModeEoMs import ModeEoMSchwinger, BDClassic
 from src.Solver.Events import Event
 from src.Tools.ModeByMode import ModeSolver
 from src.BGQuantities.BGTypes import BGVal, BGFunc
@@ -13,12 +13,10 @@ name = "SE-Old"
 
 sigmaE=BGVal("sigmaE", 1, 0) #electric damping
 sigmaB=BGVal("sigmaB", 1, 0) #magnetic damping 
-delta=BGVal("delta", 0, 0) #integrated electric damping
 xieff=BGVal("xieff", 0, 0) #effective instability parameter
-s=BGVal("s", 0, 0) #electric damping parameter,
 rhoChi=BGVal("rhoChi", 4, 0)#Fermion energy density 
 
-modelQuantities = {sigmaE, sigmaB, delta, xieff, s, rhoChi}   
+modelQuantities = {sigmaE, sigmaB, xieff, rhoChi}   
 
 modelFunctions = {}
 
@@ -43,7 +41,7 @@ def DefineConductivity(settings):
         raise Exception("Unknown choice for setting 'picture'")
 
 def Initialise(vals, ntr):
-    yini = np.zeros((ntr+1)*3+6)
+    yini = np.zeros((ntr+1)*3+5)
 
     yini[0] = vals.N.value
     yini[1] = vals.phi.value
@@ -53,8 +51,7 @@ def Initialise(vals, ntr):
     yini[3] = np.log(vals.kh.value)
 
     #initialise delta and rhoChi
-    yini[4] = vals.delta.value
-    yini[5] = vals.rhoChi.value
+    yini[4] = vals.rhoChi.value
 
     global conductivity
     conductivity = np.vectorize(DefineConductivity(modelSettings))
@@ -72,12 +69,11 @@ def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
 
     vals.kh.SetValue(np.exp(y[3]))
 
-    vals.delta.SetValue(y[4])
-    vals.rhoChi.SetValue(y[5])
+    vals.rhoChi.SetValue(y[4])
 
-    vals.E.SetValue( y[6]*np.exp(4*(y[3]-y[0])))
-    vals.B.SetValue( y[7]*np.exp(4*(y[3]-y[0])))
-    vals.G.SetValue( y[8]*np.exp(4*(y[3]-y[0])))
+    vals.E.SetValue( y[5]*np.exp(4*(y[3]-y[0])))
+    vals.B.SetValue( y[6]*np.exp(4*(y[3]-y[0])))
+    vals.G.SetValue( y[7]*np.exp(4*(y[3]-y[0])))
 
     vals.H.SetValue( FriedmannSE(vals) )
 
@@ -91,7 +87,6 @@ def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.sigmaE.SetValue(GlobalFerm*sigmaE)
     vals.sigmaB.SetValue(GlobalFerm*sigmaB)
 
-    vals.s.SetValue(vals.sigmaE/(2*vals.H))
     vals.xi.SetValue( vals.dI(vals.phi)*(vals.dphi/(2*vals.H)))
     vals.xieff.SetValue(vals.xi + vals.sigmaB/(2*vals.H))
 
@@ -107,11 +102,8 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     dydt[2] = vals.ddphi.value
 
     eps = max(abs(y[3])*rtol, atol)
-    dlnkhdt = EoMlnkhSE(vals)
-    xieff = vals.xieff.value
-    s = vals.s.value
-    sqrtterm = np.sqrt(xieff**2 + s**2 + s)
-    r = (abs(xieff) + sqrtterm)
+    dlnkhdt = EoMlnkh(vals)
+    r = 2*abs(vals.xi)
     logfc = y[0] + np.log(r*dydt[0]) 
     dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-y[3]+10*eps, eps)
     dydt[3] = dlnkhdt
@@ -121,17 +113,17 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
 
     Fcol = y[6:].shape[0]//3
     F = y[6:].reshape(Fcol,3)
-    W = WhittakerApproxSE(vals.xieff.value, vals.s.value)
+    W = WhittakerApprox(vals.xi)
     dFdt = EoMFSE(F, vals.kh,
                   vals.a, 2*vals.H*vals.xieff,
-                    vals.sigmaE, vals.delta,
+                    vals.sigmaE, 1.0,
                         W, dlnkhdt)
     dydt[6:] = dFdt.reshape(Fcol*3)
 
     return dydt
 
 ModeByMode = ModeSolver(ModeEq=ModeEoMSchwinger, EoMkeys=["a", "xieff", "H", "sigmaE"],
-                         BDInitEq=BDDamped, Initkeys=["a", "delta", "sigmaE"], default_atol=1e-5)
+                         BDInitEq=BDClassic, Initkeys=[], default_atol=1e-5)
 
 #Event 1:
 def EndOfInflationFunc(t, y, vals, atol=1e-20, rtol=1e-6):

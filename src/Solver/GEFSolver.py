@@ -183,6 +183,7 @@ class GEFSolver:
         def NewInitialiser():
             ntr = self.ntr
             rtol = self.rtol
+            atol = self.atol
 
             treinit = ReInitSpec["t"]
 
@@ -201,7 +202,7 @@ class GEFSolver:
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
                                     [
-                                    MbM.IntegrateSpecSlice(ReInitSpec, n=n,epsabs=1e-20, epsrel=rtol*1e-2)[0]
+                                    MbM.IntegrateSpecSlice(ReInitSpec, n=n,epsabs=atol, epsrel=rtol*1e-2)[0]
                                     for n in range(1,ntr+1)
                                     ]
                                     ).reshape(3*ntr)
