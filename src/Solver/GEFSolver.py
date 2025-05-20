@@ -48,7 +48,7 @@ class GEFSolver:
         self.atol=atol
         self.rtol=rtol
         reachNend = AlgorithmKwargs.get("reachNend", True)
-        ensureConvergence = AlgorithmKwargs.get("ensureConvergence", True)
+        ensureConvergence = AlgorithmKwargs.get("ensureConvergence", False)
         maxattempts = AlgorithmKwargs.get("maxattempts", 5)
 
         done=False
@@ -187,17 +187,18 @@ class GEFSolver:
 
             treinit = ReInitSpec["t"]
 
-            #Use the original "Initialise" to zero out all GEF-bilinear values
+            #Create unit system:
             Temp = deepcopy(self.iniVals)
-            Temp.N.value = ReInitSpec["N"]
+
+            #Construct yini from interpolation:
+            yini = np.array([(CubicSpline(sol.t, sol.y[i,:])(treinit)) for i in range(sol.y.shape[0])])
+
+            #Parse yini to Temp
+            self.ParseArrToUnitSystem(treinit, yini, Temp)
+
+            #Use "Initialise" to zero out all GEF-bilinear values
             ytmp = self.__Initialise(Temp, ntr)
             gaugeinds = np.where(ytmp==0.)[0]
-
-            #Append initial data at time t based on the original ODE-solution
-            yini = np.zeros_like(ytmp)
-            for i in range(len(ytmp)):
-                if i not in gaugeinds[3:]:
-                    yini[i] = (CubicSpline(sol.t, sol.y[i,:])(treinit))
 
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
@@ -206,9 +207,6 @@ class GEFSolver:
                                     for n in range(1,ntr+1)
                                     ]
                                     ).reshape(3*ntr)
-            
-            #Prepare value system for solver
-            self.ParseArrToUnitSystem(treinit, yini, Temp)
 
             return treinit, yini, Temp
         return NewInitialiser
