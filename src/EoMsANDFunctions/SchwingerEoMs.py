@@ -40,7 +40,7 @@ def EoMrhoChi(vals):
     return (vals.sigmaE*vals.E - vals.sigmaB*vals.G - 4*vals.H*vals.rhoChi)
 
 
-def EoMFSE(F, kh, a, sclrCpl, sigmaE, delta, W, dlnkhdt, L=1):
+def EoMFSE(F, kh, a, sclrCpl, sigmaE, delta, W, dlnkhdt, L=10):
     FE = F[:,0]
     FB = F[:,1]
     FG = F[:,2]

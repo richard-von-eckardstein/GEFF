@@ -23,7 +23,7 @@ def Benchmark(model, setting, loadGEF=True, loadspec=True):
         GEFPath = os.path.join(basepath, "Data/GEF+Classic_b25+m6e-6.dat")
         MbMPath = os.path.join(basepath, "Data/MbM+Classic_b25+m6e-6.dat")
 
-    elif model=="SEOld":
+    elif "SE" in model:
         if setting["pic"]=="mixed":
             GEFPath = os.path.join(basepath, "Data/GEF+SEOld+mix_b25+m6e-6.dat")
             MbMPath = os.path.join(basepath, "Data/MbM+SEOld+mix_b25+m6e-6.dat")
@@ -33,8 +33,10 @@ def Benchmark(model, setting, loadGEF=True, loadspec=True):
         elif setting["pic"]=="magnetic":
             GEFPath = os.path.join(basepath, "Data/GEF+SEOld+mag_b25+m6e-6.dat")
             MbMPath = os.path.join(basepath, "Data/MbM+SEOld+mag_b25+m6e-6.dat")
-
-        indic.update({"rhoChi":0., "delta":1})
+        indic.update({"rhoChi":0.})
+    
+    if model=="SEOld":
+        indic.update({"delta":1})
 
     G = GEF(model, beta, indic, funcdic,
                 GEFData=GEFPath, userSettings=setting)
