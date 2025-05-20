@@ -13,3 +13,6 @@ __pycache__
 !src/Data/strains/*
 !src/Data/power-law-integrated_sensitivities/*
 !Debug/DebugData.zip
+
+Debug/MbMDebug.py
+Debug/GEFDebug.py
