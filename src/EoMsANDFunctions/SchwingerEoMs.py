@@ -40,7 +40,7 @@ def EoMrhoChi(vals):
     return (vals.sigmaE*vals.E - vals.sigmaB*vals.G - 4*vals.H*vals.rhoChi)
 
 
-def EoMFSE(F, kh, a, sclrCpl, sigmaE, delta, W, dlnkhdt, L=10):
+def EoMFSE(F, kh, a, sclrCpl, sigmaE, delta, W, dlnkhdt, L=1):
     FE = F[:,0]
     FB = F[:,1]
     FG = F[:,2]
@@ -70,12 +70,12 @@ def EoMFSE(F, kh, a, sclrCpl, sigmaE, delta, W, dlnkhdt, L=10):
     #truncation conditions:
     ls = np.arange(1, L+1, 1)
     facl = np.array([math.comb(L, l) for l in range(1,L+1)])
-    FEtr = np.sum( (-1)**(ls-1) * facl * (scale)**(-2*ls) * FE[-2*ls+1], axis=0 )
-    FBtr = np.sum( (-1)**(ls-1) * facl * (scale)**(-2*ls) * FB[-2*ls+1], axis=0 )
-    FGtr = np.sum( (-1)**(ls-1) * facl * (scale)**(-2*ls) * FG[-2*ls+1], axis=0 )
+    FEtr = np.sum( (-1)**(ls-1) * facl * FE[-2*ls], axis=0 ) #-2*ls instead of -2*ls+1 since -1 is ntr not ntr-1
+    FBtr = np.sum( (-1)**(ls-1) * facl * FB[-2*ls], axis=0 )
+    FGtr = np.sum( (-1)**(ls-1) * facl * FG[-2*ls], axis=0 )
 
     #bilinears at truncation order ntr
-    dFdt[-1,0] = (bdrF[-1,0] -  (4+ns[-1])*dlnkhdt*FE[-1]
+    dFdt[-1,0] = (bdrF[-1,0] - (4+ns[-1])*dlnkhdt*FE[-1]
                    - 2*sigmaE*FE[-1] - 2*scale*FGtr + 2*sclrCpl*FG[-1])
     dFdt[-1,1] = (bdrF[-1,1] - (4+ns[-1])*dlnkhdt*FB[-1]
                    + 2*scale*FGtr) 
