@@ -180,7 +180,7 @@ class GEFSolver:
         return t0, yini, vals
     
     def InitialiseFromMbM(self, sol, MbM, ReInitSpec):
-        def NewInitialiser():
+        """def NewInitialiser():
             ntr = self.ntr
             rtol = self.rtol
             atol = self.atol
@@ -210,8 +210,57 @@ class GEFSolver:
                                     for n in range(1,ntr+1)
                                     ]
                                     ).reshape(3*ntr)
+            
+            self.ParseArrToUnitSystem(treinit, yini, Temp)
 
             return treinit, yini, Temp
+        return NewInitialiser"""
+        def NewInitialiser():
+            ntr = self.ntr
+            rtol = self.rtol
+            atol = self.atol
+
+            treinit = ReInitSpec["t"]
+
+            #Use the original "Initialise" to zero out all GEF-bilinear values
+
+            Temp = deepcopy(self.iniVals)
+
+            Temp.N.value = ReInitSpec["N"]
+
+            ytmp = self.__Initialise(Temp, ntr)
+
+            gaugeinds = np.where(ytmp==0.)[0]
+
+
+            #Append initial data at time t based on the original ODE-solution
+
+            yini = np.zeros_like(ytmp)
+
+            for i in range(len(ytmp)):
+
+                if i not in gaugeinds[3:]:
+
+                    yini[i] = (CubicSpline(sol.t, sol.y[i,:])(treinit))
+
+            # compute En, Bn, Gn, for n>1 from Modes
+
+            yini[gaugeinds[3:]] = np.array([
+                                    MbM.IntegrateSpecSlice(ReInitSpec, n=n,epsabs=atol, epsrel=rtol*1e-2)[0]
+                                    for n in range(1,ntr+1)
+                                    ]
+                                    ).reshape(3*ntr)
+
+
+
+            #Prepare value system for solver
+
+            self.ParseArrToUnitSystem(treinit, yini, Temp)
+
+
+
+            return treinit, yini, Temp
+
         return NewInitialiser
         
     def ParseArrToUnitSystem(self, t, y, vals):
@@ -252,7 +301,8 @@ class GEFSolver:
             except KeyboardInterrupt:
                 print(f"The run failed at t={vals.t}, N={vals.N}.")
                 raise KeyboardInterrupt
-            except:
+            except Exception as e:
+                print(f"Error MSG: {e}")
                 print(f"The run failed at t={vals.t}, N={vals.N}.")
                 raise TruncationError
             else:

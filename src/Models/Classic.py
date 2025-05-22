@@ -75,7 +75,7 @@ ModeByMode = ModeSolver(ModeEq=ModeEoMClassic, EoMkeys=["a", "xi", "H"],
 #Event 1:
 def EndOfInflationFunc(t, y, vals, atol, rtol):
     dphi = y[2]
-    V = vals.V.GetBaseFunc()(vals.MP*y[1])/vals.V.GetConversion()
+    V = vals.V(y[1])
     rhoEB = 0.5*(y[4]+y[5])*(vals.H0/vals.MP)**2*np.exp(4*(y[3]-y[0]))
     val = np.log(abs((dphi**2 + rhoEB)/V))
     return val
