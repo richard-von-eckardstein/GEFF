@@ -191,14 +191,17 @@ class GEFSolver:
             Temp = deepcopy(self.iniVals)
 
             #Construct yini from interpolation:
-            yini = np.array([(CubicSpline(sol.t, sol.y[i,:])(treinit)) for i in range(sol.y.shape[0])])
+            ytmp = np.array([(CubicSpline(sol.t, sol.y[i,:])(treinit)) for i in range(sol.y.shape[0])])
 
             #Parse yini to Temp
-            self.ParseArrToUnitSystem(treinit, yini, Temp)
+            self.ParseArrToUnitSystem(treinit, ytmp, Temp)
 
             #Use "Initialise" to zero out all GEF-bilinear values
-            ytmp = self.__Initialise(Temp, ntr)
-            gaugeinds = np.where(ytmp==0.)[0]
+            yini = self.__Initialise(Temp, ntr)
+            gaugeinds = np.where(yini==0.)[0]
+
+            #parse back E0, B0, G0 (assuming they are at the same spot, should be the case.)
+            yini[gaugeinds[:3]] = ytmp[gaugeinds[:3]]
 
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
