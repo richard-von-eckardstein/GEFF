@@ -58,7 +58,7 @@ def WhittakerExact(xi : float, s : float) -> NDArray:
     return Fterm
 
 #Whittaker Functions
-def WhittakerApprox(xi):
+def WhittakerApprox(xi : float):
     """
     use approximate formulas for WhittakerExact(xi, 0) where applicable.
 
@@ -133,7 +133,7 @@ def WhittakerApprox(xi):
         Fterm = WhittakerExact(xi, 0.)
     return Fterm
 
-def WhittakerApproxSE(xi, s):
+def WhittakerApproxSE(xi :float, s : float):
     """
     use approximate formulas for WhittakerExact(xi, s) where applicable.
 
