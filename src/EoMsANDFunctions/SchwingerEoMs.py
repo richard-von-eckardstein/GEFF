@@ -1,17 +1,41 @@
 import numpy as np
+from numpy.typing import NDArray
 import math
+from src.BGQuantities.BGTypes import Val
 
-def FriedmannSE(vals):
-    Hsq = (1/3) * (0.5 * vals.dphi**2 + vals.V(vals.phi) + vals.H0**2*( 0.5*(vals.E+vals.B) + vals.rhoChi) ) 
-    return np.sqrt(Hsq)
 
-def EoMlnkhSE(vals):
-    a = vals.a
-    H = vals.H
-    kh = vals.kh
-    xieff = vals.xieff
-    s = vals.s
+def EoMlnkhSE(kh : float|Val, dphi : float|Val, ddphi : float|Val,
+                dI : float|Val, ddI : float|Val,xieff : float|Val, s : float|Val,
+                    a : float|Val, H : float|Val) -> float:
+    """
+    Calculate the logarithmic derivative of the instability scale kh.
 
+    Parameters
+    ----------
+    kh : float or Val
+        the instability scale kh
+    dphi : float or Val
+        the inflaton velocity, dphi/dt
+    ddphi : float or Val
+        the inflaton acceleration, d^2phi/d^2t
+    dI : float or Val
+        the inflaton--gauge-field coupling, dI/dphi
+    ddI : float or Val
+        derivative of the inflaton--gauge-field coupling, d^2I/d^2phi
+    xieff : float or Val
+        the effictive instability parameter, xi + sigmaB/(2H)
+    s : float or val
+        the effective electric conductivity, sigmaE/(2H)
+    a : float or Val
+        the scale factor, a
+    H : float or Val
+        the Hubble rate, H
+
+    Returns
+    -------
+    float
+        the logarithmic time derivative of kh
+    """
     sqrtterm = np.sqrt(xieff**2 + s**2 + s)
     r = (abs(xieff) + sqrtterm)
     
@@ -22,25 +46,90 @@ def EoMlnkhSE(vals):
     dsigmaBdt = 0.
     dHdt = 0.#vals.vals["Hprime"]# #approximation  dHdt = alphaH**2  (slow-roll)
 
-    xieffprime = (-dHdt * xieff + 
-                      (vals.ddI(vals.phi)*vals.dphi**2 
-                       + vals.dI(vals.phi)*vals.ddphi
-                        + a*dsigmaBdt)/2
-                     )/H
+    xieffprime = (-dHdt * xieff + (ddI*dphi**2 + dI*ddphi + a*dsigmaBdt)/2)/H
     sEprime = (-dHdt * s + a*dsigmaEdt/2)/H
-    rprime = (np.sign(xieff)+xieff/sqrtterm)*xieffprime + sEprime*(s+1/2)/sqrtterm
+    rprime = ( (np.sign(xieff)+xieff/sqrtterm)*xieffprime
+                 + sEprime*(s+1/2)/sqrtterm )
     fcprime = H*fc + dHdt*a*r + a*H*rprime
                 
     return fcprime/kh
 
-def EoMDelta(vals):
-    return -vals.sigmaE*vals.delta
+def EoMDelta(delta : float|Val, sigmaE : float|Val) -> float:
+    """
+    Calculate the derivative of the cumulative electric damping.
 
-def EoMrhoChi(vals):
-    return (vals.sigmaE*vals.E - vals.sigmaB*vals.G - 4*vals.H*vals.rhoChi)
+    Parameters
+    ----------
+    delta : float or Val
+        cumulative electric damping, delta
+    sigmaE : float or Val
+        electric conductivity, sigma_E
+
+    Returns
+    -------
+    float
+        the time derivative of delta
+    """
+    return -delta*sigmaE
+
+def EoMrhoChi(rhoChi : float|Val, E : float|Val, G : float|Val,
+               sigmaE : float|Val, sigmaB : float|Val, H : float|Val):
+    """
+    Calculate the derivative of the fermion energy density.
+
+    Parameters
+    ----------
+    rhoChi : float or Val
+        the fermion energy density, rhoChi
+    E : float or Val
+        the electric field expecation value, E^2
+    G : float or Val
+        the expectation value of -E.B
+    sigmaE : float or Val
+        electric conductivity, sigma_E
+    sigmaB : float or Val
+        magnetic conductivity, sigma_B
+    H : float or Val
+        the Hubble rate, H
+
+    Returns
+    -------
+    float
+        the time derivative of rhoChi
+    """
+    return (sigmaE*E - sigmaB*G - 4*H*rhoChi)
 
 
-def EoMFSE(F, kh, a, sclrCpl, sigmaE, delta, W, dlnkhdt, L=10):
+def EoMFSE(F : NDArray, a : float|Val, kh : float|Val, sclrCpl : float,
+            sigmaE : float|Val, delta : float|Val, 
+            W : NDArray, dlnkhdt : float, L : int=10) -> NDArray:
+    """
+    Calculate the derivative of the rescaled gauge-field bilinears.
+
+    Parameters
+    ----------
+    F : NDArray
+        A tower of gauge-bilinear quantities of shape (3,ntr)
+    a : float or Val
+        the scale factor, a
+    kh : float or Val
+        the instability scale kh
+    sclrCpl : float or Val
+        the effective inflaton gauge-field coupling, dI/dphi*dphi/dt + sigmaB = 2*H*xieff
+    delta : float or Val
+        cumulative electric damping, delta
+    W : NDarray
+        Whittaker functions used for boundary terms, shape (3,2)
+    dlnkhdt : float
+        the logarithmic derivative of the instability scale, dlnkh/dt
+    L : int
+        polynomial order for closing F(n+1) = Poly(L, F)
+
+    Returns
+    -------
+    float
+        the time derivative of F, shape (3,ntr)
+    """
     FE = F[:,0]
     FB = F[:,1]
     FG = F[:,2]

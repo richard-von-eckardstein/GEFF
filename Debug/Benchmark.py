@@ -25,14 +25,14 @@ def Benchmark(model, setting, loadGEF=True, loadspec=True):
 
     elif "SE" in model:
         if setting["pic"]=="mixed":
-            GEFPath = os.path.join(basepath, "Data/GEF+SEOld+mix_b25+m6e-6.dat")
-            MbMPath = os.path.join(basepath, "Data/MbM+SEOld+mix_b25+m6e-6.dat")
+            GEFPath = os.path.join(basepath, f"Data/GEF+{model}+mix_b25+m6e-6.dat")
+            MbMPath = os.path.join(basepath, f"Data/MbM+{model}+mix_b25+m6e-6.dat")
         elif setting["pic"]=="electric":
-            GEFPath = os.path.join(basepath, "Data/GEF+SEOld+elc_b25+m6e-6.dat")
-            MbMPath = os.path.join(basepath, "Data/MbM+SEOld+elc_b25+m6e-6.dat")
+            GEFPath = os.path.join(basepath, f"Data/GEF+{model}+elc_b25+m6e-6.dat")
+            MbMPath = os.path.join(basepath, f"Data/MbM+{model}+elc_b25+m6e-6.dat")
         elif setting["pic"]=="magnetic":
-            GEFPath = os.path.join(basepath, "Data/GEF+SEOld+mag_b25+m6e-6.dat")
-            MbMPath = os.path.join(basepath, "Data/MbM+SEOld+mag_b25+m6e-6.dat")
+            GEFPath = os.path.join(basepath, f"Data/GEF+{model}+mag_b25+m6e-6.dat")
+            MbMPath = os.path.join(basepath, f"Data/MbM+{model}+mag_b25+m6e-6.dat")
         indic.update({"rhoChi":0.})
     
     if model=="SEOld":

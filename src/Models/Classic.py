@@ -41,9 +41,13 @@ def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.B.SetValue( y[5]*np.exp(4*(y[3]-y[0])))
     vals.G.SetValue( y[6]*np.exp(4*(y[3]-y[0])))
 
-    vals.H.SetValue( Friedmann(vals))
+    vals.H.SetValue( Friedmann(vals.dphi, vals.V(vals.phi),
+                                 vals.E, vals.B, 0., vals.H0) )
+    
     vals.xi.SetValue( vals.dI(vals.phi)*(vals.dphi/(2*vals.H)))
-    vals.ddphi.SetValue(EoMphi(vals))
+
+    vals.ddphi.SetValue( EoMphi(vals.dphi, vals.dV(vals.phi),
+                                vals.dI(vals.phi), vals.G, vals.H, vals.H0) )
     return
 
 def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
@@ -54,9 +58,11 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     dydt[1] = vals.dphi.value
     dydt[2] = vals.ddphi.value
 
-    eps = max(abs(y[3])*rtol, atol)
-    dlnkhdt = EoMlnkh(vals)
-    logfc = y[0] + np.log( 2*abs(vals.xi)*dydt[0]) 
+    
+    dlnkhdt = EoMlnkh( vals.kh, vals.dphi, vals.ddphi, vals.dI(vals.phi),
+                       vals.ddI(vals.phi), vals.xi, vals.a, vals.H )
+    logfc = y[0] + np.log( 2*abs(vals.xi)*dydt[0])
+    eps = max(abs(y[3])*rtol, atol) 
     dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-y[3]+10*eps, eps)
     dydt[3] = dlnkhdt
 

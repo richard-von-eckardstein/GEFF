@@ -1,5 +1,5 @@
 import numpy as np
-from src.EoMsANDFunctions.ClassicEoMs import EoMphi, EoMlnkh
+from src.EoMsANDFunctions.ClassicEoMs import EoMphi, Friedmann, EoMlnkh
 from src.EoMsANDFunctions.SchwingerEoMs import *
 from src.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox
 from src.EoMsANDFunctions.AuxiliaryFuncs import Heaviside
@@ -9,7 +9,7 @@ from src.Solver.Events import Event
 from src.Tools.ModeByMode import ModeSolver
 from src.BGQuantities.BGTypes import BGVal, BGFunc
 
-name = "SE-Old"
+name = "SE-kh"
 
 sigmaE=BGVal("sigmaE", 1, 0) #electric damping
 sigmaB=BGVal("sigmaB", 1, 0) #magnetic damping 
@@ -77,7 +77,8 @@ def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.B.SetValue( y[6]*np.exp(4*(y[3]-y[0])))
     vals.G.SetValue( y[7]*np.exp(4*(y[3]-y[0])))
 
-    vals.H.SetValue( FriedmannSE(vals) )
+    vals.H.SetValue( Friedmann(vals.dphi, vals.V(vals.phi),
+                                 vals.E, vals.B, vals.rhoChi, vals.H0) )
 
     sigmaE, sigmaB, ks = conductivity(
         vals.a.value, vals.H.value,
@@ -92,7 +93,8 @@ def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.xi.SetValue( vals.dI(vals.phi)*(vals.dphi/(2*vals.H)))
     vals.xieff.SetValue(vals.xi + vals.sigmaB/(2*vals.H))
 
-    vals.ddphi.SetValue(EoMphi(vals))
+    vals.ddphi.SetValue( EoMphi(vals.dphi, vals.dV(vals.phi),
+                                vals.dI(vals.phi), vals.G, vals.H, vals.H0) )
     return
 
 def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
@@ -104,21 +106,22 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     dydt[2] = vals.ddphi.value
 
     eps = max(abs(y[3])*rtol, atol)
-    dlnkhdt = EoMlnkh(vals)
+    dlnkhdt = EoMlnkh( vals.kh, vals.dphi, vals.ddphi, vals.dI(vals.phi),
+                       vals.ddI(vals.phi), vals.xi, vals.a, vals.H )
     r = 2*abs(vals.xi)
     logfc = y[0] + np.log(r*dydt[0]) 
     dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-y[3]+10*eps, eps)
     dydt[3] = dlnkhdt
 
-    dydt[4] = EoMrhoChi(vals)
+    dydt[4] = EoMrhoChi( vals.rhoChi, vals.E, vals.G,
+                         vals.sigmaE, vals.sigmaB, vals.H )
 
     Fcol = y[5:].shape[0]//3
     F = y[5:].reshape(Fcol,3)
     W = WhittakerApprox(vals.xi)
-    dFdt = EoMFSE(F, vals.kh,
-                  vals.a, 2*vals.H*vals.xieff,
+    dFdt = EoMFSE( F, vals.kh, vals.a, 2*vals.H*vals.xieff,
                     vals.sigmaE, 1.0,
-                        W, dlnkhdt)
+                        W, dlnkhdt )
     dydt[5:] = dFdt.reshape(Fcol*3)
 
     return dydt

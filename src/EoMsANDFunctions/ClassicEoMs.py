@@ -1,31 +1,134 @@
+from src.BGQuantities.BGTypes import Val 
 import numpy as np
+from numpy.typing import NDArray
 import math
 
-def Friedmann(vals):
-    Hsq = (1/3) * (0.5 * vals.dphi**2 + vals.V(vals.phi) + vals.H0**2*( 0.5*(vals.E+vals.B) ) ) 
+def Friedmann(dphi : float|Val , V : float|Val, E : float|Val, B : float|Val,
+               rhoChi : float|Val, H0 : float) -> float:
+    """
+    Calculate the Hubble rate from the Friedmann equation
+
+    Parameters
+    ----------
+    dphi : float or Val
+        the inflaton velocity, dphi/dt
+    V : float or Val
+        the inflaton potential energy, V(phi)
+    E : float or Val
+        the electric field expectation value E^2
+    B : float or Val
+        the magnetic field expectation value B^2
+    rhoChi : float or Val
+        the fermion energy density, rho_Chi
+    H0 : float
+        the Hubble rate at initialisation
+
+    Returns
+    -------
+    float
+        the Hubble rate, H
+    """
+    Hsq = (1/3) * (0.5 * dphi**2 + V + H0**2*( 0.5*(E + B) + rhoChi) ) 
     return np.sqrt(Hsq)
 
-def EoMphi(vals):
-    return (-3*vals.H * vals.dphi - vals.dV(vals.phi) - vals.dI(vals.phi)*vals.G*vals.H0**2)
+def EoMphi(dphi : float|Val, dV : float|Val, dI : float|Val, 
+           G : float|Val, H : float|Val, H0 : float) -> float:
+    """
+    Calculate the inflaton acceleration from the Klein--Gordon equation
 
-def EoMlnkh(vals):
-    a = vals.a
-    H = vals.H
-    kh = vals.kh
-    xi = vals.xi
+    Parameters
+    ----------
+    dphi : float or Val
+        the inflaton velocity, dphi/dt
+    dV : float or Val
+        the inflaton potential gradient, dV/dphi
+    dI : float or Val
+        the inflaton--gauge-field coupling, dI/dphi
+    G : float or Val
+        the expectation value of -E.B
+    H : float or Val
+        the Hubble rate, H
+    H0 : float
+        the Hubble rate at initialisation
+    
 
-    r = 2*abs(vals.xi)
+    Returns
+    -------
+    float
+        the time derivative of dphi
+    """
+    return (-3*H * dphi - dV - dI*G*H0**2)
+
+def EoMlnkh(kh : float|Val, dphi : float|Val, ddphi : float|Val,
+             dI : float|Val, ddI : float|Val, xi : float|Val,
+               a : float|Val, H : float|Val) -> float:
+    """
+    Calculate the logarithmic derivative of the instability scale kh.
+
+    Parameters
+    ----------
+    kh : float or Val
+        the instability scale kh
+    dphi : float or Val
+        the inflaton velocity, dphi/dt
+    ddphi : float or Val
+        the inflaton acceleration, d^2phi/d^2t
+    dI : float or Val
+        the inflaton--gauge-field coupling, dI/dphi
+    ddI : float or Val
+        derivative of the inflaton--gauge-field coupling, d^2I/d^2phi
+    xi : float or Val
+        the instability parameter, xi
+    a : float or Val
+        the scale factor, a
+    H : float or Val
+        the Hubble rate, H
+
+    Returns
+    -------
+    float
+        the logarithmic time derivative of kh
+    """
+    
+    r = 2*abs(xi)
         
     fc = a * H * r
     
-    dHdt = 0.#vals.vals["Hprime"]# #approximation  dHdt = alphaH**2  (slow-roll)
-    xiprime = (-dHdt * xi + (vals.ddI(vals.phi)*vals.dphi**2 + vals.dI(vals.phi)*vals.ddphi)/2)/H
+    dHdt = 0. #approximation (quasi de Sitter)
+    xiprime = (-dHdt * xi + ( ddI*dphi**2 + dI*ddphi)/2)/H
     rprime = 2*np.sign(xi)*xiprime
     fcprime = H*fc + dHdt*a*r + a*H*rprime
                 
     return fcprime/kh
 
-def EoMF(F, a, kh, sclrCpl, W, dlnkhdt, L=10):
+def EoMF(F : NDArray, a : float|Val, kh : float|Val, sclrCpl : float,
+          W : NDArray, dlnkhdt : float, L : int=10) -> NDArray:
+    """
+    Calculate the derivative of the rescaled gauge-field bilinears.
+
+    Parameters
+    ----------
+    F : NDArray
+        A tower of gauge-bilinear quantities of shape (3,ntr)
+    a : float or Val
+        the scale factor, a
+    kh : float or Val
+        the instability scale kh
+    sclrCpl : float or Val
+        the inflaton gauge-field coupling, dI/dphi*dphi/dt = 2*H*xi
+    W : NDarray
+        Whittaker functions used for boundary terms, shape (3,2)
+    dlnkhdt : float
+        the logarithmic derivative of the instability scale, dlnkh/dt
+    L : int
+        polynomial order for closing F(n+1) = Poly(L, F)
+
+    Returns
+    -------
+    float
+        the time derivative of F, shape (3,ntr)
+    """
+    
     FE = F[:,0]
     FB = F[:,1]
     FG = F[:,2]
