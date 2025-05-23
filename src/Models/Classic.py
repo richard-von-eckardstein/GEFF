@@ -6,6 +6,21 @@ from src.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
 from src.Solver.Events import Event
 from src.Tools.ModeByMode import ModeSolver
 
+"""
+Module defining the model "Classic" used by the GEF
+
+Functions
+---------
+Friedmann
+    compute the Hubble rate
+EoMPhi
+    the Klein-Gordon equation in presence of gauge-field friction
+EoMlnkh
+    compute the time derivative of the instability scale kh
+EoMF
+    compute the time derivatives of the gauge-field bilinear tower
+"""
+
 name = "Classic"
 
 modelQuantities = {}

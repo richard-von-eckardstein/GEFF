@@ -1,18 +1,167 @@
-import numpy as np
-from scipy.integrate import solve_ivp
-from scipy.integrate import quad
-import pandas as pd
-from scipy.interpolate import CubicSpline
-
 import os
 
-from src.BGQuantities.BGTypes import BGSystem, Func, Val
+import numpy as np
+
+import pandas as pd
+from scipy.interpolate import CubicSpline
+from scipy.integrate import solve_ivp
+from scipy.integrate import quad
+
+from src.BGQuantities.BGTypes import Val
 from src.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
 
-alpha=0
+from numpy.typing import NDArray
+from typing import Tuple
 
-def ReadMode(file):        
-    input_df = pd.read_table(file, sep=",")
+class GaugeSpec(dict):
+    """
+    A class representing a spectrum of gauge-field modes as a function of time.
+
+    Class Methods
+    -------
+    ReadSpec
+        Initialise the class from data stored in a file.
+
+    Methods
+    -------
+    SaveSpec
+        Store the spectrum in a file.
+    GetDim
+        Retrieve the number of modes and times encoded in the spectrum 
+    TSlice
+        Retrieve the spectrum at a moment of time
+    KSlice
+        Retrieve the spectrum for a fixed wavenumber
+    """
+
+    def __init__(self, modedic):
+        #initialise spectrum as a dictionary
+        super().__init__(modedic)
+
+    @classmethod
+    def ReadSpec(cls, path : str):
+        """
+        Initialise the class from a file.
+
+        Parameters
+        ----------
+        path : str
+            path to the data 
+
+        Returns
+        -------
+        GaugeSpec
+            the imported spectrum
+        """
+        return cls(ReadMode(path))
+    
+    def SaveSpec(self, path : str):
+        """
+        Store the spectrum in a file.
+
+        Parameters
+        ----------
+        path : str
+            path to the data 
+        """
+        N = np.array([np.nan]+list(self["N"]))
+        t = np.array([np.nan]+list(self["t"]))
+
+        dic = {"t":t, "N":N}
+
+        for j, k in enumerate(self["k"]):
+            specslice = self.KSlice(j)
+            logk = np.log10(specslice["k"])
+            for key in ["Ap", "dAp", "Am", "dAm"]:
+                dictmp = {key + "_" + str(j) :np.array([logk] + list(specslice[key]))}
+                dic.update(dictmp)
+    
+        DirName = os.getcwd()
+    
+        path = os.path.join(DirName, path)
+    
+        output_df = pd.DataFrame(dic)  
+        output_df.to_csv(path)
+        
+        return
+
+    def GetDim(self) -> dict:
+        """
+        Retrieve the number of modes and times encoded in the spectrum 
+
+        Returns
+        -------
+        dict
+            a dictionary encoding the number of modes 
+            and the number of times stored in the spectrum
+        """
+        return {"kdim":len(self["k"]), "tdim":len(self["t"])}
+    
+    def TSlice(self, ind : int) -> dict:
+        """
+        Retrieve the spectrum at a moment of time
+
+        Parameters
+        ----------
+        ind : int
+            the index corresponding to the time at which to retrieve the spectrum
+
+        Returns
+        -------
+        dict
+            a dictionary with keys like self.
+        """
+
+        specslice = {}
+        for key, item in self.items():
+            if key in ["N", "t", "UVCut"]:
+                specslice[key] = self[key][ind]
+            elif key=="k":
+                specslice[key] = self[key]
+            else:
+                specslice[key] = self[key][:,ind]
+        return specslice
+    
+    def KSlice(self, ind : int) -> dict:
+        """
+        Retrieve the spectrum for a fixed wavenumber
+
+        Parameters
+        ----------
+        ind : Int
+            the index corresponding to the wavenumber at which to retrieve the spectrum
+
+        Returns
+        -------
+        dict
+            a dictionary with keys like self.     
+        """
+
+        specslice = {}
+        for key, item in self.items():
+            if key in ["N", "t", "cutoff"]:
+                specslice[key] = self[key]
+            elif key=="k":
+                specslice[key] = self[key][ind]
+            else:
+                specslice[key] = self[key][ind,:]
+        return specslice
+    
+def ReadMode(path : str) -> GaugeSpec:   
+    """
+    Load a gauge-field spectrum from a file.
+
+    Parameters
+    ----------
+    path : str
+        path to the data 
+
+    Returns
+    -------
+    GaugeSpec
+        the imported spectrum
+    """
+    input_df = pd.read_table(path, sep=",")
     dataAp = input_df.values
 
     x = np.arange(3,dataAp.shape[1], 4)
@@ -31,66 +180,36 @@ def ReadMode(file):
                     "Ap":Ap, "dAp":dAp, "Am":Am, "dAm":dAm})
     
     return spec
+    
+def ModeSolver(ModeEq : function, EoMkeys : list, BDInitEq : function, Initkeys : list, default_atol : float=1e-3):
+    """
+    Class-factory creating a custom ModeByMode-class with new mode equations and initial conditions adapted to a modified version of the GEF.
 
-class GaugeSpec(dict):
-    def __init__(self, modedic):
-        super().__init__(modedic)
+    Parameters
+    ----------
+    ModeEq : function
+        the new mode equation
+    EoMKeys : list
+        a list of parameter names passed to the mode equation (see ModeByMode for details)
+    BDInitEQ : function
+        the new Bunch-Davies initial conditions.
+    Initkeys : list
+        a list of parameter names passed to the Bunch-Davies initialiser (see ModeByMode for details)
+    default_atol : float
+        the default absolute tolerance used by the ModeByMode class
 
-    def GetDim(self):
-        return {"kdim":len(self["k"]), "tdim":len(self["t"])}
+    Returns
+    -------
+    class
+        a modified ModeByMode class     
+    """
     
-    def TSlice(self, ind):
-        specslice = {}
-        for key, item in self.items():
-            if key in ["N", "t", "UVCut"]:
-                specslice[key] = self[key][ind]
-            elif key=="k":
-                specslice[key] = self[key]
-            else:
-                specslice[key] = self[key][:,ind]
-        return specslice
-    
-    def KSlice(self, ind):
-        specslice = {}
-        for key, item in self.items():
-            if key in ["N", "t", "cutoff"]:
-                specslice[key] = self[key]
-            elif key=="k":
-                specslice[key] = self[key][ind]
-            else:
-                specslice[key] = self[key][ind,:]
-        return specslice
-    
-    def SaveSpec(self, name=None):
-        
-        N = np.array([np.nan]+list(self["N"]))
-        t = np.array([np.nan]+list(self["t"]))
-
-        dic = {"t":t, "N":N}
-
-        for j, k in enumerate(self["k"]):
-            specslice = self.KSlice(j)
-            logk = np.log10(specslice["k"])
-            for key in ["Ap", "dAp", "Am", "dAm"]:
-                dictmp = {key + "_" + str(j) :np.array([logk] + list(specslice[key]))}
-                dic.update(dictmp)
-            
-        if(name==None):
-            filename = "Modes/ModeFile.dat"
-        else:
-            filename = name
-    
-        DirName = os.getcwd()
-    
-        path = os.path.join(DirName, filename)
-    
-        output_df = pd.DataFrame(dic)  
-        output_df.to_csv(path)
-        
-        return
-    
-def ModeSolver(ModeEq, EoMkeys, BDInitEq, Initkeys, default_atol=1e-3):
     class ModeSolver(ModeByMode):
+        """
+        A custom ModeByMode-class with new mode equations and initial conditions adapted to a modified version of the GEF
+        """
+        
+        #Overwrite class attibutes of ModeByMode with new mode equations, boundary conditions and default tolerances.
         ModeEoM = staticmethod(ModeEq)
         EoMKwargs = dict(zip(EoMkeys, [None for x in EoMkeys]))
 
@@ -101,10 +220,49 @@ def ModeSolver(ModeEq, EoMkeys, BDInitEq, Initkeys, default_atol=1e-3):
         
         def __init__(self, values):
             super().__init__(values)
+    
     return ModeSolver
 
 
 class ModeByMode:
+    """
+    A class used to solve the gauge-field mode equations for standard axion inflation based on a solution to the GEF equations.
+
+    #TODO Class Methods, static methods, class attributes
+
+    Attributes
+    ----------
+    __t : array
+        An increasing array of physical times tracking the evolution of the GEF system.
+    __N : array
+        An increasing array of e-Folds tracking the evolution of the GEF system.
+    __af : function
+        returns the scale factor, a(t), as a function of physical time. Obtained by interpolation of the GEF solution.
+    __khf : function
+        returns the instability scale k_h(t) as a function of physical time. Obtained by interpolation of the GEF solution.
+    __etaf : function
+        returns the conformal time eta(t) as a function of physical time normalised to eta(0)=-1/H_0.
+        Obtained by numerical integration and interpolation.
+    maxk : float
+        the maximal comoving wavenumber k which can be resolved based on the dynamical range covered by the GEF solution
+    mink : float
+        the minimal comoving wavenumber k which can be resolved based on the initial conditions of the GEF solution
+    __tmin : float
+        the time at which the minimal mode crosses the instability scale kh
+
+    Methods
+    -------
+    ComputeModeSpec
+        Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
+    EvolveMode
+        Evolve gauge-field modes for a fixed wavenumber in time starting from Bunch-Davies initial conditions.
+    WavenumberArray
+        Create an array of wavenumbers between self.mink and self.maxk. The array is created according to the evolution of the instabiltiy scale
+        such that it contains more modes close to the instability scale at late times.
+    InitialKTN
+        Determines the solution to k = 10^(5/2)*k_h(t). Initial data can be given for the comoving wavenumber k, the physical time coordinates t, or e-Folds N.
+    """
+
     #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
     ModeEoM = staticmethod(ModeEoMClassic)
     EoMKwargs = {"a":None, "H":None, "xi":None}
@@ -113,71 +271,16 @@ class ModeByMode:
     atol=1e-3
 
     def __init__(self, values):
-        """
-        A class used to solve the gauge-field mode equation for axion inflation based on a given GEF solution.
-        Can be used to internally verify the consistency of the GEF solution. All quantities throught are treated in Hubble units.
-
-        ...
-
-        Attributes
-        ----------
-
-        __t : array
-            An increasing array of physical times tracking the evolution of the GEF system.
-        __N : array
-            An increasing array of e-Folds tracking the evolution of the GEF system.
-        __af : function
-            returns the scale factor, a(t), as a function of physical time. Obtained by interpolation of the GEF solution.
-        __SclrCplf : function
-            returns the coupling of the inflaton velocity to the gauge-field, beta/M_p*dphidt, as a function of physical time.
-            Obtained by interpolation of the GEF solution.
-        __khf : function
-            returns the instability scale k_h(t) as a function of physical time. Obtained by interpolation of the GEF solution.
-        __etaf : function
-            returns the conformal time eta(t) as a function of physical time normalised to eta(0)=-1/H_0.
-            Obtained by numerical integration and interpolation.
-        __SE : string | None:
-            if the GEF incorporates the Schwinger effect, self.__SE="KDep" or self.__SE="Old", depending on the configuartion of the GEF run (G.SEModel)
-            otherwise, self.__SE=None
-        __sigmaE : array:
-            an array containing the electric conductivities as a function of time (only relevant if self.__SE != None)
-        __sigmaB : array:
-            an array containing the magnetic conductivities as a function of time (only relevant if self.__SE != None)
-        __delta : array:
-            an array containing the time accumulated damping due to electric conductivity, exp(-int[sigmaE,dt] ) as a function of time (only relevant if self.__SE == "Old") 
-        __kFerm : array
-            an array containing the fermion pair-creation scale as a function of time (only relevant if self.__SE == "KDep") 
-        maxk : float
-            the maximal comoving wavenumber k which can be resolved based on the dynamical range covered by the GEF solution
-        mink : float
-            the minimal comoving wavenumber k which can be resolved based on the initial conditions of the GEF solution
-
-        ...
-
-        Methods
-        -------
-
-        InitialKTN()
-            Determines the solution to k = 10^(5/2)*k_h(t). 
-            Initial data can be given for the comoving wavenumber k, the physical time coordinates t, or e-Folds N.
-        ComputeMode()
-            For a given comoving wavenumber k satisfying k=10^(5/2)*k_h(t), initialises the gauge-field modes at time t in the Bunch-Davies vacuum
-            and computes the time evolution within a given time interval, teval.
-        EBGnSpec()
-            Computes the spectrum of E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n])
-            at a given moment of time t and a helicity lambda gusing the gauge field spectrum A(t, k, lambda)
-        ComputeEBGnMode()
-            Computes the expectation values E rot^n E/a^n (=E[n]), B rot^n B/a^n (=B[n]), and -(E rot^n B)/a^n (=G[n]) at a given moment of time t
-            given the gauge field spectrum A(t, k, +/-). Useful for comparing GEF results to mode-by-mode results.
-        """
-        
-        #Initialise the ModeByMode class, defines all relevant quantities for this class from the background GEF values G
+        #Ensure that all values from the GEF are imported without units
         values.SetUnits(False)
+
+        #store the time values of the GEF
         self.__t = values.t
         self.__N = values.N
         kh = values.kh
         a = values.a
 
+        #import the keys 
         for key in self.EoMKwargs.keys(): 
             val = getattr(values, key)
             if isinstance(val, Val):
@@ -194,22 +297,6 @@ class ModeByMode:
         for key in ["E", "B", "G"]:
             func = CubicSpline(self.__N, (a/kh)**4 * getattr(values, key))
             setattr(self, f"__{key}f", func)
-            
-        """
-        #Assess if the GEF run incorporates Fermions
-        try:
-            self.__SE = settings["SEModel"]
-            self.__sigmaB = values.sigmaB.value
-            self.__sigmaE = values.sigmaE.value
-            self.__delta = values.delta.value
-            
-            if self.__SE=="KDep":
-                self.__kFerm = values.kS.value
-            elif self.__SE=="Del1":
-                self.__kFerm = kh
-
-        except:
-            self.__SE = None"""
         
         deta = lambda t, y: 1/self.__af(t)
         
@@ -230,74 +317,76 @@ class ModeByMode:
         
         return
     
-    def InitialKTN(self, init, mode="t"):
+    def ComputeModeSpectrum(self, nvals : int, Nstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
         """
-        Input
-        -----
-        init : array
-           an array of physical time coordinates t, OR of e-Folds N, OR of comoving wavenumbers k (within self.mink and self.maxk)
-        mode : str
-            if init contains physical time coordinates: mode="t"
-            if init contains e-Folds: mode="N"
-            if init contains comoving wavenumbers: mode="k"
+        Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
 
-        Return
-        ------
-        k : array
-            an array of comoving wavenumbers k satisfying k=10^(5/2)k_h(tstart)
-        tstart : array
-            an array of physical time coordinates t satisfying k=10^(5/2)k_h(tstart)
+        Parameters
+        ----------
+        nvals : int
+           The number of modes between self.mink and self.maxk at which to compute the spectrum
+        Nstep : float
+            the spectrum is stored at times evenly spaced in e-folds with spacing Nstep
+        teval : list
+            physical time points at which the mode function A(t,k,+/-) and its derivatives will be returned
+            if teval=[], the mode functions are evaluated at self.__t
+        atol : float or None
+            the absolute precision of the numerical intergrator, if not specified, will use self.atol
+        rtol : float
+            the relative precision of the numerical integrator.
+
+        Returns
+        -------
+        GaugeSpec 
+            the gauge-field spectrum
         """
 
-        if mode=="t":
-            tstart = init
-            k = 10**(5/2)*self.__khf(tstart)
+        ks, tstart = self.InitialKTN(self.WavenumberArray(nvals), mode="k")
 
-        elif mode=="k":
-            k = init
-            
-            tstart = []
-            for i, l in enumerate(k):
-                ttmp  = self.__t[np.where(l >= 10**(5/2)*self.__khf(self.__t))[0][-1]]
-                tstart.append(ttmp)
-            tstart = np.array(tstart)
+        Neval = np.arange(5, max(self.__N), Nstep)
 
-        elif mode=="N":
-            tstart = CubicSpline(self.__N, self.__t)(init)
-            k = 10**(5/2)*self.__khf(tstart)
+        teval = CubicSpline(self.__N, self.__t)(Neval)
 
-        else:
-            print("not a valid choice")
-            raise KeyError
+        if atol==None:
+            atol = self.atol
 
-        return k, tstart
+        modes = np.array([self.EvolveMode(k, tstart[i], teval=teval, atol=atol, rtol=rtol)
+                  for i, k in enumerate(ks)])
+        
+        spec = GaugeSpec({"t":teval, "N":Neval, "k":ks,
+                    "Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
 
+        return spec
     
-    def ComputeMode(self, k, tstart, teval=[], atol=None, rtol=1e-5):
+    def EvolveMode(self, k : float, tstart : float, teval : list=[],
+                    atol : float|None=None, rtol : float=1e-5) -> Tuple[NDArray, NDArray, NDArray, NDArray]:
         """
-        Input
-        -----
+        Evolve gauge-field modes for a fixed wavenumber in time starting from Bunch-Davies initial conditions.
+
+        Parameters
+        ----------
         k : float
            the comoving wavenumber k for which the mode function A(t,k, +/-) is evolved.
         tstart : float
-            the time coordinate satisfying k = 10^(5/2)k_h(tstart) needed to ensure that the modes initialised in the Bunch-Davies vacuum
-        teval : array/list
+            the time from which to initialise the mode evolution. 
+            Should satisfy k < 10^(5/2)k_h(tstart) to ensure that the modes initialised in the Bunch-Davies vacuum
+        teval : list
             physical time points at which the mode function A(t,k,+/-) and its derivatives will be returned
             if teval=[], the mode functions are evaluated at self.__t
-        atol : float
-            the absolute precision of the numerical intergrator (1e-3 should be fine for all applications, lower will increase computational time)
+        atol : float or None
+            the absolute precision of the numerical intergrator, if not specified, solver will use self.atol
         rtol : float
-            the relative precision of the numerical integrator (1e-4 or lower for good accuracy)
+            the relative precision of the numerical integrator.
 
-        Return
-        ------
-        yp : array
+        Returns
+        -------
+        yp : NDArray
             the positive helicity modes (rescaled), sqrt(2k)*A(teval, k, +)
-        dyp : array
+        dyp : NDArray
             the derivative of the positive helicity modes (rescaled), sqrt(2/k)*dAdeta(teval, k, +)
-        ym : array
+        ym : NDArray
             the negative helicity modes (rescaled), sqrt(2k)*A(teval, k, -)
-        dym : array
+        dym : NDArray
             the derivative of the negative helicity modes (rescaled), sqrt(2/k)*dAdeta(teval, k, -)
         """
 
@@ -306,20 +395,6 @@ class ModeByMode:
         
         #Define ODE
         ode = lambda t, y: self.ModeEoM(t, y, k, **self.EoMKwargs)
-
-        """#else:
-        #Treat sigma's depending on KDep or not
-        if self.__SE in ["KDep", "Del1"]:
-            tcross = self.__t[np.where(self.__kFerm/k < 1)][-1]
-            if tstart > tcross: tstart = tcross
-            sigmaEk = np.heaviside( self.__kFerm - k, 0.5)*self.__sigmaE
-            sigmaBk = np.heaviside( self.__kFerm - k, 0.5)*self.__sigmaB
-
-            sigmaEf = CubicSpline(self.__t, sigmaEk)
-            sigmaBf = CubicSpline(self.__t, sigmaBk)
-
-            deltaf  = np.vectorize(lambda x: 1.0) #we always initialse modes while k > kFerm
-            """
         
         #parse teval input
         if len(teval)==0:
@@ -358,7 +433,22 @@ class ModeByMode:
 
         return yp, dyp, ym, dym
     
-    def WavenumberArray(self, nvals):
+    def WavenumberArray(self, nvals : int) -> NDArray:
+        """
+        Create an array of wavenumbers between self.mink and self.maxk. The array is created according to the evolution of the instabiltiy scale
+        such that it contains more modes close to the instability scale at late times.
+
+        Parameters
+        ----------
+        nvals : int
+            The size of the output array
+
+        Returns
+        -------
+        NDArray
+            an array of wavenumbers with size nvals
+        """
+
         #create an array of values log(10*kh(t))
         logks = np.round( np.log(10*self.__khf(np.linspace(self.__tmin, self.__t[-1], nvals))), 3)
         #filter out all values that are repeating (kh is not strictly monotonous)
@@ -372,30 +462,77 @@ class ModeByMode:
             else:
                 newvals = (logks[-numnewvals:] + logks[-numnewvals-1:-1])/2
             logks = np.sort(np.concatenate([logks, newvals]))
-        return logks
-        
-    def ComputeModeSpectrum(self, nvals, Nstep=0.1, atol=None, rtol=1e-5):
-        logks = self.WavenumberArray(nvals)
+        return np.exp(logks)
+    
+    def InitialKTN(self, init : NDArray, mode : str="k") -> Tuple[NDArray, NDArray]:
+        """
+        Determines the solution to k = 10^(5/2)*k_h(t).
+        Initial data can be given for the comoving wavenumber k, the physical time coordinates t, or e-Folds N.
 
-        ks, tstart = self.InitialKTN(np.exp(logks), mode="k")
+        Parameters
+        ----------
+        init : array
+           an array of physical time coordinates t, OR of e-Folds N, OR of comoving wavenumbers k.
+        mode : str
+            specify the content of init: "t" for physical time, "k" for comoving wavenumbers, "N" for e-Folds
 
-        Neval = np.arange(5, max(self.__N), Nstep)
+        Returns
+        -------
+        K : NDarray
+            an array of comoving wavenumbers satisfying k=10^(5/2)k_h(tstart)
+        tstart : NDarray
+            an array of physical-time coordinates satisfying k=10^(5/2)k_h(tstart)
 
-        teval = CubicSpline(self.__N, self.__t)(Neval)
+        Raises
+        ------
+        KeyError
+            if mode is not "t", "k" or "N"
+        """
 
-        if atol==None:
-            atol = self.atol
+        if mode=="t":
+            tstart = init
+            k = 10**(5/2)*self.__khf(tstart)
 
-        modes = np.array([self.ComputeMode(k, tstart[i], teval=teval, atol=atol, rtol=rtol)
-                  for i, k in enumerate(ks)])
-        
-        spec = GaugeSpec({"t":teval, "N":Neval, "k":ks,
-                    "Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
+        elif mode=="k":
+            k = init
+            
+            tstart = []
+            for i, l in enumerate(k):
+                ttmp  = self.__t[np.where(l >= 10**(5/2)*self.__khf(self.__t))[0][-1]]
+                tstart.append(ttmp)
+            tstart = np.array(tstart)
 
-        return spec
+        elif mode=="N":
+            tstart = CubicSpline(self.__N, self.__t)(init)
+            k = 10**(5/2)*self.__khf(tstart)
+
+        else:
+            raise KeyError("'mode' must be 't', 'k' or 'N'")
+
+        return k, tstart
     
     
-    def IntegrateSpec(self, spec:GaugeSpec, n : int=0, epsabs=1e-20, epsrel=1e-4):
+    def IntegrateSpec(self, spec : GaugeSpec, n : int=0, epsabs=1e-20, epsrel=1e-4) -> NDArray:
+        """
+        Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
+
+        Parameters
+        ----------
+        spec : GaugeSpec
+            the spectrum to be integrated
+        n : int
+            the power in curls in the expectation value, i.e. (E rot^n E).
+        epsabs : float
+            absolute tolerance used by scipy.integrate.quad
+        epsrel : float
+            relative tolerance used by scipy.integrate.quad 
+
+        Returns
+        -------
+        NDArray
+            an array of shape (len(spec["t"]), 3) corresponding to (E, rot^n E), (B, rot^n B), (E, rot^n B)
+        """
+
         tdim = spec.GetDim()["tdim"]
         
         FMbM = np.zeros((tdim, 3))
@@ -405,33 +542,28 @@ class ModeByMode:
         
         return FMbM
 
-    def IntegrateSpecSlice(self, specAtT:dict, n : int=0, epsabs=1e-20, epsrel=1e-4):
+    def IntegrateSpecSlice(self, specAtT : dict, n : int=0,
+                            epsabs : float=1e-20, epsrel : float=1e-4) -> Tuple[NDArray, NDArray]:
         """
-        Input
-        -----
-        t : float
-            the physical time at which to evaluate the function
-        ks : array
-            an array of comoving wavenumbers associated to the modes
-        yP : array
-            the positive-helicity mode sqrt(2ks)*A(t,ks,+) for a fixed time t
-        yM : array
-            the negative-helicity mode sqrt(2ks)*A(t,ks,-) for a fixed time t
-        dyP : array
-            the positive-helicity mode's derivative sqrt(2/ks)*dAdeta(t,ks,+) for a fixed time t
-        dyM : array
-            the negative-helicity mode's derivative sqrt(2/ks)*dAdeta(t,ks,+) for a fixed time t
-        n : int
-            the power of the curl in E rot^n E, B rot^n B, etc.
+        Integrate an input spectrum at a fixed time t to obtain (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
 
-        Return
-        ------
-        En : float
-            the value of (a^4/k_h^(n+4)) E rot^n E at time t
-        Bn : float
-            the value of (a^4/k_h^(n+4)) B rot^n B at time t
-        Gn : float
-            the value of -(a^4/k_h^(n+4)) E rot^n B at time t
+        Parameters
+        ----------
+        specAtT : dict
+            the spectrum at time t, obtained by GaugeSpec.TSlice
+        n : int
+            the power in curls in the expectation value, i.e. E rot^n E etc.
+        epsabs : float
+            absolute tolerance used by scipy.integrate.quad
+        epsrel : float
+            relative tolerance used by scipy.integrate.quad 
+
+        Returns
+        -------
+        vals : NDArray
+            an array of size 3 corresponding to (E, rot^n E), (B, rot^n B), (E, rot^n B)
+        errs : NDArray
+            the error on vals as estimated by scipy.integrate.quad
         """
 
         t = specAtT["t"]
@@ -463,7 +595,27 @@ class ModeByMode:
 
         return vals, errs
 
-    def CompareToBackgroundSolution(self, spec, epsabs=1e-20, epsrel=1e-4, verbose=True):
+    def CompareToBackgroundSolution(self, spec : GaugeSpec, epsabs=1e-20, epsrel=1e-4, verbose=True) -> Tuple[list, NDArray]:
+        """
+        Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds
+
+        Parameters
+        ----------
+        spec : GaugeSpec
+            the spectrum against which to compare the GEF results.
+        epsabs : float
+            absolute tolerance used by scipy.integrate.quad
+        epsrel : float
+            relative tolerance used by scipy.integrate.quad 
+
+        Returns
+        -------
+        errs : list
+            a list of estimated errors, each index corresponding to E^2, B^2, E.B respectively
+        Nerr : NDArray
+            an array of e-fold-bins to which the errors in errs are associated.
+        """
+        
         FMbM = self.IntegrateSpec(spec, n=0, epsabs=epsabs, epsrel=epsrel)
 
         keys = ["E", "B", "G"]
