@@ -9,7 +9,6 @@ from typing import Tuple
 from numpy.typing import ArrayLike
 
 
-
 def TensorModeEoM(y : ArrayLike, k : float, H : float, a : float) -> ArrayLike:
     """
     Compute the time derivative of a vacuum tensor mode and its derivative for a fixed comoving wavenumber at a given moment of time t (in Hubble units)

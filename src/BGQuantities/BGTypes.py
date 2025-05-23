@@ -78,9 +78,6 @@ class Val(Quantity):
     
     def __pow__(self, other):
         #BGVal should never be exponentiated by another BGVal
-        """if isinstance(other, Val):
-            if other.massdim!=0:
-                raise IncompatibleQuantitiesException("Cannot exponentiate BGVal with BGVal of non-zero massd imension.")"""
         return self.value ** other
     
     def __eq__(self, other):
@@ -139,18 +136,6 @@ class Val(Quantity):
     
     def GetConversion(self):
         return self.__Conversion
-    
-"""    def __Compatible(self, other, op):
-        if isinstance(other, Val):
-            if not(self.massdim==other.massdim):
-                raise IncompatibleQuantitiesException(
-                    f"{op} between BGVal's of mass-dimension {self.massdim} and {other.massdim} is not defined."
-                    )
-            if not(self.GetUnits() == other.GetUnits()):
-                raise IncompatibleQuantitiesException(
-                    f"{op} between BGVal's in different units is not defined."
-                    )
-        return"""
 
 def BGVal(Qname, H0, MP, Qdtype=np.float64):
     if not( np.issubdtype(Qdtype, np.floating)
@@ -169,7 +154,6 @@ def BGVal(Qname, H0, MP, Qdtype=np.float64):
 
     return BGVal
     
-#Needs to be tested!!!!
 class Func(Quantity):
     Args = []
     def __init__(self, func, BGSystem):
@@ -191,8 +175,6 @@ class Func(Quantity):
                                  for arg in self.Args]
         self.__Conversion = (BGSystem.H0**self.u_H0*BGSystem.MP**self.u_MP)
 
-        
-
     def __call__(self, *args):
         units = self.GetUnits()
         def floathandler(x, i):
@@ -209,16 +191,6 @@ class Func(Quantity):
         args = [typedic.get(arg.__class__.__bases__[0], floathandler)(arg, i) for i, arg in enumerate(args)]
 
         return self.__basefunc(*args)/self.__Conversion**(1-units)
-
-        """for i, arg in enumerate(args):
-            if isinstance(arg, Val):
-                #assert self.__ArgConversions[i] == arg.GetConversion()
-                pow = (1 - arg.GetUnits())
-                arglist.append(arg.value*arg.GetConversion()**pow)
-            else:
-                arglist.append(arg*self.__ArgConversions[i]**(1-units))
-        
-        return self.__basefunc(*arglist)/self.__Conversion**(1-units)"""
         
     def GetUnits(self):
         return self.__units

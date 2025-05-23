@@ -16,26 +16,54 @@ from typing import Tuple
 class GaugeSpec(dict):
     """
     A class representing a spectrum of gauge-field modes as a function of time.
+    This class inherits from 'dict', and necessarily needs the following keys:
+    't', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'
+
+    Attributes
+    ----------
+    t : NDArray
+        an array of physical times at which the spectrum is known
+    N : NDArray
+        an array of e-folds associated to t
+    k : NDarray
+        an array of wavenumbers k for which the spectrum is known
+    Ap, Am : NDarray
+        arrays of shape (len(k), len(t)) containing the mode functions sqrt(2*k)*A_\pm(k, t)
+    dAp, dAm : NDarray
+        arrays of shape (len(k), len(t)) containing the mode-function derivatives  sqrt(2/k)*e^N*dA_\pm(k, t)/dt
 
     Class Methods
-    -------
+    -------------
     ReadSpec
         Initialise the class from data stored in a file.
 
     Methods
     -------
-    SaveSpec
+    SaveSpec()
         Store the spectrum in a file.
-    GetDim
+    GetDim()
         Retrieve the number of modes and times encoded in the spectrum 
-    TSlice
+    TSlice()
         Retrieve the spectrum at a moment of time
-    KSlice
-        Retrieve the spectrum for a fixed wavenumber
+    KSlice()
+        Retrieve the spectrums evolution for a fixed wavenumber
+
+    Example
+    -------
+    >>> spec = GaugeSpec.ReadSpec(somefile)
+    >>> specslice = spec.TSlice(100) #return the spectrum at spec["t"][100]
+    >>> print(f"This is the spectrum of positive-helicity modes at time {specslice['t']}:)
+    >>> print(specslice["Ap"]})
     """
 
     def __init__(self, modedic):
         #initialise spectrum as a dictionary
+        for key in modedic.keys():
+            assert key in ["t", "N", "k", "Ap", "dAp", "Am", "dAm"]
+
+        assert len(modedic["t"] == len(modedic["N"]))
+        for key in ["Ap", "dAp", "Am", "dAm"]:
+            assert modedic[key].shape() == (len(modedic["k"]), len(modedic["t"]))
         super().__init__(modedic)
 
     @classmethod
@@ -87,7 +115,7 @@ class GaugeSpec(dict):
 
     def GetDim(self) -> dict:
         """
-        Retrieve the number of modes and times encoded in the spectrum 
+        Retrieve the spectrums evolution for a fixed wavenumber
 
         Returns
         -------
@@ -181,39 +209,73 @@ def ReadMode(path : str) -> GaugeSpec:
     
     return spec
     
-def ModeSolver(ModeEq : function, EoMkeys : list, BDInitEq : function, Initkeys : list, default_atol : float=1e-3):
+def ModeSolver(ModeEq : function, EoMkeys : list, BDEq : function, Initkeys : list, default_atol : float=1e-3):
     """
     Class-factory creating a custom ModeByMode-class with new mode equations and initial conditions adapted to a modified version of the GEF.
 
     Parameters
     ----------
     ModeEq : function
-        the new mode equation
-    EoMKeys : list
-        a list of parameter names passed to the mode equation (see ModeByMode for details)
-    BDInitEQ : function
-        the new Bunch-Davies initial conditions.
-    Initkeys : list
-        a list of parameter names passed to the Bunch-Davies initialiser (see ModeByMode for details)
+        a new mode equation called as ModeEq(t, y, **kwargs)
+    EoMKeys : list of str
+        a list of parameter names passed to the mode equation.
+        These names must match the kwargs of ModeEq.
+    BDEQ : function
+        a function that initialises modes in Bunch-Davies. The signature must be BDInitEQ(t, k, **kwargs)
+    Initkeys : list of str
+        a list of parameter names passed to the Bunch-Davies initialiser
+        These names must match the kwargs of BDEq.
     default_atol : float
         the default absolute tolerance used by the ModeByMode class
 
     Returns
     -------
     class
-        a modified ModeByMode class     
+        a modified ModeByMode class adapted to a modified GEF-version.
+
+    Examples
+    --------
+    >>> def new_mode_eq(t, y, k, a, b, c):
+    ...     # Define your new mode equation here
+    ...     dydt = np.ones_like(y)
+    ...     dydt[0] = ...
+    ...     ...
+    ...     return dydt
+    ...
+    >>> def new_bd_init(t, k, alpha, beta):
+    ...     # Define your new Bunch-Davies initial conditions here
+    ...     return [1, 0, 0, -1, 1, 0, 0, -1]
+    ...
+    >>> EoMkeys = ["a", "b", "c"]
+    >>> Initkeys = ["alpha", "beta"]
+    >>> CustomModeSolver = ModeSolver(new_mode_eq, EoMkeys, new_bd_init, Initkeys, default_atol=1e-4)
+    >>> solver = CustomModeSolver(values)
     """
     
     class ModeSolver(ModeByMode):
         """
         A custom ModeByMode-class with new mode equations and initial conditions adapted to a modified version of the GEF
+
+        Inherits all methods from ModeByMode including:
+            - ComputeModeSpec()
+            - IntegrateSpec()
+            - CompareToBackgroundSolution()
+
+        Overwrites the following class attributes
+            - ModeEoM
+            - EoMKwargs
+            - BDInit
+            - InitKwargs
+            - default-atol
+
+        This entails that 'ComputeModeSpec' will now evolve modes according to BDInit and ModeEom.
         """
         
         #Overwrite class attibutes of ModeByMode with new mode equations, boundary conditions and default tolerances.
         ModeEoM = staticmethod(ModeEq)
         EoMKwargs = dict(zip(EoMkeys, [None for x in EoMkeys]))
 
-        BDInit = staticmethod(BDInitEq)
+        BDInit = staticmethod(BDEq)
         InitKwargs = dict(zip(Initkeys, [None for x in Initkeys]))
 
         atol=default_atol
@@ -228,39 +290,16 @@ class ModeByMode:
     """
     A class used to solve the gauge-field mode equations for standard axion inflation based on a solution to the GEF equations.
 
-    #TODO Class Methods, static methods, class attributes
-
-    Attributes
-    ----------
-    __t : array
-        An increasing array of physical times tracking the evolution of the GEF system.
-    __N : array
-        An increasing array of e-Folds tracking the evolution of the GEF system.
-    __af : function
-        returns the scale factor, a(t), as a function of physical time. Obtained by interpolation of the GEF solution.
-    __khf : function
-        returns the instability scale k_h(t) as a function of physical time. Obtained by interpolation of the GEF solution.
-    __etaf : function
-        returns the conformal time eta(t) as a function of physical time normalised to eta(0)=-1/H_0.
-        Obtained by numerical integration and interpolation.
-    maxk : float
-        the maximal comoving wavenumber k which can be resolved based on the dynamical range covered by the GEF solution
-    mink : float
-        the minimal comoving wavenumber k which can be resolved based on the initial conditions of the GEF solution
-    __tmin : float
-        the time at which the minimal mode crosses the instability scale kh
-
     Methods
     -------
-    ComputeModeSpec
+    ComputeModeSpec()
         Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
-    EvolveMode
-        Evolve gauge-field modes for a fixed wavenumber in time starting from Bunch-Davies initial conditions.
-    WavenumberArray
-        Create an array of wavenumbers between self.mink and self.maxk. The array is created according to the evolution of the instabiltiy scale
-        such that it contains more modes close to the instability scale at late times.
-    InitialKTN
-        Determines the solution to k = 10^(5/2)*k_h(t). Initial data can be given for the comoving wavenumber k, the physical time coordinates t, or e-Folds N.
+    IntegrateSpec()
+        Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
+    CompareToBackgroundSolution()
+        Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds
+
+
     """
 
     #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
@@ -327,7 +366,7 @@ class ModeByMode:
            The number of modes between self.mink and self.maxk at which to compute the spectrum
         Nstep : float
             the spectrum is stored at times evenly spaced in e-folds with spacing Nstep
-        teval : list
+        teval : list of float
             physical time points at which the mode function A(t,k,+/-) and its derivatives will be returned
             if teval=[], the mode functions are evaluated at self.__t
         atol : float or None
@@ -370,7 +409,7 @@ class ModeByMode:
         tstart : float
             the time from which to initialise the mode evolution. 
             Should satisfy k < 10^(5/2)k_h(tstart) to ensure that the modes initialised in the Bunch-Davies vacuum
-        teval : list
+        teval : list of float
             physical time points at which the mode function A(t,k,+/-) and its derivatives will be returned
             if teval=[], the mode functions are evaluated at self.__t
         atol : float or None
@@ -551,7 +590,7 @@ class ModeByMode:
         ----------
         specAtT : dict
             the spectrum at time t, obtained by GaugeSpec.TSlice
-        n : int
+            n : int
             the power in curls in the expectation value, i.e. E rot^n E etc.
         epsabs : float
             absolute tolerance used by scipy.integrate.quad
@@ -597,7 +636,7 @@ class ModeByMode:
 
     def CompareToBackgroundSolution(self, spec : GaugeSpec, epsabs=1e-20, epsrel=1e-4, verbose=True) -> Tuple[list, NDArray]:
         """
-        Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds
+        Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds.
 
         Parameters
         ----------

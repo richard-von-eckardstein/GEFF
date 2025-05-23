@@ -11,71 +11,47 @@ import os
 import warnings
 from copy import deepcopy
 
-def SpecifyModelSettings(model, settings={}):
-    for key, item in settings.items():
-        try:
-            model.modelSettings[key] = item
-        except AttributeError:
-            print(f"Ignoring unknown model setting '{key}'.")
-    
-    return
 
-def ModelLoader(modelname):
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    modelpath = os.path.join(current_dir, f"Models/{modelname}.py")
-    #Check if Model exists
-    try:
-        #Load ModelAttributes from GEFFile
-        spec = util.spec_from_file_location(modelname, modelpath)
-        mod  = util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
-    except:
-        raise FileNotFoundError(f"No model found under '{modelpath}'")
 
 class GEF(BGSystem):
     """
-    A class used to solve the GEF equations given a set of initial conditions. The class also comes with several useful utility functions.
-    
-    ...
+    This class is the primary interface for the GEF. It's primary function is to create the GEFSolver according to model-specification and to store its results.
+    Furthermore, it contains all information about the evolution of the time-dependent background as specified by the model-file. This information can be passed to
+    various useful tools, for example, computing the gauge-field spectrum, the tensor-power spectrum, and the GW-spectrum.
     
     Attributes
     ----------
-    
+    name : str
+        the name of the GEF-model
     beta : float
-        Coupling strength of the inflaton to the gauge fields, I_2(phi) = beta/Mpl
-    units : Boolean
-        Are all quantities treated as dimensionful or dimensioneless?
-    H0 : float
-        initial value of the Hubble rate in the dimensional unit system. Used for unit conversion.
-    Mpl : float
-        value of the Planck mass in the dimensional unit system. Used for unit conversion.
-    GEFData : None | str
+        Coupling strength of the inflaton to the gauge fields, dI/dphi = beta/Mpl
+    GEFData : str
         Path to file where GEF results are stored
-    ModeData : None | str
-        Path to file where Mode By Mode results are stored
-        
-    ...
-    
+    ModeData : str
+        Path to file where Mode-by-Mode results are stored
+
     Methods
     -------
-    
-    ...
+    LoadGEFData
+        Load data stored in self.GEFData and use it to initialise the GEF background quantities
+    SaveGEFData
+        Store the data in the current GEF instance in self.GEFData.
+
     """
  
     def __init__(
                 self, model: str, beta: float, iniVals: dict, Funcs: dict,
                 userSettings: dict = {}, GEFData: None|str = None, ModeData: None|str = None
                 ):
-        #...Documentation...
+        
         #Get Model attributes
-        model = ModelLoader(model)
+        model = self.ModelLoader(model)
 
         #Configure model settings
-        SpecifyModelSettings(model, userSettings)
+        self.SpecifyModelSettings(model, userSettings)
 
         #Set GEF-name
-        self.__name = model.name
+        self.name = model.name
 
         #Set coupling constant
         self.beta = beta
@@ -107,7 +83,7 @@ class GEF(BGSystem):
     
     def __str__(self):
         #Add the model information
-        string = f"Model: {self.__name}, "
+        string = f"Model: {self.name}, "
         #Add any additional settings if applicable
         if isinstance(self.settings, dict):
             for setting in self.settings.items():
@@ -115,6 +91,30 @@ class GEF(BGSystem):
         #Add coupling strength
         string += f"beta={self.beta}"
         return string
+    
+    @staticmethod
+    def SpecifyModelSettings(model, settings={}):
+        for key, item in settings.items():
+            try:
+                model.modelSettings[key] = item
+            except AttributeError:
+                print(f"Ignoring unknown model setting '{key}'.")
+        
+        return
+
+    @staticmethod
+    def ModelLoader(modelname):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        modelpath = os.path.join(current_dir, f"Models/{modelname}.py")
+        #Check if Model exists
+        try:
+            #Load ModelAttributes from GEFFile
+            spec = util.spec_from_file_location(modelname, modelpath)
+            mod  = util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+        except:
+            raise FileNotFoundError(f"No model found under '{modelpath}'")
     
     def __SetupGEFSolver(self, model, iniVals, Funcs):
         for obj in self.ObjectSet():
@@ -142,7 +142,8 @@ class GEF(BGSystem):
         
         return
     
-    def __DefineQuantities(self, modelSpecific):
+    @staticmethod
+    def __DefineQuantities(modelSpecific):
         quantities = set()
         #Get default quantities which are always present in every GEF run
         quantities.update(DefaultQuantities.spacetime)
