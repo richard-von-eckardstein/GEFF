@@ -1,11 +1,76 @@
 import numpy as np
 import math
 from mpmath import whitw, whitm, mp
+from numpy.typing import NDArray
+
+"""
+Module for computing boundary terms based on
+whittaker functions W(-i*lambda*xi, 1/2+s, 2|xi|), lambda=+/-
+
+Functions
+---------
+WhittakerExact
+    compute boundary terms using exact whittaker functions
+WhittakerApprox
+    use approximate formulas for WhittakerExact(xi, 0) when applicable.
+WhittakerApprox_SE
+    use approximate formulas for WhittakerExact(xi, s) when applicable.
+"""
 
 mp.dps = 8
 
+def WhittakerExact(xi : float, s : float) -> NDArray:
+    """
+    compute boundary terms using exact whittaker functions
+
+    Parameters
+    ----------
+    xi : float
+    s : float
+
+    Returns
+    -------
+    NDArray
+        Boundary terms for gauge bilinears, shape (3,2)
+    """
+    r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
+    
+    Whitt1Plus = whitw(-xi*(1j), 1/2 + s, -2j*r)
+    Whitt2Plus = whitw(1-xi*(1j), 1/2 + s, -2j*r)
+
+    Whitt1Minus = whitw(xi*(1j), 1/2 + s, -2j*r)
+    Whitt2Minus = whitw(1+xi*(1j), 1/2 + s, -2j*r)
+        
+    exptermPlus = np.exp(np.pi*xi)
+    exptermMinus = np.exp(-np.pi*xi)
+    
+    Fterm = np.zeros((3, 2))
+
+    Fterm[0,0] = exptermPlus*abs((1j*r - 1j*xi -s) * Whitt1Plus + Whitt2Plus)**2/r**2
+    Fterm[0,1] = exptermMinus*abs((1j*r + 1j*xi -s) * Whitt1Minus + Whitt2Minus)**2/r**2
+
+    Fterm[1,0] = exptermPlus*abs(Whitt1Plus)**2
+    Fterm[1,1] = exptermMinus*abs(Whitt1Minus)**2
+
+    Fterm[2,0] = exptermPlus*((Whitt2Plus*Whitt1Plus.conjugate()).real - s * abs(Whitt1Plus)**2)/r
+    Fterm[2,1] = exptermMinus*((Whitt2Minus*Whitt1Minus.conjugate()).real - s * abs(Whitt1Minus)**2)/r
+
+    return Fterm
+
 #Whittaker Functions
 def WhittakerApprox(xi):
+    """
+    use approximate formulas for WhittakerExact(xi, 0) where applicable.
+
+    Parameters
+    ----------
+    xi : float
+
+    Returns
+    -------
+    NDArray
+        Boundary terms for gauge bilinears, shape (3,2)
+    """
     if (abs(xi) >= 3):
         Fterm = np.zeros((3, 2))
         sgnsort = int((1-np.sign(xi))/2)
@@ -68,12 +133,24 @@ def WhittakerApprox(xi):
         Fterm = WhittakerExact(xi, 0.)
     return Fterm
 
-def WhittakerApproxSE(xieff, s):
-    if (abs(xieff) >= 4):
+def WhittakerApproxSE(xi, s):
+    """
+    use approximate formulas for WhittakerExact(xi, s) where applicable.
+
+    Parameters
+    ----------
+    xi : float
+
+    Returns
+    -------
+    NDArray
+        Boundary terms for gauge bilinears, shape (3,2)
+    """
+    if (abs(xi) >= 4):
         Fterm = np.zeros((3, 2))
-        sgnsort = int((1-np.sign(xieff))/2)
+        sgnsort = int((1-np.sign(xi))/2)
         
-        xi = abs(xieff)
+        xi = abs(xi)
         r = xi + np.sqrt(xi**2 + s**2 + s)
         psi = 2*np.sqrt(xi**2 + s**2 + s)/r
         rpsi = (psi/r**2)**(1/3)
@@ -109,30 +186,5 @@ def WhittakerApproxSE(xieff, s):
 
         Fterm[2, 1-sgnsort] = -((3*xi -r)/xi + 8*s)/(16*np.sqrt(xi*r))
     else:
-        Fterm = WhittakerExact(xieff, s)
-    return Fterm
-
-def WhittakerExact(xi, s):
-    r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
-    
-    Whitt1Plus = whitw(-xi*(1j), 1/2 + s, -2j*r)
-    Whitt2Plus = whitw(1-xi*(1j), 1/2 + s, -2j*r)
-
-    Whitt1Minus = whitw(xi*(1j), 1/2 + s, -2j*r)
-    Whitt2Minus = whitw(1+xi*(1j), 1/2 + s, -2j*r)
-        
-    exptermPlus = np.exp(np.pi*xi)
-    exptermMinus = np.exp(-np.pi*xi)
-    
-    Fterm = np.zeros((3, 2))
-
-    Fterm[0,0] = exptermPlus*abs((1j*r - 1j*xi -s) * Whitt1Plus + Whitt2Plus)**2/r**2
-    Fterm[0,1] = exptermMinus*abs((1j*r + 1j*xi -s) * Whitt1Minus + Whitt2Minus)**2/r**2
-
-    Fterm[1,0] = exptermPlus*abs(Whitt1Plus)**2
-    Fterm[1,1] = exptermMinus*abs(Whitt1Minus)**2
-
-    Fterm[2,0] = exptermPlus*((Whitt2Plus*Whitt1Plus.conjugate()).real - s * abs(Whitt1Plus)**2)/r
-    Fterm[2,1] = exptermMinus*((Whitt2Minus*Whitt1Minus.conjugate()).real - s * abs(Whitt1Minus)**2)/r
-
+        Fterm = WhittakerExact(xi, s)
     return Fterm

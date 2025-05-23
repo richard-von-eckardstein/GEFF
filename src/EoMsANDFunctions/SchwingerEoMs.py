@@ -3,6 +3,21 @@ from numpy.typing import NDArray
 import math
 from src.BGQuantities.BGTypes import Val
 
+"""
+Module for the equations of motions used for the model "SEOld", "SE_kh".
+
+Functions
+---------
+Friedmann
+    compute the Hubble rate
+EoMPhi
+    the Klein-Gordon equation in presence of gauge-field friction
+EoMlnkh
+    compute the time derivative of the instability scale kh
+EoMF
+    compute the time derivatives of the gauge-field bilinear tower
+"""
+
 
 def EoMlnkhSE(kh : float|Val, dphi : float|Val, ddphi : float|Val,
                 dI : float|Val, ddI : float|Val,xieff : float|Val, s : float|Val,

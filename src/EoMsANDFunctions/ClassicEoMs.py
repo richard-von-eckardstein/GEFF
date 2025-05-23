@@ -3,7 +3,22 @@ import numpy as np
 from numpy.typing import NDArray
 import math
 
-def Friedmann(dphi : float|Val , V : float|Val, E : float|Val, B : float|Val,
+"""
+Module for the equations of motions used for the model "Classic".
+
+Functions
+---------
+Friedmann
+    compute the Hubble rate
+EoMPhi
+    the Klein-Gordon equation in presence of gauge-field friction
+EoMlnkh
+    compute the time derivative of the instability scale kh
+EoMF
+    compute the time derivatives of the gauge-field bilinear tower
+"""
+
+def Friedmann(dphi : float|Val, V : float|Val, E : float|Val, B : float|Val,
                rhoChi : float|Val, H0 : float) -> float:
     """
     Calculate the Hubble rate from the Friedmann equation
