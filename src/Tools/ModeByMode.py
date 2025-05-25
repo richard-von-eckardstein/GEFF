@@ -7,7 +7,7 @@ from scipy.interpolate import CubicSpline
 from scipy.integrate import solve_ivp
 from scipy.integrate import quad
 
-from src.BGQuantities.BGTypes import Val
+from src.BGQuantities.BGTypes import Val, BGSystem
 from src.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
 
 from numpy.typing import NDArray
@@ -231,7 +231,7 @@ def ModeSolver(ModeEq : function, EoMkeys : list, BDEq : function, Initkeys : li
     Returns
     -------
     class
-        a modified ModeByMode class adapted to a modified GEF-version.
+        a modified ModeByMode class adapted to a modified GEF-model.
 
     Examples
     --------
@@ -255,20 +255,29 @@ def ModeSolver(ModeEq : function, EoMkeys : list, BDEq : function, Initkeys : li
     class ModeSolver(ModeByMode):
         """
         A custom ModeByMode-class with new mode equations and initial conditions adapted to a modified version of the GEF
-
-        Inherits all methods from ModeByMode including:
-            - ComputeModeSpec()
-            - IntegrateSpec()
-            - CompareToBackgroundSolution()
-
-        Overwrites the following class attributes
+        It Inherits all methods from ModeByMode but overwrites the following class attributes
             - ModeEoM
             - EoMKwargs
             - BDInit
             - InitKwargs
             - default-atol
-
         This entails that 'ComputeModeSpec' will now evolve modes according to BDInit and ModeEom.
+
+        Methods
+        -------
+        ComputeModeSpec()
+            Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
+        IntegrateSpec()
+            Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
+        CompareToBackgroundSolution()
+            Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds
+
+        Example
+        -------
+        >>> M = ModeSolver(G) #initialise the class by a BGSystem or GEF instance
+        ... 
+        >>> spec = M.ComputeModeSpec(500) #compute a gauge-field spectrum of 500 modes from G
+        >>> errs, Nerr = M.CompareToBackgroundSolution(spec) #asses the agreement between G and spec
         """
         
         #Overwrite class attibutes of ModeByMode with new mode equations, boundary conditions and default tolerances.
@@ -299,7 +308,12 @@ class ModeByMode:
     CompareToBackgroundSolution()
         Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds
 
-
+    Example
+    -------
+    >>> M = ModeByMode(G) #initialise the class by a BGSystem or GEF instance
+    ... 
+    >>> spec = M.ComputeModeSpec(500) #compute a gauge-field spectrum of 500 modes from G
+    >>> errs, Nerr = M.CompareToBackgroundSolution(spec) #asses the agreement between G and spec
     """
 
     #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
@@ -309,7 +323,7 @@ class ModeByMode:
     InitKwargs = {}
     atol=1e-3
 
-    def __init__(self, values):
+    def __init__(self, values : BGSystem):
         #Ensure that all values from the GEF are imported without units
         values.SetUnits(False)
 
