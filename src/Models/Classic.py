@@ -91,7 +91,7 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     return dydt
 
 ModeByMode = ModeSolver(ModeEq=ModeEoMClassic, EoMkeys=["a", "xi", "H"],
-                         BDInitEq=BDClassic, Initkeys=[], default_atol=1e-3)
+                         BDEq=BDClassic, Initkeys=[], default_atol=1e-3)
 
 #Event 1:
 def EndOfInflationFunc(t, y, vals, atol, rtol):

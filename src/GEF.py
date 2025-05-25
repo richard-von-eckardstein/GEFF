@@ -9,6 +9,53 @@ from src.Solver.GEFSolver import GEFSolver
 import importlib.util as util
 import os
 
+def ModelLoader(modelname : str):
+    """
+    Import and execute a module containg a GEF model.
+
+    Parameters
+    ----------
+    modelname : str
+        the name of the GEF model 
+
+    Returns
+    -------
+    ModuleType
+        the executed module
+    """
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    modelpath = os.path.join(current_dir, f"Models/{modelname}.py")
+    #Check if Model exists
+    try:
+        #Load ModelAttributes from GEFFile
+        spec = util.spec_from_file_location(modelname, modelpath)
+        mod  = util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except FileNotFoundError:
+        raise FileNotFoundError(f"No model found under '{modelpath}'")
+        
+def SpecifyModelSettings(model, settings : dict={}):
+    """
+    Update model settings of a GEF model according user specifications 
+
+    Parameters
+    ----------
+    modelname : ModuleType
+        an executed GEF-model module
+    settings : dict
+        a dictionary containing the new model settings
+    """
+
+    for key, item in settings.items():
+        try:
+            model.modelSettings[key] = item
+        except AttributeError:
+            print(f"Ignoring unknown model setting '{key}'.")
+    
+    return
+
 class GEF(BGSystem):
     """
     This class is the primary interface for the GEF. It's main function is to create the GEFSolver according to model-specification and to store the results of the GEF.
@@ -30,9 +77,9 @@ class GEF(BGSystem):
     SaveGEFData()
         Save the data in the current GEF instance in an ouput file.
     SetUnits()
-        Switch the GEF instance between numerical units and Planck units
+        Switch the GEF instance between numerical units and physical units
     GetUnits()
-        Return a boolean indicating if the GEF is set to Planck units
+        Return a boolean indicating if the GEF is set to physical units
 
     Example 1 (Initialisation)
     --------------------------
@@ -81,10 +128,10 @@ class GEF(BGSystem):
                 ):
         
         #Get Model attributes
-        model = self.ModelLoader(model)
+        model = ModelLoader(model)
 
         #Configure model settings
-        self.SpecifyModelSettings(model, userSettings)
+        SpecifyModelSettings(model, userSettings)
 
         #Set GEF-name
         self.name = model.name
@@ -137,55 +184,6 @@ class GEF(BGSystem):
         #Add coupling strength
         string += f"beta={self.beta}"
         return string
-
-    @staticmethod
-    def ModelLoader(modelname : str):
-        """
-        Import and execute a module containg a GEF model.
-
-        Parameters
-        ----------
-        modelname : str
-            the name of the GEF model 
-
-        Returns
-        -------
-        ModuleType
-            the executed module
-        """
-
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        modelpath = os.path.join(current_dir, f"Models/{modelname}.py")
-        #Check if Model exists
-        try:
-            #Load ModelAttributes from GEFFile
-            spec = util.spec_from_file_location(modelname, modelpath)
-            mod  = util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            return mod
-        except:
-            raise FileNotFoundError(f"No model found under '{modelpath}'")
-        
-    @staticmethod
-    def SpecifyModelSettings(model, settings : dict={}):
-        """
-        Update model settings of a GEF model according user specifications 
-
-        Parameters
-        ----------
-        modelname : ModuleType
-            an executed GEF-model module
-        settings : dict
-            a dictionary containing the new model settings
-        """
-
-        for key, item in settings.items():
-            try:
-                model.modelSettings[key] = item
-            except AttributeError:
-                print(f"Ignoring unknown model setting '{key}'.")
-        
-        return
     
     @staticmethod
     def __DefineQuantities(modelSpecific):

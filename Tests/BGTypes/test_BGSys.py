@@ -136,7 +136,7 @@ class TestBGSystem():
         U = self.createSys()
         U.Initialise("x")(10)
 
-        V = BGSystem.InitialiseFromBGSystem(U)
+        V = BGSystem.FromBGSystem(U)
 
         assert V.H0 == U.H0
         assert V.MP == U.MP

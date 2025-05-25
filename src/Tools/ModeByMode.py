@@ -11,7 +11,7 @@ from src.BGQuantities.BGTypes import Val, BGSystem
 from src.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
 
 from numpy.typing import NDArray
-from typing import Tuple
+from typing import Tuple, Callable
 
 class GaugeSpec(dict):
     """
@@ -209,7 +209,7 @@ def ReadMode(path : str) -> GaugeSpec:
     
     return spec
     
-def ModeSolver(ModeEq : function, EoMkeys : list, BDEq : function, Initkeys : list, default_atol : float=1e-3):
+def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : list, default_atol : float=1e-3):
     """
     Class-factory creating a custom ModeByMode-class with new mode equations and initial conditions adapted to a modified version of the GEF.
 
