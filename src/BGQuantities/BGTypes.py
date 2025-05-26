@@ -4,154 +4,6 @@ import inspect
 
 from numpy.typing import ArrayLike
 
-def BGVal(Qname : str, H0 : int, MP : int, Qdtype : np.dtype=np.float64):
-    """
-    A class factory used to define cosmological quantities like "time", "Hubble rate" etc. with a specific scaling behaviour w.r.t
-    an inverse time scale (typically Hubble rate) and a mass scale (typically the Planck mass).
-
-    Parameters
-    ----------
-    name : str
-        the quantities name
-    H0 : int
-        the quantities' scaling w.r.t. a typical inverse time scale
-    MP : int
-        the quantities' scaling w.r.t. a typical mass scale
-    dtype : Numpy Data Type
-        the data type of the BGVal object.
-        
-    Returns
-    -------
-    BGVal
-        a class representing a cosmological quantity like physical time, Hubble rate, etc.
-    """
-
-    if not( np.issubdtype(Qdtype, np.floating)
-             or
-             np.issubdtype(Qdtype, np.complexfloating)
-            ):
-        raise TypeError("BGVal's data-type must be a subtype of np.floating or np.complexfloating.")
-
-    class BGVal(Val):
-        """
-        This class represents a cosmological quantity with a given mass dimension and scaling w.r.t. the Hubble rate and Planck mass.
-        Typical quantities are:
-            - time: scales with H^(-1), M_pl^0
-            - time derivative: scales with H^1, M_pl^0
-            - scalar-field amplitude: scales with H^0, M_pl^1
-            - scalar-field potential: scales with H^2 M_pl^2
-            - gauge-fields: scales with H^1, M_pl^0 (i.e. like a time derivative)
-        This class inherits from 'Val' including its arithemtic operations and methods relating to unit conversion.
-
-        Attributes
-        ----------
-        name : str
-            the quantities name
-        u_H0 : int
-            the quantities' scaling w.r.t. a typical inverse time scale
-        u_MP : int
-            the quantities' scaling w.r.t. a typical mass scale
-        dtype : Numpy Data Type
-            the data type of the BGVal object.
-        value : NDArray
-            (inherited from 'Val') a 1-dimensional array of values set to the current units of this BGVal-instance.
-            This attribute is used for all arithmetic operations and is converted to physical and numerical units via SetUnits().
-        massdim : int
-            (inherited from 'Val') the mass dimension of this BGVal-instance
-
-        Methods
-        -------
-        GetUnits()
-            (inherited from 'Val') returns 'True' if the BGVal-instance is set to physical units and 'False' if set to numerical units.
-        SetUnits()
-            (inherited from 'Val') convert the 'value' of the BGVal-instance to physical units or numerical units.
-        GetConversion()
-            (inherited from 'Val') retrieve the conversion factor for this BGVal-instance
-        """
-
-        name=Qname
-        u_H0 = H0
-        u_MP = MP
-        dtype = Qdtype
-        def __init__(self, value, BGSystem):
-            super().__init__(value, BGSystem)
-
-    return BGVal
-
-
-def BGFunc(Qname : str, args : list, H0 : int, MP : int, Qdtype : np.dtype=np.float64):
-    """
-    A class factory used to define dimensionful functions of cosmological quantities with a specific scaling behaviour w.r.t
-    an inverse time scale (typically Hubble rate) and a mass scale (typically the Planck mass).
-
-    Parameters
-    ----------
-    name : str
-        the functions name
-    args : list of BGVal
-        a list of BGVals indicating the arguments of the BGFunc.
-    H0 : int
-        the functions' scaling w.r.t. a typical inverse time scale
-    MP : int
-        the functions' scaling w.r.t. a typical mass scale
-    dtype : Numpy Data Type
-        the data type of the BGVal object.
-        
-    Returns
-    -------
-    BGVal
-        a class representing a dimensionful function of a cosmological quantity, e.g., a scalar potential.
-    """
-
-    if not( np.issubdtype(Qdtype, np.floating)
-             or
-             np.issubdtype(Qdtype, np.complexfloating)
-            ):
-        raise TypeError("BGFunc's data-type must be a subtype of np.floating or np.complexfloating.")
-    
-    class BGFunc(Func):
-        """
-        This class represents a dimensionful function of cosmological quantities with a given mass dimension and scaling w.r.t.
-        the Hubble rate and Planck mass.
-        Typical functions are:
-            - scalar potential: scales with H^2, M_pl^2, is a function of a scalar-field amplitude
-            - scalar--gauge-field coupling: scales with H^0, M_pl^1, is a function of a scalar-field amplitude
-        BGFuncs inherit from 'Func' including __call_ and methods related to unit conversion. 
-
-        Attributes
-        ----------
-        name : str
-            the quantities name
-        Args : list of BGVal
-            a list of BGVals indicating the arguments of the BGFunc.
-        u_H0 : int
-            the quantities' scaling w.r.t. a typical inverse time scale
-        u_MP : int
-            the quantities' scaling w.r.t. a typical mass scale
-        dtype : Numpy Data Type
-            the data type of the BGVal object.
-
-        Methods
-        -------
-        GetUnits()
-            (inherited from 'Func') returns 'True' if the BGVal-instance is set to physical units and 'False' if set to numerical units.
-        SetUnits()
-            (inherited from 'Func') convert the 'value' of the BGVal-instance to physical units or numerical units.
-        GetConversion()
-            (inherited from 'Func') retrieve the conversion factor for this BGVal-instance
-        """
-
-        name=Qname
-        u_H0 = H0
-        u_MP = MP
-        Args = args
-        dtype = Qdtype
-        def __init__(self, func, BGSystem):
-            super().__init__(func, BGSystem)
-
-    return BGFunc
-
-
 class BGSystem:
     """
     A collection of cosmological background quantities like cosmic time, Hubble rate, scale-factor etc.
@@ -335,6 +187,238 @@ class BGSystem:
         self.AddBGFunc(name, args, H0units, MPunits)
         self.Initialise(name)(function)
         return
+    
+def BGVal(Qname : str, H0 : int, MP : int, Qdtype : np.dtype=np.float64):
+    """
+    A class factory used to define cosmological quantities like "time", "Hubble rate" etc. with a specific scaling behaviour w.r.t
+    an inverse time scale (typically Hubble rate) and a mass scale (typically the Planck mass).
+
+    Parameters
+    ----------
+    name : str
+        the quantities name
+    H0 : int
+        the quantities' scaling w.r.t. a typical inverse time scale
+    MP : int
+        the quantities' scaling w.r.t. a typical mass scale
+    dtype : Numpy Data Type
+        the data type of the BGVal object.
+        
+    Returns
+    -------
+    BGVal
+        a class representing a cosmological quantity like physical time, Hubble rate, etc.
+    """
+
+    if not( np.issubdtype(Qdtype, np.floating)
+             or
+             np.issubdtype(Qdtype, np.complexfloating)
+            ):
+        raise TypeError("BGVal's data-type must be a subtype of np.floating or np.complexfloating.")
+
+    class BGVal(Val):
+        """
+        This class represents a cosmological quantity with a given mass dimension and scaling w.r.t. the Hubble rate and Planck mass.
+        Typical quantities are:
+            - time: scales with H^(-1), M_pl^0
+            - time derivative: scales with H^1, M_pl^0
+            - scalar-field amplitude: scales with H^0, M_pl^1
+            - scalar-field potential: scales with H^2 M_pl^2
+            - gauge-fields: scales with H^1, M_pl^0 (i.e. like a time derivative)
+        This class inherits from 'Val' including its arithemtic operations and methods relating to unit conversion.
+
+        Attributes
+        ----------
+        name : str
+            the quantities name
+        u_H0 : int
+            the quantities' scaling w.r.t. a typical inverse time scale
+        u_MP : int
+            the quantities' scaling w.r.t. a typical mass scale
+        dtype : Numpy Data Type
+            the data type of the BGVal object.
+        value : NDArray
+            (inherited from 'Val') a 1-dimensional array of values set to the current units of this BGVal-instance.
+            This attribute is used for all arithmetic operations and is converted to physical and numerical units via SetUnits().
+        massdim : int
+            (inherited from 'Val') the mass dimension of this BGVal-instance
+
+        Methods
+        -------
+        GetUnits()
+            (inherited from 'Val') returns 'True' if the BGVal-instance is set to physical units and 'False' if set to numerical units.
+        SetUnits()
+            (inherited from 'Val') convert the 'value' of the BGVal-instance to physical units or numerical units.
+        GetConversion()
+            (inherited from 'Val') retrieve the conversion factor for this BGVal-instance
+
+        Example 1 (defining a BGVal) 
+        -----------------------------
+        ... #create a BGVal object: the electric field expectation value E^2
+        >>> E0 = BGVal("E0", H0=4, MP=0) #since A_mu scales like d / dx^mu 
+        ... 
+        ... #Add 'E0' to a BGSystem in Planck units (M_pl = 1) and H0 = 1e-5*M_pl:
+        >>> U = BGSystem([E0], H0=1e-5, MP=1.)
+        ... 
+        ... #initialise E0 with some value in Planck units:
+        >>> U.Initialise("E0")( 6e-10 )
+        ... #U.E0 is now an instance of BGVal
+
+        Example 2 (converting the units of a BGVal)
+        -------------------------------------------
+        ... #Calling in Planck units is straight forwards:
+        >>> print( U.E0.value )#gives 6e-10 (in Planck units)
+        ... 
+        ... #Switch E0 to numerical units changes the value stored in U.E0:
+        >>> U.E0.SetUnits(False)
+        >>> print( U.E0.value )#gives 6e10 = 6e-10 * U.H0**4 (in numerical units)
+        """
+
+        name=Qname
+        u_H0 = H0
+        u_MP = MP
+        dtype = Qdtype
+        def __init__(self, value, BGSystem):
+            super().__init__(value, BGSystem)
+
+    return BGVal
+
+
+def BGFunc(Qname : str, args : list, H0 : int, MP : int, Qdtype : np.dtype=np.float64):
+    """
+    A class factory used to define dimensionful functions of cosmological quantities with a specific scaling behaviour w.r.t
+    an inverse time scale (typically Hubble rate) and a mass scale (typically the Planck mass).
+
+    Parameters
+    ----------
+    name : str
+        the functions name
+    args : list of BGVal
+        a list of BGVals indicating the arguments of the BGFunc.
+    H0 : int
+        the functions' scaling w.r.t. a typical inverse time scale
+    MP : int
+        the functions' scaling w.r.t. a typical mass scale
+    dtype : Numpy Data Type
+        the data type of the BGVal object.
+        
+    Returns
+    -------
+    BGVal
+        a class representing a dimensionful function of a cosmological quantity, e.g., a scalar potential.
+    """
+
+    if not( np.issubdtype(Qdtype, np.floating)
+             or
+             np.issubdtype(Qdtype, np.complexfloating)
+            ):
+        raise TypeError("BGFunc's data-type must be a subtype of np.floating or np.complexfloating.")
+    
+    class BGFunc(Func):
+        """
+        This class represents a dimensionful function of cosmological quantities with a given mass dimension and scaling w.r.t.
+        the Hubble rate and Planck mass.
+        Typical functions are:
+            - scalar potential: scales with H^2, M_pl^2, is a function of a scalar-field amplitude
+            - scalar--gauge-field coupling: scales with H^0, M_pl^1, is a function of a scalar-field amplitude
+        BGFuncs inherit from 'Func' including __call_ and methods related to unit conversion. 
+
+        Attributes
+        ----------
+        name : str
+            the quantities name
+        Args : list of BGVal
+            a list of BGVals indicating the arguments of the BGFunc.
+        u_H0 : int
+            the quantities' scaling w.r.t. a typical inverse time scale
+        u_MP : int
+            the quantities' scaling w.r.t. a typical mass scale
+        dtype : Numpy Data Type
+            the data type of the BGVal object.
+
+        Methods
+        -------
+        __call__() 
+            (inherited from 'Func') returns the result of the underlying basefunction, f(*args), according to f( *args (in physical units) ).
+            The result of this operation are returned in numerical / physical units depending on the units of the current BGFunc-instance.
+            If called by a BGVal, the conversion of the argument is done using the units of the BGVal-instance. 
+            If called by a non-BGVal arithmetic data type, it is assumed that the argument is in the same unit system as the BGFunc instance. 
+        GetBaseFunc()
+            (inherited from 'Func') returns the underlying function defining the BGFunc-instance.
+        GetUnits()
+            (inherited from 'Func') returns 'True' if the BGFunc-instance is set to physical units and 'False' if set to numerical units.
+        SetUnits()
+            (inherited from 'Func') change __call__() of the BGFunc-instance to physical units or numerical units.
+        GetConversion()
+            (inherited from 'Func') retrieve the conversion factor for this BGFunc-instance
+        
+        Example 1 (defining a BGFunc) 
+        -----------------------------
+        ... #create a BGVal object: the electric field expectation value E^2
+        >>> E0 = BGVal("E0", H0=4, MP=0) #since A_mu scales like d / dx^mu 
+        ...
+        ... #define a BGFunc object: rhoE, the electric field energy density
+        >>> rhoE = BGFunc("rhoE", args=[E0], H0=2, MP=2) # since 3 * M_pl^2 * H^2 = rho
+        ... 
+        ... #collect both in a BGSystem in Planck units (M_pl = 1) and H0 = 1e-5*M_pl:
+        >>> U = BGSystem([E0, rhoE], H0=1e-5, MP=1.)
+        ... 
+        ... #initialise E0 with some value in Planck units:
+        >>> U.Initialise("E0")( 6e-10 )
+        ... #define a function: rhoE = 0.5*E^2
+        >>> func = lambda x: 0.5 * x
+        >>> U.Initialise("rhoE")( func )
+        ... 
+        ... #U.rhoE is now a Callable function with a single argument
+
+        Example 2 (calling a BGFunc by a BGVal)
+        ---------------------------------------
+        ... #Calling in Planck units is straight forwards:
+        >>> print( U.rhoE( U.E0 ) )#gives 3e-10 (in Planck units)
+        ... 
+        ... #compare this to a direct call to 'func':
+        >>> print( func(6e-10) )  #gives 3e-10 (in Planck units)
+        ... 
+        ... #Even if we switch E0 to numerical units, as long as rhoE is in physical units, we get the same result:
+        >>> U.E0.SetUnits(False) #E0.value = 6e10
+        >>> print( U.rhoE(U.E0) ) #gives 3e-10 (still in Planck units)
+        ... 
+        ... #Switching U.rhoE to numerical units means calling rhoE returns values in numerical units:
+        >>> U.rhoE.SetUnits(False)
+        >>> print( U.rhoE(U.E0) ) #gives 3. = 3e-10 / (U.H0*U.MP)**2 (in numerical units)
+        ... 
+        ... #Again, this outcome does not depend on the units of E0:
+        >>> U.E0.SetUnits(True)
+        >>> print( U.rhoE(U.E0) ) #gives 3. = 3e-10 / (U.H0*U.MP)**2 (in numerical units)
+
+        Example 3 (calling a BGFunc by a float)
+        ---------------------------------------
+        ... #instead of calling rhoE by E0, we can call it by a float:
+        >>> val = 6e-10
+        ... 
+        ... #First the behaviour if rhoE is in physical units:
+        >>> U.rhoE.SetUnits(True)
+        >>> print( U.rhoE( val ) )  #gives 3e-10 (in Planck units)
+        ... 
+        ... #Things are different if rhoE is in numerical units:
+        >>> U.rhoE.SetUnits(False)
+        >>> print( U.rhoE(val) ) #gives 3e-20 = 0.5* (6e-10*U.H0**4) / (U.H0*U.MP)**2
+        ... 
+        ... #since val does not have units, it is assumed to be in the units of rhoE.
+        ... # If you want this to give the correct result, you would need to convert val by hand:
+        >>> print( U.rhoE(val/U.H0**4) ) #gives 3., the expected result in numerical units. 
+
+        """
+
+        name=Qname
+        u_H0 = H0
+        u_MP = MP
+        Args = args
+        dtype = Qdtype
+        def __init__(self, func, BGSystem):
+            super().__init__(func, BGSystem)
+
+    return BGFunc
     
 class Quantity:
     """
@@ -530,10 +614,10 @@ class Func(Quantity):
     Methods
     -------
     __call__()
-        returns the result of the underlying basefunction f(*args) according to f( args (in physical units) ).
+        returns the result of the underlying basefunction f(*args) according to f( *args (in physical units) ).
         The result of this operation are returned in numerical / physical units depending on the units of the current Func-instance.
-        If called by a BGVal, the conversion of the argument is handled by knowledge of the current BGVal-instance's 
-        
+        If called by a BGVal, the conversion of the argument is done using the units of the BGVal-instance. 
+        If called by a non-BGVal arithmetic data type, it is assumed that the argument is in the same unit system as the BGFunc instance. 
     GetBaseFunc()
         returns the underlying function defining the Func-instance.
     GetUnits()
