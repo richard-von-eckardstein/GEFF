@@ -60,10 +60,10 @@ class TestBGVal():
     def test_str(self, v1):
         x = self.inst(v1)
         x.SetUnits(True)
-        assert x.__str__() == f"{x.name} (Unitful): {v1}"
+        assert x.__str__() == f"{x.name} (physical): {v1}"
 
         x.SetUnits(False)
-        assert x.__str__() == f"{x.name} (Unitless): {v1/(x.GetConversion())}"
+        assert x.__str__() == f"{x.name} (numerical): {v1/(x.GetConversion())}"
 
     def test_getitem(self, a1):
         x = self.inst(a1)
