@@ -61,9 +61,9 @@ class GaugeSpec(dict):
         for key in modedic.keys():
             assert key in ["t", "N", "k", "Ap", "dAp", "Am", "dAm"]
 
-        assert len(modedic["t"] == len(modedic["N"]))
+        assert len(modedic["t"]) == len(modedic["N"])
         for key in ["Ap", "dAp", "Am", "dAm"]:
-            assert modedic[key].shape() == (len(modedic["k"]), len(modedic["t"]))
+            assert modedic[key].shape == (len(modedic["k"]), len(modedic["t"]))
         super().__init__(modedic)
 
     @classmethod
@@ -142,7 +142,7 @@ class GaugeSpec(dict):
 
         specslice = {}
         for key, item in self.items():
-            if key in ["N", "t", "UVCut"]:
+            if key in ["N", "t", "UVcut"]:
                 specslice[key] = self[key][ind]
             elif key=="k":
                 specslice[key] = self[key]
@@ -167,7 +167,7 @@ class GaugeSpec(dict):
 
         specslice = {}
         for key, item in self.items():
-            if key in ["N", "t", "cutoff"]:
+            if key in ["N", "t", "UVcut"]:
                 specslice[key] = self[key]
             elif key=="k":
                 specslice[key] = self[key][ind]

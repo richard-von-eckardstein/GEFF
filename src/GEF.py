@@ -272,7 +272,7 @@ class GEF(BGSystem):
         """
 
         if path==None:
-            path==self.GEFData
+            path=self.GEFData
         else:
             self.GEFData=path
 
@@ -326,7 +326,7 @@ class GEF(BGSystem):
         
         """
         if path==None:
-            path==self.GEFData
+            path=self.GEFData
         else:
             self.GEFData=path
         
