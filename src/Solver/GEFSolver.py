@@ -8,7 +8,7 @@ from copy import deepcopy
 class TruncationError(Exception):
     pass
 
-def PrintSolution(sol):
+def PrintSummary(sol):
     print("The run terminated with the following statistics:")
     for attr in sol.keys():
         if attr not in ["y", "t", "y_events", "t_events", "sol", "events"]:
@@ -84,7 +84,7 @@ class GEFSolver:
         if done:
             print("GEF run successfully completed.")
             if printstats:
-                PrintSolution(sol)
+                PrintSummary(sol)
             return sol
         else:
             raise RuntimeError(f"GEF did not complete after {attempt} attempts.")
@@ -138,10 +138,10 @@ class GEFSolver:
         lowerrinds = []
         agreement=True
         for err in errs:              
-            if (err > 0.1).any():
+            if (err > 0.05).any():
                 agreement=False
                 #find where the error is above 5%, take the earliest occurance, reduce by 1
-                errInd = np.where(err > 0.05)[0][0]-1                
+                errInd = np.where(err > 0.025)[0][0]-1                
             else:
                 errInd = len(Nerr)-1
             lowerrinds.append(errInd)
@@ -360,6 +360,8 @@ class GEFSolver:
             for key, item in command.items():
                 if key in ["TimeStep", "tend", "atol", "rtol"]:
                     setattr(self, key, item)
+                elif key == "ntr":
+                    self.IncreaseNtr(item)
         
         #Check command priority. Finish command takes priority over repeat, takes priority over proceed
         for primarycommand in ["finish", "repeat", "proceed"]:

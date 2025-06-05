@@ -102,11 +102,11 @@ class GEF(BGSystem):
     -------------------------------------  
     >>> ntr = 100 #the desired value for truncating gauge-field bilinear tower
     ...
-    ... #Solve the GEF-equations and perform Mode-By-Mode comparison to check convergence
+    #Solve the GEF-equations and perform Mode-By-Mode comparison to check convergence
     >>> sol = G.Solver.RunGEF(tend=120, ntr=ntr, atol=1e-20, rtol=1e-6, nmodes=500) 
     >>> G.Solver.ParseArrToUnitsSystem(sol.t, sol.y, G) #Store results in GEF-instance
     ...
-    ... #store the results of the GEF in a file under "Path/To/Some/Output/Directory/File.dat"
+    #store the results of the GEF in a file under "Path/To/Some/Output/Directory/File.dat"
     >>> G.SaveGEFData("Path/To/Some/Output/Directory/File.dat")
 
     Example 3 (Accessing GEF results)
@@ -115,7 +115,7 @@ class GEF(BGSystem):
     ...
     >>> G.LoadGEFData("Path/To/Some/Input/File.dat") #Load data stored under "Path/To/Some/Input/File.dat" 
     ...
-    ... #Retrieve a list of all values stored in the current GEF instance
+    #Retrieve a list of all values stored in the current GEF instance
     >>> print(G.ValueNames())
     ...
     >>> plt.plot(G.N, G.E) #plot the evolution of the electric field expectation value E^2

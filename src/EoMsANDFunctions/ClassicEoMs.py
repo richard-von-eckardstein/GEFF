@@ -172,6 +172,7 @@ def EoMF(F : NDArray, a : float|Val, kh : float|Val, sclrCpl : float,
                     + scale*(FE[1:] - FB[1:]) + sclrCpl*FB[:-1])
 
     #truncation conditions:
+    L = FE.shape[0]//5
     ls = np.arange(1, L+1, 1)
     facl = np.array([math.comb(L, l) for l in range(1,L+1)])
     FEtr = np.sum( (-1)**(ls-1) * facl * FE[-2*ls], axis=0 )
