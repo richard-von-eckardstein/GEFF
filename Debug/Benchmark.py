@@ -49,6 +49,7 @@ def Benchmark(model, setting, loadGEF=True, loadspec=True):
             spec = ReadMode(MbMPath)
         except:
             print("No spectrum found, proceeding without.")
+            spec = None
     else:
         spec = None
 

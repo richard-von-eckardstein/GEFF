@@ -85,7 +85,7 @@ def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
     sigmaE, sigmaB, ks = conductivity(
         vals.a.value, vals.H.value,
           vals.E.value, vals.B.value, vals.G.value
-          , vals.H0) # How do I treat model settings?
+          , vals.H0)
 
     eps = np.vectorize(max)(abs(y[0])*rtol, atol)
     GlobalFerm = Heaviside(np.log(ks/(vals.a*vals.H)), eps)
@@ -127,8 +127,8 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     Fcol = y[6:].shape[0]//3
     F = y[6:].reshape(Fcol,3)
     W = WhittakerApproxSE(vals.xieff.value, vals.s.value)
-    dFdt = EoMFSE( F, vals.kh,
-                  vals.a, 2*vals.H*vals.xieff,
+    dFdt = EoMFSE( F, vals.a,
+                  vals.kh, 2*vals.H*vals.xieff,
                     vals.sigmaE, vals.delta,
                         W, dlnkhdt )
     dydt[6:] = dFdt.reshape(Fcol*3)
