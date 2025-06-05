@@ -180,7 +180,7 @@ class GEFSolver:
         return t0, yini, vals
     
     def InitialiseFromMbM(self, sol, MbM, ReInitSpec):
-        """def NewInitialiser():
+        def NewInitialiser():
             ntr = self.ntr
             rtol = self.rtol
             atol = self.atol
@@ -201,7 +201,9 @@ class GEFSolver:
             gaugeinds = np.where(yini==0.)[0]
 
             #parse back E0, B0, G0 (assuming they are at the same spot, should be the case.)
-            yini[gaugeinds[:3]] = ytmp[gaugeinds[:3]]
+            for i in range(len(yini)):
+                if i not in gaugeinds[3:]:
+                    yini[i] = ytmp[i]
 
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
@@ -214,8 +216,8 @@ class GEFSolver:
             self.ParseArrToUnitSystem(treinit, yini, Temp)
 
             return treinit, yini, Temp
-        return NewInitialiser"""
-        def NewInitialiser():
+        return NewInitialiser
+        """def NewInitialiser():
             ntr = self.ntr
             rtol = self.rtol
             atol = self.atol
@@ -259,7 +261,7 @@ class GEFSolver:
 
 
 
-            return treinit, yini, Temp
+            return treinit, yini, Temp"""
 
         return NewInitialiser
         
