@@ -1,7 +1,6 @@
 import os
 
 import numpy as np
-
 import pandas as pd
 from scipy.interpolate import CubicSpline
 from scipy.integrate import solve_ivp
@@ -142,7 +141,7 @@ class GaugeSpec(dict):
 
         specslice = {}
         for key, item in self.items():
-            if key in ["N", "t", "UVcut"]:
+            if key in ["N", "t"]:
                 specslice[key] = self[key][ind]
             elif key=="k":
                 specslice[key] = self[key]
@@ -167,13 +166,27 @@ class GaugeSpec(dict):
 
         specslice = {}
         for key, item in self.items():
-            if key in ["N", "t", "UVcut"]:
+            if key in ["N", "t"]:
                 specslice[key] = self[key]
             elif key=="k":
                 specslice[key] = self[key][ind]
             else:
                 specslice[key] = self[key][ind,:]
         return specslice
+    
+    def MergeSpectra(self, spec):
+        assert (spec["k"] == self["k"]).all()
+
+        ind = np.where(self["N"]<spec["N"][0])[0][-1]
+
+        for key in self.keys():
+            if key in ["t", "N"]:
+                self[key] = np.concatenate([self[key][:ind], spec[key]])
+            else:
+                if key != "k":
+                    self[key] = np.concatenate([self[key][:,:ind], spec[key]], axis=1)
+        
+        return
     
 def ReadMode(path : str) -> GaugeSpec:   
     """
@@ -261,11 +274,11 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
             - BDInit
             - InitKwargs
             - default-atol
-        This entails that 'ComputeModeSpec' will now evolve modes according to BDInit and ModeEom.
+        This entails that 'ComputeModeSpectrum' will now evolve modes according to BDInit and ModeEom.
 
         Methods
         -------
-        ComputeModeSpec()
+        ComputeModeSpectrum()
             Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
         IntegrateSpec()
             Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
@@ -276,7 +289,7 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
         -------
         >>> M = ModeSolver(G) #initialise the class by a BGSystem or GEF instance
         ... 
-        >>> spec = M.ComputeModeSpec(500) #compute a gauge-field spectrum of 500 modes from G
+        >>> spec = M.ComputeModeSpectrum(500) #compute a gauge-field spectrum of 500 modes from G
         >>> errs, Nerr = M.CompareToBackgroundSolution(spec) #asses the agreement between G and spec
         """
         
@@ -301,7 +314,7 @@ class ModeByMode:
 
     Methods
     -------
-    ComputeModeSpec()
+    ComputeModeSpectrum()
         Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
     IntegrateSpec()
         Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
@@ -312,7 +325,7 @@ class ModeByMode:
     -------
     >>> M = ModeByMode(G) #initialise the class by a BGSystem or GEF instance
     ... 
-    >>> spec = M.ComputeModeSpec(500) #compute a gauge-field spectrum of 500 modes from G
+    >>> spec = M.ComputeModeSpectrum(500) #compute a gauge-field spectrum of 500 modes from G
     >>> errs, Nerr = M.CompareToBackgroundSolution(spec) #asses the agreement between G and spec
     """
 
@@ -403,7 +416,7 @@ class ModeByMode:
         if atol==None:
             atol = self.atol
 
-        modes = np.array([self.EvolveMode(k, tstart[i], teval=teval, atol=atol, rtol=rtol)
+        modes = np.array([self.EvolveFromBD(k, tstart[i], teval=teval, atol=atol, rtol=rtol)
                   for i, k in enumerate(ks)])
         
         spec = GaugeSpec({"t":teval, "N":Neval, "k":ks,
@@ -411,7 +424,81 @@ class ModeByMode:
 
         return spec
     
-    def EvolveMode(self, k : float, tstart : float, teval : list=[],
+    def UpdateSpectrum(self, spec : GaugeSpec, Nstart, Nstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
+        Neval = np.arange(Nstart, max(self.__N), Nstep)
+        teval = CubicSpline(self.__N, self.__t)(Neval)
+
+        indstart = np.where(spec["N"]<Nstart)[0][-1]
+        startspec = spec.TSlice(indstart)
+
+        newspec = {"t":teval, "N":Neval, "k":spec["k"]}
+
+        ks, tvac = self.InitialKTN(startspec["k"], mode="k")
+
+        modes = []
+        for i, k in enumerate(ks):
+            if tvac[i] > teval[0]:
+                modes.append( self.EvolveFromBD(k, tvac[i], teval=teval, atol=atol, rtol=rtol) )
+            else:
+                yini = np.array(
+                            [startspec["Ap"][i].real, startspec["dAp"][i].real,
+                            startspec["Ap"][i].imag, startspec["dAp"][i].imag,
+                            startspec["Am"][i].real, startspec["dAm"][i].real,
+                            startspec["Am"][i].imag, startspec["dAm"][i].imag]
+                            )
+                modes.append( self.EvolveMode(startspec["t"], yini, k, teval, atol, rtol) ) 
+        modes = np.array(modes)
+        newspec.update({"Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
+
+        spec.MergeSpectra(GaugeSpec(newspec))
+
+        return spec
+    
+    def EvolveSpectrum(self, spec : GaugeSpec, Nstart, Nstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
+        Neval = np.arange(Nstart, max(self.__N), Nstep)
+        teval = CubicSpline(self.__N, self.__t)(Neval)
+
+        indstart = np.where(spec["N"]<Nstart)[0][-1]
+        startspec = spec.TSlice(indstart)
+
+        klen = len(spec["k"])
+
+        vecode = np.vectorize(lambda t, y, k: self.ModeEoM(t, y, k, **self.EoMKwargs),
+                                excluded={0, "t"},
+                               signature="(8,n),(n)->(8,n)",
+                               )
+        def ode(t, y):
+            #(k,8) to reshape correctly
+            #transposing to match signature of vecode
+            y = y.reshape(klen,8).T
+            #transposing result s.t. dydt.shape=(k,8)
+            dydt  = vecode(t, y, spec["k"]).T
+            #reshape is correct again
+            return dydt.reshape(8*klen)
+        
+        if atol==None:
+            atol = self.atol
+        
+        yini = np.dstack( (startspec["Ap"].real, startspec["dAp"].real,
+                            startspec["Ap"].imag, startspec["dAp"].imag,
+                            startspec["Am"].real, startspec["dAm"].real,
+                            startspec["Am"].imag, startspec["dAm"].imag))[0].reshape(8*klen)
+        
+        #Solve differential equation from tstart to tmax
+        sol = solve_ivp(ode, [startspec["t"], max(teval)],
+                         yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
+
+        newspec = {"t":teval, "N":Neval, "k":spec["k"]}
+        for i, key in enumerate(["Ap", "dAp"]):
+            newspec[key] = sol.y[i::8,:] + 1j*sol.y[2+i::8,:]
+        for i, key in enumerate(["Am", "dAm"]):
+            newspec[key] = sol.y[4+i::8,:] + 1j*sol.y[6+i::8,:]
+            
+        spec.MergeSpectra(GaugeSpec(newspec))
+
+        return spec
+    
+    def EvolveFromBD(self, k : float, tstart : float, teval : list=[],
                     atol : float|None=None, rtol : float=1e-5) -> Tuple[NDArray, NDArray, NDArray, NDArray]:
         """
         Evolve gauge-field modes for a fixed wavenumber in time starting from Bunch-Davies initial conditions.
@@ -445,47 +532,46 @@ class ModeByMode:
 
         #Initial conditions for y and dydt for both helicities (rescaled appropriately)
         yini = self.BDInit(tstart, k, **self.InitKwargs)
-        
-        #Define ODE
-        ode = lambda t, y: self.ModeEoM(t, y, k, **self.EoMKwargs)
-        
-        #parse teval input
-        if len(teval)==0:
-            teval=self.__t
-        tmax = max(teval)
-        
+
+        istart = np.where(teval>tstart)[0][0]
+
+        yp, dyp, ym, dym = self.EvolveMode(tstart, yini, k, teval[istart:], atol, rtol)
+
         #conformal time needed for relative phases
         eta = self.__etaf(teval)
-
-        istart = 0
-        while teval[istart]<tstart:
-            istart+=1
-
-        if atol==None:
-            atol = self.atol
-        
-        #Solve differential equation from tstart to tmax
-        sol = solve_ivp(ode, [tstart, tmax], yini, t_eval=teval[istart:], method="RK45", atol=atol, rtol=rtol)
         
         #the mode was in vacuum before tstart
-
         yvac = np.array([self.BDInit(t, k, **self.InitKwargs) for t in teval[:istart]]).T 
         phasevac = (np.exp(-1j*k*eta[:istart]))
         vac = yvac * phasevac
 
         #Create array of mode evolution stringing together vacuum and non-vacuum time evolutions to get evolution from t0 to tend
-        yp = np.array( list(vac[0,:] + 1j*vac[2,:])
-                       + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )
-        dyp = np.array( list(vac[1,:] + 1j*vac[3,:])
-                       + list( (sol.y[1,:] + 1j*sol.y[3,:])*np.exp(-1j*k*eta[istart]) ) )
-        
-        ym = np.array( list(vac[4,:] + 1j*vac[6,:])
-                       + list( (sol.y[4,:] + 1j*sol.y[6,:])*np.exp(-1j*k*eta[istart]) ) )
-        dym = np.array( list(vac[5,:] + 1j*vac[7,:])
-                        + list( (sol.y[5,:] + 1j*sol.y[7,:])*np.exp(-1j*k*eta[istart]) ) )
+        yp = np.concatenate([(vac[0,:] + 1j*vac[2,:]), yp*np.exp(-1j*k*eta[istart])])
+        dyp = np.concatenate([(vac[1,:] + 1j*vac[3,:]), dyp*np.exp(-1j*k*eta[istart])])
+        ym = np.concatenate([(vac[4,:] + 1j*vac[6,:]), ym*np.exp(-1j*k*eta[istart])])
+        dym = np.concatenate([(vac[5,:] + 1j*vac[7,:]), dym*np.exp(-1j*k*eta[istart])])
 
         return yp, dyp, ym, dym
     
+    def EvolveMode(self, tini, yini, k : float, teval : NDArray,
+                    atol : float|None=None, rtol : float=1e-5):
+        #Define ODE
+        ode = lambda t, y: self.ModeEoM(t, y, k, **self.EoMKwargs)
+
+        if atol==None:
+            atol = self.atol
+        
+        #Solve differential equation from tstart to tmax
+        sol = solve_ivp(ode, [tini, max(teval)], yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
+
+        yp = (sol.y[0,:] + 1j*sol.y[2,:])
+        dyp = (sol.y[1,:] + 1j*sol.y[3,:])
+        ym = (sol.y[4,:] + 1j*sol.y[6,:])
+        dym = (sol.y[5,:] + 1j*sol.y[7,:])
+
+        return yp, dyp, ym, dym 
+        
+
     def WavenumberArray(self, nvals : int) -> NDArray:
         """
         Create an array of wavenumbers between self.mink and self.maxk. The array is created according to the evolution of the instabiltiy scale
