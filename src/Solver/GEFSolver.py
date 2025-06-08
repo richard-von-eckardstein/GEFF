@@ -63,11 +63,15 @@ class GEFSolver:
             if nmodes!=None:
                 print("Using last successful GEF solution to compute gauge-field mode functions.")
                 MbM = self.ModeByMode(vals)
-                spec = MbM.ComputeModeSpectrum(nmodes)
+                try:
+                    spec["t"]
+                except:
+                    spec = MbM.ComputeModeSpectrum(nmodes)
+                else:
+                    spec = MbM.UpdateSpectrum(spec, Nreinit)
 
-                
                 print("Performing mode-by-mode comparison with GEF results.")
-                agreement, ReInitSpec = self.ModeByModeCrossCheck(MbM, spec)
+                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals)
 
                 if agreement:
                     print(f"The mode-by-mode comparison indicates a convergent GEF run.")
@@ -77,7 +81,7 @@ class GEFSolver:
 
                     print(f"Attempting to solve GEF using self-correction starting from N={Nreinit}.")
 
-                    self.InitialConditions = self.InitialiseFromMbM(sol, MbM, ReInitSpec)
+                    self.InitialConditions = self.InitialiseFromMbM(sol, ReInitSpec)
             else:
                 done=True
         
@@ -132,8 +136,8 @@ class GEFSolver:
 
         return sol, vals
     
-    def ModeByModeCrossCheck(self, MbM, spec):
-        errs, Nerr = MbM.CompareToBackgroundSolution(spec, epsabs=1e-20, epsrel=1e-4)
+    def ModeByModeCrossCheck(self, spec, vals):
+        errs, Nerr = spec.CompareToBackgroundSolution(vals, epsabs=1e-20, epsrel=1e-4)
         
         lowerrinds = []
         agreement=True
@@ -179,7 +183,7 @@ class GEFSolver:
         yini = self.__Initialise(vals, self.ntr)
         return t0, yini, vals
     
-    def InitialiseFromMbM(self, sol, MbM, ReInitSpec):
+    def InitialiseFromMbM(self, sol, ReInitSpec):
         def NewInitialiser():
             ntr = self.ntr
             rtol = self.rtol
@@ -208,7 +212,7 @@ class GEFSolver:
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
                                     [
-                                    MbM.IntegrateSpecSlice(ReInitSpec, n=n,epsabs=atol, epsrel=rtol*1e-2)[0]
+                                    ReInitSpec.IntegrateSpecSlice(n=n,epsabs=atol, epsrel=rtol*1e-2)[0]
                                     for n in range(1,ntr+1)
                                     ]
                                     ).reshape(3*ntr)
