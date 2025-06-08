@@ -141,13 +141,13 @@ class GaugeSpec(dict):
 
         specslice = {}
         for key, item in self.items():
-            if key in ["N", "t"]:
+            if key in ["N", "t", "cut"]:
                 specslice[key] = self[key][ind]
             elif key=="k":
                 specslice[key] = self[key]
             else:
                 specslice[key] = self[key][:,ind]
-        return specslice
+        return GaugeSpecSlice(specslice)
     
     def KSlice(self, ind : int) -> dict:
         """
@@ -166,7 +166,7 @@ class GaugeSpec(dict):
 
         specslice = {}
         for key, item in self.items():
-            if key in ["N", "t"]:
+            if key in ["N", "t", "cut"]:
                 specslice[key] = self[key]
             elif key=="k":
                 specslice[key] = self[key][ind]
@@ -178,6 +178,8 @@ class GaugeSpec(dict):
         assert (spec["k"] == self["k"]).all()
 
         ind = np.where(self["N"]<spec["N"][0])[0][-1]
+        
+        self.pop("cut")
 
         for key in self.keys():
             if key in ["t", "N"]:
@@ -185,8 +187,181 @@ class GaugeSpec(dict):
             else:
                 if key != "k":
                     self[key] = np.concatenate([self[key][:,:ind], spec[key]], axis=1)
-        
         return
+    
+    def AddCutOff(self, BG : BGSystem, cutoff="kh"):
+        units = BG.GetUnits()
+        BG.SetUnits(False)
+
+        scale = getattr(BG, cutoff)
+        self["cut"] = CubicSpline(BG.t, scale)(self["t"])
+        
+        BG.SetUnits(units)
+
+        return self["cut"]
+    
+    def GetReferenceGaugeFields(self, BG : BGSystem, references=["E", "B", "G"], cutoff="kh"): 
+        units = BG.GetUnits()
+        BG.SetUnits(False)
+
+        scale = getattr(BG, cutoff)
+
+        Fref = []
+        for val in references:
+            Fref.append( CubicSpline(BG.t, getattr(BG, val)*(BG.a/scale)**4)(self["t"]) )
+
+        BG.SetUnits(units)
+
+        return Fref
+    
+    def IntegrateSpec(self, BG : BGSystem, n : int=0, epsabs=1e-20, epsrel=1e-4, cutoff="kh") -> NDArray:
+        """
+        Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
+
+        Parameters
+        ----------
+        spec : GaugeSpec
+            the spectrum to be integrated
+        n : int
+            the power in curls in the expectation value, i.e. (E rot^n E).
+        epsabs : float
+            absolute tolerance used by scipy.integrate.quad
+        epsrel : float
+            relative tolerance used by scipy.integrate.quad 
+
+        Returns
+        -------
+        NDArray
+            an array of shape (len(spec["t"]), 3) corresponding to (E, rot^n E), (B, rot^n B), (E, rot^n B)
+        """
+
+        self.AddCutOff(BG, cutoff)
+
+        tdim = self.GetDim()["tdim"]
+
+        FMbM = np.zeros((tdim, 3))
+        for i in range(tdim):
+            specslice = self.TSlice(i)
+            FMbM[i,:] = specslice.IntegrateSpecSlice(n=n, epsabs=epsabs, epsrel=epsrel)[0]
+        
+        return FMbM
+
+    def CompareToBackgroundSolution(self, BG : BGSystem, epsabs : float=1e-20, epsrel : float=1e-4, verbose : bool=True,
+                                    references : list[str]=["E", "B", "G"], cutoff : str="kh") -> Tuple[list, NDArray]:
+        """
+        Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds.
+
+        Parameters
+        ----------
+        spec : GaugeSpec
+            the spectrum against which to compare the GEF results.
+        epsabs : float
+            absolute tolerance used by scipy.integrate.quad
+        epsrel : float
+            relative tolerance used by scipy.integrate.quad 
+
+        Returns
+        -------
+        errs : list
+            a list of estimated errors, each index corresponding to E^2, B^2, E.B respectively
+        Nerr : NDArray
+            an array of e-fold-bins to which the errors in errs are associated.
+        """
+
+        FMbM = self.IntegrateSpec(BG, n=0, epsabs=epsabs, epsrel=epsrel, cutoff=cutoff)
+
+        errs = []
+
+        Neval = self["N"]
+
+        Nmax = Neval[-1]
+
+        #Create e-fold bins of 1-efold corresponding to the error arrays in errs
+        if Nmax%1>0.5:
+            Nerr = np.concatenate([np.arange(20, Nmax, 1), np.array([Nmax])])
+        else:
+            Nerr = np.concatenate([np.arange(20, Nmax-1, 1), np.array([Nmax])])
+        Nbins = np.concatenate([np.arange(19.5, Nmax, 1), np.array([Nmax])])
+
+        Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
+
+        for i, spl in enumerate(Fref):
+            #average error over 1 e-fold to dampen impact of short time-scale spikes
+            err =  abs( (FMbM[:,i]-spl) / spl )
+            sum, _  = np.histogram(Neval, bins=Nbins, weights=err)
+            count, _  = np.histogram(Neval, bins=Nbins)
+            errs.append(sum/count)
+    
+        Nerr = np.round(Nerr, 1)
+        if verbose:
+            print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:")
+            for i, key in enumerate(references):
+                err = errs[i]
+                errind = np.where(err == max(err))
+                maxerr = np.round(100*err[errind][0], 1)
+                Nmaxerr = Nerr[errind][0]#np.round(Nerr[errind][0], 1)
+                errend = np.round(100*err[-1], 1)
+                Nerrend = Nerr[-1]#np.round(Nerr[-1], 1)
+                print(f"-- {key} --")
+                print(f"maximum relative deviation: {maxerr}% at N={Nmaxerr}")
+                print(f"final relative deviation: {errend}% at N={Nerrend}")
+
+        return errs, Nerr
+    
+class GaugeSpecSlice(dict):
+    def __init__(self, modedic):
+        super().__init__(modedic)
+
+    def IntegrateSpecSlice(self, n : int=0, epsabs : float=1e-20, epsrel : float=1e-4) -> Tuple[NDArray, NDArray]:
+        """
+        Integrate an input spectrum at a fixed time t to obtain (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
+
+        Parameters
+        ----------
+        specAtT : dict
+            the spectrum at time t, obtained by GaugeSpec.TSlice
+            n : int
+            the power in curls in the expectation value, i.e. E rot^n E etc.
+        epsabs : float
+            absolute tolerance used by scipy.integrate.quad
+        epsrel : float
+            relative tolerance used by scipy.integrate.quad 
+
+        Returns
+        -------
+        vals : NDArray
+            an array of size 3 corresponding to (E, rot^n E), (B, rot^n B), (E, rot^n B)
+        errs : NDArray
+            the error on vals as estimated by scipy.integrate.quad
+        """
+        z = self["k"]/self["cut"]
+
+        prefac = 1/(2*np.pi)**2
+        helicities = ["p", "m"]
+        Eterm = 0.
+        Bterm = 0.
+        Gterm = 0.
+        for i, lam in enumerate(helicities):
+            sgn = np.sign(0.5-i)
+            Eterm += prefac*sgn**n*abs(self["dA"+lam])**2
+            Bterm += prefac*sgn**n*abs(self["A"+lam])**2
+            Gterm += prefac*sgn**(n+1)*(self["A"+lam].conjugate()*self["dA"+lam]).real
+
+        integrand = np.array([Eterm, Bterm, Gterm])
+        
+        x = (n+4)*np.log(z)
+
+        vals = []
+        errs = []
+        for k in range(3):
+            spl = CubicSpline(x, integrand[k,:])
+            f = lambda x: spl(x)*np.exp(x)/(n+4)
+            val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
+            vals.append(val)
+            errs.append(err)
+
+        return vals, errs
+
     
 def ReadMode(path : str) -> GaugeSpec:   
     """
@@ -649,152 +824,6 @@ class ModeByMode:
             raise KeyError("'mode' must be 't', 'k' or 'N'")
 
         return k, tstart
-    
-    
-    def IntegrateSpec(self, spec : GaugeSpec, n : int=0, epsabs=1e-20, epsrel=1e-4) -> NDArray:
-        """
-        Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
-
-        Parameters
-        ----------
-        spec : GaugeSpec
-            the spectrum to be integrated
-        n : int
-            the power in curls in the expectation value, i.e. (E rot^n E).
-        epsabs : float
-            absolute tolerance used by scipy.integrate.quad
-        epsrel : float
-            relative tolerance used by scipy.integrate.quad 
-
-        Returns
-        -------
-        NDArray
-            an array of shape (len(spec["t"]), 3) corresponding to (E, rot^n E), (B, rot^n B), (E, rot^n B)
-        """
-
-        tdim = spec.GetDim()["tdim"]
-        
-        FMbM = np.zeros((tdim, 3))
-        for i in range(tdim):
-            specslice = spec.TSlice(i)
-            FMbM[i,:] = self.IntegrateSpecSlice(specslice, n=n, epsabs=epsabs, epsrel=epsrel)[0]
-        
-        return FMbM
-
-    def IntegrateSpecSlice(self, specAtT : dict, n : int=0,
-                            epsabs : float=1e-20, epsrel : float=1e-4) -> Tuple[NDArray, NDArray]:
-        """
-        Integrate an input spectrum at a fixed time t to obtain (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
-
-        Parameters
-        ----------
-        specAtT : dict
-            the spectrum at time t, obtained by GaugeSpec.TSlice
-            n : int
-            the power in curls in the expectation value, i.e. E rot^n E etc.
-        epsabs : float
-            absolute tolerance used by scipy.integrate.quad
-        epsrel : float
-            relative tolerance used by scipy.integrate.quad 
-
-        Returns
-        -------
-        vals : NDArray
-            an array of size 3 corresponding to (E, rot^n E), (B, rot^n B), (E, rot^n B)
-        errs : NDArray
-            the error on vals as estimated by scipy.integrate.quad
-        """
-
-        t = specAtT["t"]
-        z = specAtT["k"]/self.__khf(t)
-
-        prefac = 1/(2*np.pi)**2
-        helicities = ["p", "m"]
-        Eterm = 0.
-        Bterm = 0.
-        Gterm = 0.
-        for i, lam in enumerate(helicities):
-            sgn = np.sign(0.5-i)
-            Eterm += prefac*sgn**n*abs(specAtT["dA"+lam])**2
-            Bterm += prefac*sgn**n*abs(specAtT["A"+lam])**2
-            Gterm += prefac*sgn**(n+1)*(specAtT["A"+lam].conjugate()*specAtT["dA"+lam]).real
-
-        integrand = np.array([Eterm, Bterm, Gterm])
-        
-        x = (n+4)*np.log(z)
-
-        vals = []
-        errs = []
-        for k in range(3):
-            spl = CubicSpline(x, integrand[k,:])
-            f = lambda x: spl(x)*np.exp(x)/(n+4)
-            val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
-            vals.append(val)
-            errs.append(err)
-
-        return vals, errs
-
-    def CompareToBackgroundSolution(self, spec : GaugeSpec, epsabs=1e-20, epsrel=1e-4, verbose=True) -> Tuple[list, NDArray]:
-        """
-        Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds.
-
-        Parameters
-        ----------
-        spec : GaugeSpec
-            the spectrum against which to compare the GEF results.
-        epsabs : float
-            absolute tolerance used by scipy.integrate.quad
-        epsrel : float
-            relative tolerance used by scipy.integrate.quad 
-
-        Returns
-        -------
-        errs : list
-            a list of estimated errors, each index corresponding to E^2, B^2, E.B respectively
-        Nerr : NDArray
-            an array of e-fold-bins to which the errors in errs are associated.
-        """
-        
-        FMbM = self.IntegrateSpec(spec, n=0, epsabs=epsabs, epsrel=epsrel)
-
-        keys = ["E", "B", "G"]
-        errs = []
-
-        Neval = spec["N"]
-
-        Nmax = Neval[-1]
-
-        #Create e-fold bins of 1-efold corresponding to the error arrays in errs
-        if Nmax%1>0.5:
-            Nerr = np.concatenate([np.arange(20, Nmax, 1), np.array([Nmax])])
-        else:
-            Nerr = np.concatenate([np.arange(20, Nmax-1, 1), np.array([Nmax])])
-        Nbins = np.concatenate([np.arange(19.5, Nmax, 1), np.array([Nmax])])
-
-        for i, key in enumerate(keys):
-            spl = getattr(self, f"__{key}f")(Neval) #call interpolated GEF solution
-            #average error over 1 e-fold to dampen impact of short time-scale spikes
-            err =  abs( (FMbM[:,i]-spl) / spl )
-            sum, _  = np.histogram(Neval, bins=Nbins, weights=err)
-            count, _  = np.histogram(Neval, bins=Nbins)
-            errs.append(sum/count)
-    
-        Nerr = np.round(Nerr, 1)
-        if verbose:
-            print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:")
-            for i, key in enumerate(keys):
-                err = errs[i]
-                errind = np.where(err == max(err))
-                maxerr = np.round(100*err[errind][0], 1)
-                Nmaxerr = Nerr[errind][0]#np.round(Nerr[errind][0], 1)
-                errend = np.round(100*err[-1], 1)
-                Nerrend = Nerr[-1]#np.round(Nerr[-1], 1)
-                print(f"-- {key} --")
-                print(f"maximum relative deviation: {maxerr}% at N={Nmaxerr}")
-                print(f"final relative deviation: {errend}% at N={Nerrend}")
-
-        return errs, Nerr
-
 
 
 
