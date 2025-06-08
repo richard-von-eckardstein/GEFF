@@ -84,7 +84,7 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     Fcol = y[4:].shape[0]//3
     F = y[4:].reshape(Fcol,3)
     W = WhittakerApprox(vals.xi.value)
-    dFdt = EoMF(F, vals.a, vals.kh, 2*vals.H*vals.xi, W, dlnkhdt)
+    dFdt = EoMF(F, vals.a, vals.kh, 2*vals.H*vals.xi, W, dlnkhdt, L=20)
     
     dydt[4:] = dFdt.reshape(Fcol*3)
 
@@ -94,14 +94,14 @@ ModeByMode = ModeSolver(ModeEq=ModeEoMClassic, EoMkeys=["a", "xi", "H"],
                          BDEq=BDClassic, Initkeys=[], default_atol=1e-3)
 
 #Event 1:
-def EndOfInflationFunc(t, y, vals, atol, rtol):
+def EndOfInflation_Condition(t, y, vals, atol, rtol):
     dphi = y[2]
     V = vals.V(y[1])
     rhoEB = 0.5*(y[4]+y[5])*(vals.H0/vals.MP)**2*np.exp(4*(y[3]-y[0]))
     val = np.log(abs((dphi**2 + rhoEB)/V))
     return val
 
-def EndOfInflationConsequence(vals, occurance):
+def EndOfInflation_Consequence(vals, occurance):
     if occurance:
         return {"primary":"finish"}
     else:
@@ -112,9 +112,23 @@ def EndOfInflationConsequence(vals, occurance):
         print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
         return {"primary":"proceed", "secondary":{"tend":tend}}
     
-EndOfInflation = Event("End of inflation", EndOfInflationFunc, True, 1, EndOfInflationConsequence)
+EndOfInflation = Event("End of inflation",
+                        EndOfInflation_Condition, True, 1, EndOfInflation_Consequence)
 
-events = [EndOfInflation]
+#Event 2:
+def NegativeEnergies_Condition(t, y, vals, atol, rtol):
+    return min(y[4], y[5])
+
+def NegativeEnergies_Consequence(vals, occurance):
+    if occurance:
+        return {"primary":"finish"}
+    else:
+        return {"primary":"proceed"}
+    
+NegativeEnergies = Event("Negative energies",
+                          NegativeEnergies_Condition, True, -1, NegativeEnergies_Consequence)
+
+events = [EndOfInflation, NegativeEnergies]
 
 
     

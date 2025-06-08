@@ -261,11 +261,11 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
             - BDInit
             - InitKwargs
             - default-atol
-        This entails that 'ComputeModeSpec' will now evolve modes according to BDInit and ModeEom.
+        This entails that 'ComputeModeSpectrum' will now evolve modes according to BDInit and ModeEom.
 
         Methods
         -------
-        ComputeModeSpec()
+        ComputeModeSpectrum()
             Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
         IntegrateSpec()
             Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
@@ -276,7 +276,7 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
         -------
         >>> M = ModeSolver(G) #initialise the class by a BGSystem or GEF instance
         ... 
-        >>> spec = M.ComputeModeSpec(500) #compute a gauge-field spectrum of 500 modes from G
+        >>> spec = M.ComputeModeSpectrum(500) #compute a gauge-field spectrum of 500 modes from G
         >>> errs, Nerr = M.CompareToBackgroundSolution(spec) #asses the agreement between G and spec
         """
         
@@ -301,7 +301,7 @@ class ModeByMode:
 
     Methods
     -------
-    ComputeModeSpec()
+    ComputeModeSpectrum()
         Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
     IntegrateSpec()
         Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
@@ -312,7 +312,7 @@ class ModeByMode:
     -------
     >>> M = ModeByMode(G) #initialise the class by a BGSystem or GEF instance
     ... 
-    >>> spec = M.ComputeModeSpec(500) #compute a gauge-field spectrum of 500 modes from G
+    >>> spec = M.ComputeModeSpectrum(500) #compute a gauge-field spectrum of 500 modes from G
     >>> errs, Nerr = M.CompareToBackgroundSolution(spec) #asses the agreement between G and spec
     """
 
