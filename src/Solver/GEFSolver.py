@@ -42,7 +42,8 @@ class GEFSolver:
         dydt = self.TimeStep(t, y, vals, atol=atol, rtol=rtol)
         return dydt
 
-    def RunGEF(self, ntr, tend, atol, rtol, nmodes=500, printstats=True, MbMattempts=5, **AlgorithmKwargs):
+    def RunGEF(self, ntr, tend, atol, rtol, nmodes=500,
+               resumeMode=True, wbin=0.1, printstats=True, MbMattempts=5, **AlgorithmKwargs):
         self.ntr=ntr
         self.tend=tend
         self.atol=atol
@@ -63,15 +64,19 @@ class GEFSolver:
             if nmodes!=None:
                 print("Using last successful GEF solution to compute gauge-field mode functions.")
                 MbM = self.ModeByMode(vals)
-                try:
-                    spec["t"]
-                except:
-                    spec = MbM.ComputeModeSpectrum(nmodes)
+
+                if resumeMode:    
+                    try:
+                        spec["t"]
+                    except:
+                        spec = MbM.ComputeModeSpectrum(nmodes)
+                    else:
+                        spec = MbM.UpdateSpectrum(spec, Nreinit)
                 else:
-                    spec = MbM.UpdateSpectrum(spec, Nreinit)
+                    spec = MbM.ComputeModeSpectrum(nmodes)
 
                 print("Performing mode-by-mode comparison with GEF results.")
-                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals)
+                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, wbin)
 
                 if agreement:
                     print(f"The mode-by-mode comparison indicates a convergent GEF run.")
@@ -136,8 +141,8 @@ class GEFSolver:
 
         return sol, vals
     
-    def ModeByModeCrossCheck(self, spec, vals):
-        errs, Nerr = spec.CompareToBackgroundSolution(vals, epsabs=1e-20, epsrel=1e-4)
+    def ModeByModeCrossCheck(self, spec, vals, wbin):
+        errs, Nerr = spec.CompareToBackgroundSolution(vals, binwidth=wbin, epsabs=1e-20, epsrel=self.rtol)
         
         lowerrinds = []
         agreement=True
@@ -145,7 +150,8 @@ class GEFSolver:
             if (err > 0.05).any():
                 agreement=False
                 #find where the error is above 5%, take the earliest occurance, reduce by 1
-                errInd = np.where(err > 0.025)[0][0]-1                
+                inds = np.where(err > 0.02)
+                errInd = inds[0][0]-1               
             else:
                 errInd = len(Nerr)-1
             lowerrinds.append(errInd)
@@ -195,7 +201,8 @@ class GEFSolver:
             Temp = deepcopy(self.iniVals)
 
             #Construct yini from interpolation:
-            ytmp = np.array([(CubicSpline(sol.t, sol.y[i,:])(treinit)) for i in range(sol.y.shape[0])])
+            ytmp = np.array([(CubicSpline(sol.t, sol.y[i,:])(treinit))
+                              for i in range(sol.y.shape[0])])
 
             #Parse yini to Temp
             self.ParseArrToUnitSystem(treinit, ytmp, Temp)
@@ -215,7 +222,7 @@ class GEFSolver:
                                     ReInitSpec.IntegrateSpecSlice(n=n,epsabs=atol, epsrel=rtol*1e-2)[0]
                                     for n in range(1,ntr+1)
                                     ]
-                                    ).reshape(3*ntr)
+                                    ).reshape(3*(ntr))
             
             self.ParseArrToUnitSystem(treinit, yini, Temp)
 

@@ -177,7 +177,7 @@ class GaugeSpec(dict):
     def MergeSpectra(self, spec):
         assert (spec["k"] == self["k"]).all()
 
-        ind = np.where(self["N"]<spec["N"][0])[0][-1]
+        ind = np.where(self["N"]<=spec["N"][0])[0][-1]
         
         self.pop("cut")
 
@@ -187,6 +187,45 @@ class GaugeSpec(dict):
             else:
                 if key != "k":
                     self[key] = np.concatenate([self[key][:,:ind], spec[key]], axis=1)
+        return
+    
+    def AddMomenta(self, spec):
+        assert (np.round(spec["N"],1) == np.round(self["N"],1)).all()
+
+        newks = []
+        mds = ["Ap", "dAp", "Am", "dAm"]
+        newmodes = dict( zip(mds, [ [] for i in mds]) )
+
+        for i, k in enumerate(self["k"]):
+            mask = np.where(k > spec["k"])[0]
+            if len(mask) != 0:
+                newks.append(spec["k"][mask])    
+                spec["k"] = np.delete(spec["k"], mask)
+                for md in mds:
+                    newmodes[md].append(spec[md][mask,:])
+                    spec[md] = np.delete(spec[md], mask, axis=0)
+            newks.append(np.array([k]))
+            for md in mds:
+                newmodes[md].append(np.array([self[md][i,:]]))
+        
+        mask = np.where(spec["k"] > k)[0]
+        if len(mask) != 0:
+            newks.append(spec["k"][mask])    
+            spec["k"] = np.delete(spec["k"], mask)
+            for md in mds:
+                newmodes[md].append(spec[md][mask,:])
+                spec[md] = np.delete(spec[md], mask, axis=0)
+
+        self["k"] = np.concatenate(newks)
+        for md in mds:
+            self[md] = np.concatenate(newmodes[md], axis=0)
+
+        return
+    
+    def RemoveMomenta(self, ind):
+        self["k"] = np.delete(self["k"], ind)
+        for md in ["Ap", "dAp", "Am", "dAm"]:
+            self[md] = np.delete(self[md], ind, axis=0)
         return
     
     def AddCutOff(self, BG : BGSystem, cutoff="kh"):
@@ -246,7 +285,7 @@ class GaugeSpec(dict):
         
         return FMbM
 
-    def CompareToBackgroundSolution(self, BG : BGSystem, epsabs : float=1e-20, epsrel : float=1e-4, verbose : bool=True,
+    def CompareToBackgroundSolution(self, BG : BGSystem, binwidth=1.0, epsabs : float=1e-20, epsrel : float=1e-4, verbose : bool=True,
                                     references : list[str]=["E", "B", "G"], cutoff : str="kh") -> Tuple[list, NDArray]:
         """
         Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds.
@@ -277,11 +316,11 @@ class GaugeSpec(dict):
         Nmax = Neval[-1]
 
         #Create e-fold bins of 1-efold corresponding to the error arrays in errs
-        if Nmax%1>0.5:
-            Nerr = np.concatenate([np.arange(20, Nmax, 1), np.array([Nmax])])
+        if Nmax%binwidth>binwidth/2:
+            Nerr = np.concatenate([np.arange(20, Nmax, binwidth), np.array([Nmax])])
         else:
-            Nerr = np.concatenate([np.arange(20, Nmax-1, 1), np.array([Nmax])])
-        Nbins = np.concatenate([np.arange(19.5, Nmax, 1), np.array([Nmax])])
+            Nerr = np.concatenate([np.arange(20, Nmax-binwidth, binwidth), np.array([Nmax])])
+        Nbins = np.concatenate([np.arange(20-binwidth/2, Nmax, binwidth), np.array([Nmax])])
 
         Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
 
@@ -558,7 +597,7 @@ class ModeByMode:
         
         return
     
-    def ComputeModeSpectrum(self, nvals : int, Nstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
+    def ComputeModeSpectrum(self, nvals : int, Nstep : float=0.1, t_interval=None, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
         """
         Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
 
@@ -581,15 +620,13 @@ class ModeByMode:
         GaugeSpec 
             the gauge-field spectrum
         """
-
-        ks, tstart = self.InitialKTN(self.WavenumberArray(nvals), mode="k")
+        if t_interval==None:
+            t_interval = (self.__tmin, max(self.__t))
+        ks, tstart = self.InitialKTN(self.WavenumberArray(nvals, t_interval), mode="k")
 
         Neval = np.arange(5, max(self.__N), Nstep)
 
         teval = CubicSpline(self.__N, self.__t)(Neval)
-
-        if atol==None:
-            atol = self.atol
 
         modes = np.array([self.EvolveFromBD(k, tstart[i], teval=teval, atol=atol, rtol=rtol)
                   for i, k in enumerate(ks)])
@@ -603,15 +640,30 @@ class ModeByMode:
         Neval = np.arange(Nstart, max(self.__N), Nstep)
         teval = CubicSpline(self.__N, self.__t)(Neval)
 
-        indstart = np.where(spec["N"]<Nstart)[0][-1]
+        tstart = teval[0]
+        tend = teval[-1]
+        indstart = np.where(spec["t"]<teval[0])[0][-1]
         startspec = spec.TSlice(indstart)
 
-        newspec = {"t":teval, "N":Neval, "k":spec["k"]}
+        #keep mode-evolution from old spectrum for modes with k < 10*kh(tstart)
+        old = np.where(spec["k"] < 10*self.__khf(tstart))[0]
+        new = np.where(spec["k"] > 10*self.__khf(tstart))[0]
+        
+        #add new modes, adjusting for longer time-span:
+        n_newmodes = int(len(new)*(teval[-1] - teval[0])/(max(spec["t"]) - tstart))
 
-        ks, tvac = self.InitialKTN(startspec["k"], mode="k")
+        newspec = self.ComputeModeSpectrum(n_newmodes, Nstep=Nstep, t_interval=(tstart, tend))
+
+        #Remove updated modes from old spectrum:
+        spec.RemoveMomenta(new)
+
+        #Update evolution of modes in spec:
+        kold, tvac = self.InitialKTN(spec["k"][old], mode="k")
+
+        updatespec={"t":teval, "N":Neval, "k":kold}
 
         modes = []
-        for i, k in enumerate(ks):
+        for i, k in enumerate(kold):
             if tvac[i] > teval[0]:
                 modes.append( self.EvolveFromBD(k, tvac[i], teval=teval, atol=atol, rtol=rtol) )
             else:
@@ -621,11 +673,14 @@ class ModeByMode:
                             startspec["Am"][i].real, startspec["dAm"][i].real,
                             startspec["Am"][i].imag, startspec["dAm"][i].imag]
                             )
-                modes.append( self.EvolveMode(startspec["t"], yini, k, teval, atol, rtol) ) 
+                modes.append( self.EvolveMode(tstart, yini, k, teval, atol, rtol) ) 
         modes = np.array(modes)
-        newspec.update({"Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
 
-        spec.MergeSpectra(GaugeSpec(newspec))
+        updatespec.update({"Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
+        
+        spec.MergeSpectra(GaugeSpec(updatespec))
+
+        spec.AddMomenta(newspec)
 
         return spec
     
@@ -747,7 +802,7 @@ class ModeByMode:
         return yp, dyp, ym, dym 
         
 
-    def WavenumberArray(self, nvals : int) -> NDArray:
+    def WavenumberArray(self, nvals : int, t_interval : tuple) -> NDArray:
         """
         Create an array of wavenumbers between self.mink and self.maxk. The array is created according to the evolution of the instabiltiy scale
         such that it contains more modes close to the instability scale at late times.
@@ -764,7 +819,7 @@ class ModeByMode:
         """
 
         #create an array of values log(10*kh(t))
-        logks = np.round( np.log(10*self.__khf(np.linspace(self.__tmin, self.__t[-1], nvals))), 3)
+        logks = np.round( np.log(10*self.__khf(np.linspace(t_interval[0], t_interval[1], nvals))), 3)
         #filter out all values that are repeating (kh is not strictly monotonous)
         logks = np.unique((logks))
 
