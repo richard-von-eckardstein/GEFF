@@ -177,9 +177,10 @@ class GaugeSpec(dict):
     def MergeSpectra(self, spec):
         assert (spec["k"] == self["k"]).all()
 
-        ind = np.where(self["N"]<=spec["N"][0])[0][-1]
-        
-        self.pop("cut")
+        ind = np.where(self["t"]<=spec["t"][0])[0][-1]
+
+        if "cut" in self.keys():
+            self.pop("cut")
 
         for key in self.keys():
             if key in ["t", "N"]:
@@ -190,7 +191,7 @@ class GaugeSpec(dict):
         return
     
     def AddMomenta(self, spec):
-        assert (np.round(spec["N"],1) == np.round(self["N"],1)).all()
+        assert (np.round(spec["t"],1) == np.round(self["t"],1)).all()
 
         newks = []
         mds = ["Ap", "dAp", "Am", "dAm"]
@@ -311,41 +312,54 @@ class GaugeSpec(dict):
 
         errs = []
 
-        Neval = self["N"]
+        teval = self["t"]
 
-        Nmax = Neval[-1]
+        #tmax = teval[-1]
 
-        #Create e-fold bins of 1-efold corresponding to the error arrays in errs
-        if Nmax%binwidth>binwidth/2:
-            Nerr = np.concatenate([np.arange(20, Nmax, binwidth), np.array([Nmax])])
+        """#Create e-fold bins of 1-efold corresponding to the error arrays in errs
+        if tmax%binwidth>binwidth/2:
+            terr = np.concatenate([np.arange(20, tmax, binwidth), np.array([tmax])])
         else:
-            Nerr = np.concatenate([np.arange(20, Nmax-binwidth, binwidth), np.array([Nmax])])
-        Nbins = np.concatenate([np.arange(20-binwidth/2, Nmax, binwidth), np.array([Nmax])])
+            terr = np.concatenate([np.arange(20, tmax-binwidth, binwidth), np.array([tmax])])
+        tbins = np.concatenate([np.arange(20-binwidth/2, tmax, binwidth), np.array([tmax])])
 
         Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
 
         for i, spl in enumerate(Fref):
             #average error over 1 e-fold to dampen impact of short time-scale spikes
             err =  abs( (FMbM[:,i]-spl) / spl )
-            sum, _  = np.histogram(Neval, bins=Nbins, weights=err)
-            count, _  = np.histogram(Neval, bins=Nbins)
-            errs.append(sum/count)
-    
-        Nerr = np.round(Nerr, 1)
+            sum, _  = np.histogram(teval, bins=tbins, weights=err)
+            count, _  = np.histogram(teval, bins=tbins)
+            errs.append(sum/count)"""
+        Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
+
+        for i, spl in enumerate(Fref):
+            err =  abs( (FMbM[:,i]-spl) / spl )
+            errs.append(err)
+        
+        removals = []
+        for err in errs:
+            #remove the first few errors where the density of modes is low:
+            removals.append(np.where(err < 0.025)[0][0])
+        
+        ind = max(removals)
+        errs = [err[ind:] for err in errs]
+        terr = np.round(teval[ind:], 1)
+
         if verbose:
             print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:")
             for i, key in enumerate(references):
                 err = errs[i]
                 errind = np.where(err == max(err))
                 maxerr = np.round(100*err[errind][0], 1)
-                Nmaxerr = Nerr[errind][0]#np.round(Nerr[errind][0], 1)
+                tmaxerr = terr[errind][0]#np.round(Nerr[errind][0], 1)
                 errend = np.round(100*err[-1], 1)
-                Nerrend = Nerr[-1]#np.round(Nerr[-1], 1)
+                terrend = terr[-1]#np.round(Nerr[-1], 1)
                 print(f"-- {key} --")
-                print(f"maximum relative deviation: {maxerr}% at N={Nmaxerr}")
-                print(f"final relative deviation: {errend}% at N={Nerrend}")
+                print(f"maximum relative deviation: {maxerr}% at t={tmaxerr}")
+                print(f"final relative deviation: {errend}% at t={terrend}")
 
-        return errs, Nerr
+        return errs, terr
     
 class GaugeSpecSlice(dict):
     def __init__(self, modedic):
@@ -597,7 +611,7 @@ class ModeByMode:
         
         return
     
-    def ComputeModeSpectrum(self, nvals : int, Nstep : float=0.1, t_interval=None, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
+    def ComputeModeSpectrum(self, nvals : int, tstep : float=0.1, t_interval=None, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
         """
         Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
 
@@ -624,9 +638,8 @@ class ModeByMode:
             t_interval = (self.__tmin, max(self.__t))
         ks, tstart = self.InitialKTN(self.WavenumberArray(nvals, t_interval), mode="k")
 
-        Neval = np.arange(5, max(self.__N), Nstep)
-
-        teval = CubicSpline(self.__N, self.__t)(Neval)
+        teval = np.arange(np.ceil(5/tstep), np.floor(max(self.__t)/tstep)+1)*tstep
+        Neval = CubicSpline(self.__t, self.__N)(teval)
 
         modes = np.array([self.EvolveFromBD(k, tstart[i], teval=teval, atol=atol, rtol=rtol)
                   for i, k in enumerate(ks)])
@@ -636,25 +649,21 @@ class ModeByMode:
 
         return spec
     
-    def UpdateSpectrum(self, spec : GaugeSpec, Nstart, Nstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
-        Neval = np.arange(Nstart, max(self.__N), Nstep)
-        teval = CubicSpline(self.__N, self.__t)(Neval)
-
-        tstart = teval[0]
+    def UpdateSpectrum(self, spec : GaugeSpec, tstart, tstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
+        
+        teval = np.arange(np.ceil(tstart/tstep), np.floor(max(self.__t)/tstep)+1)*tstep
+        Neval = CubicSpline(self.__t, self.__N)(teval)
+        
         tend = teval[-1]
         indstart = np.where(spec["t"]<teval[0])[0][-1]
         startspec = spec.TSlice(indstart)
+        tstart = startspec["t"]
 
         #keep mode-evolution from old spectrum for modes with k < 10*kh(tstart)
         old = np.where(spec["k"] < 10*self.__khf(tstart))[0]
         new = np.where(spec["k"] > 10*self.__khf(tstart))[0]
-        
-        #add new modes, adjusting for longer time-span:
-        n_newmodes = int(len(new)*(teval[-1] - teval[0])/(max(spec["t"]) - tstart))
 
-        newspec = self.ComputeModeSpectrum(n_newmodes, Nstep=Nstep, t_interval=(tstart, tend))
-
-        #Remove updated modes from old spectrum:
+        #Remove modes which need to be renewed from old spectrum:
         spec.RemoveMomenta(new)
 
         #Update evolution of modes in spec:
@@ -677,14 +686,19 @@ class ModeByMode:
         modes = np.array(modes)
 
         updatespec.update({"Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
-        
+
         spec.MergeSpectra(GaugeSpec(updatespec))
 
-        spec.AddMomenta(newspec)
-
+        #add new modes, adjusting for longer time-span:
+        n_newmodes = int(len(new)*max((teval[-1] - teval[0])/(max(spec["t"]) - tstart), 1))
+        if n_newmodes > 0:
+            newspec = self.ComputeModeSpectrum(n_newmodes, tstep=tstep, t_interval=(tstart, tend))
+            #Add new modes
+            spec.AddMomenta(newspec)
+        
         return spec
     
-    def EvolveSpectrum(self, spec : GaugeSpec, Nstart, Nstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
+    """def EvolveSpectrum(self, spec : GaugeSpec, Nstart, Nstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
         Neval = np.arange(Nstart, max(self.__N), Nstep)
         teval = CubicSpline(self.__N, self.__t)(Neval)
 
@@ -726,7 +740,7 @@ class ModeByMode:
             
         spec.MergeSpectra(GaugeSpec(newspec))
 
-        return spec
+        return spec"""
     
     def EvolveFromBD(self, k : float, tstart : float, teval : list=[],
                     atol : float|None=None, rtol : float=1e-5) -> Tuple[NDArray, NDArray, NDArray, NDArray]:

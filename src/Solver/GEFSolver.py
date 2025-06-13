@@ -142,23 +142,24 @@ class GEFSolver:
         return sol, vals
     
     def ModeByModeCrossCheck(self, spec, vals, wbin):
-        errs, Nerr = spec.CompareToBackgroundSolution(vals, binwidth=wbin, epsabs=1e-20, epsrel=self.rtol)
+        errs, terr = spec.CompareToBackgroundSolution(vals, binwidth=wbin, epsabs=1e-20, epsrel=self.rtol)
         
-        lowerrinds = []
+        thr = 0.05
+        reinitinds = []
         agreement=True
-        for err in errs:              
-            if (err > 0.05).any():
+        for err in errs:
+            if (err > thr).any():
                 agreement=False
                 #find where the error is above 5%, take the earliest occurance, reduce by 1
-                inds = np.where(err > 0.02)
+                inds = np.where(err > 0.025)
                 errInd = inds[0][0]-1               
             else:
-                errInd = len(Nerr)-1
-            lowerrinds.append(errInd)
+                errInd = len(terr)-1
+            reinitinds.append( errInd )
 
-        N0 = Nerr[min(lowerrinds)]
+        t0 = terr[min(reinitinds)]
 
-        ind = np.where(spec["N"] <= N0)[0][-1]
+        ind = np.where(spec["t"] <= t0)[0][-1]
 
         ReInitSlice = spec.TSlice(ind)
 
