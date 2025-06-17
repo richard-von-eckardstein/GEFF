@@ -43,7 +43,8 @@ class GEFSolver:
         return dydt
 
     def RunGEF(self, ntr, tend, atol, rtol, nmodes=500,
-               resumeMode=True, wbin=0.1, printstats=True, MbMattempts=5, **AlgorithmKwargs):
+               resumeMode=True, wbin=0.1, errthr=0.025,
+                 printstats=True, MbMattempts=5, **AlgorithmKwargs):
         self.ntr=ntr
         self.tend=tend
         self.atol=atol
@@ -71,20 +72,21 @@ class GEFSolver:
                     except:
                         spec = MbM.ComputeModeSpectrum(nmodes)
                     else:
-                        spec = MbM.UpdateSpectrum(spec, Nreinit)
+                        spec = MbM.UpdateSpectrum(spec, treinit)
                 else:
                     spec = MbM.ComputeModeSpectrum(nmodes)
 
                 print("Performing mode-by-mode comparison with GEF results.")
-                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, wbin)
+                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, wbin, errthr=errthr)
 
                 if agreement:
                     print(f"The mode-by-mode comparison indicates a convergent GEF run.")
                     done=True
                 else:
                     Nreinit = np.round(ReInitSpec["N"], 1)
+                    treinit = np.round(ReInitSpec["t"], 1)
 
-                    print(f"Attempting to solve GEF using self-correction starting from N={Nreinit}.")
+                    print(f"Attempting to solve GEF using self-correction starting from t={treinit}, N={Nreinit}.")
 
                     self.InitialConditions = self.InitialiseFromMbM(sol, ReInitSpec)
             else:
@@ -141,17 +143,16 @@ class GEFSolver:
 
         return sol, vals
     
-    def ModeByModeCrossCheck(self, spec, vals, wbin):
-        errs, terr = spec.CompareToBackgroundSolution(vals, binwidth=wbin, epsabs=1e-20, epsrel=self.rtol)
+    def ModeByModeCrossCheck(self, spec, vals, wbin, errthr):
+        errs, terr,_ = spec.CompareToBackgroundSolution(vals, binwidth=wbin, errthr=errthr, epsabs=1e-20, epsrel=self.rtol)
         
-        thr = 0.05
         reinitinds = []
         agreement=True
         for err in errs:
-            if (err > thr).any():
+            if (err > 0.05).any():
                 agreement=False
                 #find where the error is above 5%, take the earliest occurance, reduce by 1
-                inds = np.where(err > 0.025)
+                inds = np.where(err > errthr)
                 errInd = inds[0][0]-1               
             else:
                 errInd = len(terr)-1
@@ -220,10 +221,10 @@ class GEFSolver:
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
                                     [
-                                    ReInitSpec.IntegrateSpecSlice(n=n,epsabs=atol, epsrel=rtol*1e-2)[0]
+                                    ReInitSpec.IntegrateSpecSlice(n=n,epsabs=atol, epsrel=rtol*1e-2)
                                     for n in range(1,ntr+1)
                                     ]
-                                    ).reshape(3*(ntr))
+                                    )[:,:,0].reshape(3*(ntr))
             
             self.ParseArrToUnitSystem(treinit, yini, Temp)
 

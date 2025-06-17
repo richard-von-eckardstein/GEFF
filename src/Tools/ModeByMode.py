@@ -279,14 +279,15 @@ class GaugeSpec(dict):
 
         tdim = self.GetDim()["tdim"]
 
-        FMbM = np.zeros((tdim, 3))
+        FMbM = np.zeros((tdim, 3,2))
         for i in range(tdim):
             specslice = self.TSlice(i)
-            FMbM[i,:] = specslice.IntegrateSpecSlice(n=n, epsabs=epsabs, epsrel=epsrel)[0]
+            FMbM[i,:] = specslice.IntegrateSpecSlice(n=n, epsabs=epsabs, epsrel=epsrel)
         
         return FMbM
 
-    def CompareToBackgroundSolution(self, BG : BGSystem, binwidth=1.0, epsabs : float=1e-20, epsrel : float=1e-4, verbose : bool=True,
+    def CompareToBackgroundSolution(self, BG : BGSystem, binwidth=1.0, errthr=0.02,
+                                    epsabs : float=1e-20, epsrel : float=1e-4, verbose : bool=True,
                                     references : list[str]=["E", "B", "G"], cutoff : str="kh") -> Tuple[list, NDArray]:
         """
         Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds.
@@ -314,37 +315,42 @@ class GaugeSpec(dict):
 
         teval = self["t"]
 
-        #tmax = teval[-1]
+        
 
         """#Create e-fold bins of 1-efold corresponding to the error arrays in errs
+
+        tmax = teval[-1]
         if tmax%binwidth>binwidth/2:
-            terr = np.concatenate([np.arange(20, tmax, binwidth), np.array([tmax])])
+            terr = np.concatenate([np.arange(1, tmax, binwidth), np.array([tmax])])
         else:
-            terr = np.concatenate([np.arange(20, tmax-binwidth, binwidth), np.array([tmax])])
-        tbins = np.concatenate([np.arange(20-binwidth/2, tmax, binwidth), np.array([tmax])])
+            terr = np.concatenate([np.arange(1, tmax-binwidth, binwidth), np.array([tmax])])
+        tbins = np.concatenate([np.arange(1-binwidth/2, tmax, binwidth), np.array([tmax])])
 
         Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
 
         for i, spl in enumerate(Fref):
             #average error over 1 e-fold to dampen impact of short time-scale spikes
-            err =  abs( (FMbM[:,i]-spl) / spl )
+            err =  abs( (FMbM[:,i,0]-spl) / spl )
             sum, _  = np.histogram(teval, bins=tbins, weights=err)
             count, _  = np.histogram(teval, bins=tbins)
             errs.append(sum/count)"""
+
+        
         Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
 
         for i, spl in enumerate(Fref):
-            err =  abs( (FMbM[:,i]-spl) / spl )
+            err =  abs( (FMbM[:,i,0]-spl) / spl )
             errs.append(err)
+        terr = teval
         
         removals = []
         for err in errs:
             #remove the first few errors where the density of modes is low:
-            removals.append(np.where(err < 0.025)[0][0])
+            removals.append(np.where(err < errthr)[0][0])
         
         ind = max(removals)
         errs = [err[ind:] for err in errs]
-        terr = np.round(teval[ind:], 1)
+        terr = np.round(terr[ind:], 1)
 
         if verbose:
             print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:")
@@ -359,7 +365,7 @@ class GaugeSpec(dict):
                 print(f"maximum relative deviation: {maxerr}% at t={tmaxerr}")
                 print(f"final relative deviation: {errend}% at t={terrend}")
 
-        return errs, terr
+        return errs, terr, FMbM[:,:,1]
     
 class GaugeSpecSlice(dict):
     def __init__(self, modedic):
@@ -387,7 +393,12 @@ class GaugeSpecSlice(dict):
         errs : NDArray
             the error on vals as estimated by scipy.integrate.quad
         """
-        z = self["k"]/self["cut"]
+        x = (n+4)*np.log(self["k"]/self["cut"])
+        #only integrate up to kh
+        msk = np.where(x <= 0)[0]
+        x = x[msk]
+        if len(x)<=2:
+            return np.array([(0,0) for i in range(3)])
 
         prefac = 1/(2*np.pi)**2
         helicities = ["p", "m"]
@@ -400,21 +411,24 @@ class GaugeSpecSlice(dict):
             Bterm += prefac*sgn**n*abs(self["A"+lam])**2
             Gterm += prefac*sgn**(n+1)*(self["A"+lam].conjugate()*self["dA"+lam]).real
 
-        integrand = np.array([Eterm, Bterm, Gterm])
-        
-        x = (n+4)*np.log(z)
+        integrand = np.array([Eterm, Bterm, Gterm])[:,msk]
 
-        vals = []
-        errs = []
+        res = []
         for k in range(3):
-            spl = CubicSpline(x, integrand[k,:])
-            f = lambda x: spl(x)*np.exp(x)/(n+4)
+            #since the integrand is exponential, interpolate log
+            spl = CubicSpline(x, np.log(abs(integrand[k,:])))
+            #sign changes should not occur, but to be sure, interpolate sign(integrand)
+            sgn = CubicSpline(x, np.sign(integrand[k,:]))
+            f = lambda x: sgn(x)*np.exp(spl(x) + x)
             val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
-            vals.append(val)
-            errs.append(err)
+            val = val/(n+4)
+            err = err/(n+4)
+            if val != 0:
+                res.append( (val, abs(err/val)) )
+            else:
+                res.append( (val, 0.) )
 
-        return vals, errs
-
+        return res
     
 def ReadMode(path : str) -> GaugeSpec:   
     """
@@ -634,6 +648,7 @@ class ModeByMode:
         GaugeSpec 
             the gauge-field spectrum
         """
+
         if t_interval==None:
             t_interval = (self.__tmin, max(self.__t))
         ks, tstart = self.InitialKTN(self.WavenumberArray(nvals, t_interval), mode="k")
@@ -649,6 +664,7 @@ class ModeByMode:
 
         return spec
     
+    #at the moment, it does not seem feasable to use this.
     def UpdateSpectrum(self, spec : GaugeSpec, tstart, tstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
         
         teval = np.arange(np.ceil(tstart/tstep), np.floor(max(self.__t)/tstep)+1)*tstep
@@ -665,6 +681,10 @@ class ModeByMode:
 
         #Remove modes which need to be renewed from old spectrum:
         spec.RemoveMomenta(new)
+
+        #add new modes, adjusting for longer time-span:
+        #rethink this! It seems like overkill
+        n_newmodes = int(len(new)*max((teval[-1] - teval[0])/(max(spec["t"]) - tstart), 1))
 
         #Update evolution of modes in spec:
         kold, tvac = self.InitialKTN(spec["k"][old], mode="k")
@@ -689,8 +709,6 @@ class ModeByMode:
 
         spec.MergeSpectra(GaugeSpec(updatespec))
 
-        #add new modes, adjusting for longer time-span:
-        n_newmodes = int(len(new)*max((teval[-1] - teval[0])/(max(spec["t"]) - tstart), 1))
         if n_newmodes > 0:
             newspec = self.ComputeModeSpectrum(n_newmodes, tstep=tstep, t_interval=(tstart, tend))
             #Add new modes
