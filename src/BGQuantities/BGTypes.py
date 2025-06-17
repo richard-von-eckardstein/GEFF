@@ -273,12 +273,12 @@ class BGSystem:
         funcs = self.FunctionList()
         
         for value in values:
-            obj = deepcopy(value.value)
-            newsystem.Initialise(value.name)(obj)
+            obj = deepcopy(value)
+            newsystem.Initialise(obj.name)(obj.value)
 
         for func in funcs:
-            obj = func.GetBaseFunc()
-            newsystem.Initialise(func.name)(obj)
+            obj = deepcopy(func)
+            newsystem.Initialise(obj.name)(obj.GetBaseFunc())
         
         self.SetUnits(units)
         
