@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 import pandas as pd
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import CubicSpline, interp1d
 from scipy.integrate import solve_ivp
 from scipy.integrate import quad
 
@@ -371,6 +371,22 @@ class GaugeSpecSlice(dict):
     def __init__(self, modedic):
         super().__init__(modedic)
 
+    def ESpec(self, lam):
+        return abs(self["dA"+lam])**2
+    
+    def BSpec(self, lam):
+        return abs(self["A"+lam])**2
+    
+    def GSpec(self, lam):
+        return (self["A"+lam].conjugate()*self["dA"+lam]).real
+
+    def Integrate(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
+        spl = CubicSpline(x, np.log(abs(integrand)+epsabs/10))
+        sgn = CubicSpline(x, np.sign(integrand))
+        f = lambda x: sgn(x)*np.exp(spl(x) + x)
+        val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
+        return np.array([val, err])
+        
     def IntegrateSpecSlice(self, n : int=0, epsabs : float=1e-20, epsrel : float=1e-4) -> Tuple[NDArray, NDArray]:
         """
         Integrate an input spectrum at a fixed time t to obtain (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
@@ -394,40 +410,23 @@ class GaugeSpecSlice(dict):
             the error on vals as estimated by scipy.integrate.quad
         """
         x = (n+4)*np.log(self["k"]/self["cut"])
-        #only integrate up to kh
-        msk = np.where(x <= 0)[0]
-        x = x[msk]
-        if len(x)<=2:
-            return np.array([(0,0) for i in range(3)])
 
         prefac = 1/(2*np.pi)**2
         helicities = ["p", "m"]
-        Eterm = 0.
-        Bterm = 0.
-        Gterm = 0.
+        integs = np.zeros((3, len(x)))
         for i, lam in enumerate(helicities):
             sgn = np.sign(0.5-i)
-            Eterm += prefac*sgn**n*abs(self["dA"+lam])**2
-            Bterm += prefac*sgn**n*abs(self["A"+lam])**2
-            Gterm += prefac*sgn**(n+1)*(self["A"+lam].conjugate()*self["dA"+lam]).real
+            integs[0,:] += sgn**n*self.ESpec(lam)
+            integs[1,:] += sgn**n*self.BSpec(lam)
+            integs[2,:] += sgn**(n+1)*self.GSpec(lam)
 
-        integrand = np.array([Eterm, Bterm, Gterm])[:,msk]
+        res = np.zeros((3,2))
+        for i in range(3):
+            res[i,:] = self.Integrate( integs[i,:], x, epsabs, epsrel)
 
-        res = []
-        for k in range(3):
-            #since the integrand is exponential, interpolate log
-            spl = CubicSpline(x, np.log(abs(integrand[k,:])))
-            #sign changes should not occur, but to be sure, interpolate sign(integrand)
-            sgn = CubicSpline(x, np.sign(integrand[k,:]))
-            f = lambda x: sgn(x)*np.exp(spl(x) + x)
-            val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
-            val = val/(n+4)
-            err = err/(n+4)
-            if val != 0:
-                res.append( (val, abs(err/val)) )
-            else:
-                res.append( (val, 0.) )
+        res = prefac*res/(n+4)
 
+        res[:,1] = abs(res[:,1]/res[:,0])
         return res
     
 def ReadMode(path : str) -> GaugeSpec:   
