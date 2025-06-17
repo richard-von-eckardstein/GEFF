@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import CubicSpline, interp1d
 from scipy.integrate import solve_ivp
-from scipy.integrate import quad
+from scipy.integrate import quad, simps
 
 from src.BGQuantities.BGTypes import Val, BGSystem
 from src.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
@@ -254,7 +254,7 @@ class GaugeSpec(dict):
 
         return Fref
     
-    def IntegrateSpec(self, BG : BGSystem, n : int=0, epsabs=1e-20, epsrel=1e-4, cutoff="kh") -> NDArray:
+    def IntegrateSpec(self, BG : BGSystem, n : int=0, cutoff="kh", **IntegratorKwargs) -> NDArray:
         """
         Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
 
@@ -282,13 +282,13 @@ class GaugeSpec(dict):
         FMbM = np.zeros((tdim, 3,2))
         for i in range(tdim):
             specslice = self.TSlice(i)
-            FMbM[i,:] = specslice.IntegrateSpecSlice(n=n, epsabs=epsabs, epsrel=epsrel)
+            FMbM[i,:] = specslice.IntegrateSpecSlice(n=n, **IntegratorKwargs)
         
         return FMbM
 
-    def CompareToBackgroundSolution(self, BG : BGSystem, binwidth=1.0, errthr=0.02,
-                                    epsabs : float=1e-20, epsrel : float=1e-4, verbose : bool=True,
-                                    references : list[str]=["E", "B", "G"], cutoff : str="kh") -> Tuple[list, NDArray]:
+    def CompareToBackgroundSolution(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
+                                    errthr=0.02, verbose : bool=True,
+                                    **IntegratorKwargs) -> Tuple[list, NDArray]:
         """
         Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds.
 
@@ -309,33 +309,12 @@ class GaugeSpec(dict):
             an array of e-fold-bins to which the errors in errs are associated.
         """
 
-        FMbM = self.IntegrateSpec(BG, n=0, epsabs=epsabs, epsrel=epsrel, cutoff=cutoff)
+        FMbM = self.IntegrateSpec(BG, n=0, cutoff=cutoff, **IntegratorKwargs)
 
         errs = []
 
         teval = self["t"]
-
-        
-
-        """#Create e-fold bins of 1-efold corresponding to the error arrays in errs
-
-        tmax = teval[-1]
-        if tmax%binwidth>binwidth/2:
-            terr = np.concatenate([np.arange(1, tmax, binwidth), np.array([tmax])])
-        else:
-            terr = np.concatenate([np.arange(1, tmax-binwidth, binwidth), np.array([tmax])])
-        tbins = np.concatenate([np.arange(1-binwidth/2, tmax, binwidth), np.array([tmax])])
-
-        Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
-
-        for i, spl in enumerate(Fref):
-            #average error over 1 e-fold to dampen impact of short time-scale spikes
-            err =  abs( (FMbM[:,i,0]-spl) / spl )
-            sum, _  = np.histogram(teval, bins=tbins, weights=err)
-            count, _  = np.histogram(teval, bins=tbins)
-            errs.append(sum/count)"""
-
-        
+      
         Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
 
         for i, spl in enumerate(Fref):
@@ -379,15 +358,19 @@ class GaugeSpecSlice(dict):
     
     def GSpec(self, lam):
         return (self["A"+lam].conjugate()*self["dA"+lam]).real
+    
+    def SimpsInt(self, integrand, x):
+        integrand = integrand*np.exp(x)
+        return simps(integrand, x)
 
-    def Integrate(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
+    def QuadInt(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
         spl = CubicSpline(x, np.log(abs(integrand)+epsabs/10))
         sgn = CubicSpline(x, np.sign(integrand))
         f = lambda x: sgn(x)*np.exp(spl(x) + x)
-        val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
+        val, err = quad(f, min(x), 0., epsabs=epsabs, epsrel=epsrel)
         return np.array([val, err])
         
-    def IntegrateSpecSlice(self, n : int=0, epsabs : float=1e-20, epsrel : float=1e-4) -> Tuple[NDArray, NDArray]:
+    def IntegrateSpecSlice(self, n : int=0, epsabs : float=1e-20, epsrel : float=1e-4, method="simpson") -> Tuple[NDArray, NDArray]:
         """
         Integrate an input spectrum at a fixed time t to obtain (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
 
@@ -421,8 +404,17 @@ class GaugeSpecSlice(dict):
             integs[2,:] += sgn**(n+1)*self.GSpec(lam)
 
         res = np.zeros((3,2))
+        
+        msk = np.where(x < 0)[0]
+        if len(msk) < 2:
+            return res
+        x = x[msk]
         for i in range(3):
-            res[i,:] = self.Integrate( integs[i,:], x, epsabs, epsrel)
+            if method=="simpson":
+                res[i,:] = self.SimpsInt( integs[i,msk], x)
+            elif method=="quad":
+                res[i,:] = self.QuadInt( integs[i,msk], x, epsabs, epsrel)
+            res[i,1] = 1e-6*res[i,0]
 
         res = prefac*res/(n+4)
 
@@ -624,7 +616,7 @@ class ModeByMode:
         
         return
     
-    def ComputeModeSpectrum(self, nvals : int, tstep : float=0.1, t_interval=None, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
+    def ComputeModeSpectrum(self, nvals : int, tstep : float=0.1, t_interval=None, **SolverKwargs) -> GaugeSpec:
         """
         Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
 
@@ -655,7 +647,7 @@ class ModeByMode:
         teval = np.arange(np.ceil(5/tstep), np.floor(max(self.__t)/tstep)+1)*tstep
         Neval = CubicSpline(self.__t, self.__N)(teval)
 
-        modes = np.array([self.EvolveFromBD(k, tstart[i], teval=teval, atol=atol, rtol=rtol)
+        modes = np.array([self.EvolveFromBD(k, tstart[i], teval=teval, **SolverKwargs)
                   for i, k in enumerate(ks)])
         
         spec = GaugeSpec({"t":teval, "N":Neval, "k":ks,
@@ -664,7 +656,7 @@ class ModeByMode:
         return spec
     
     #at the moment, it does not seem feasable to use this.
-    def UpdateSpectrum(self, spec : GaugeSpec, tstart, tstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
+    def UpdateSpectrum(self, spec : GaugeSpec, tstart, tstep : float=0.1, **SolverKwargs) -> GaugeSpec:
         
         teval = np.arange(np.ceil(tstart/tstep), np.floor(max(self.__t)/tstep)+1)*tstep
         Neval = CubicSpline(self.__t, self.__N)(teval)
@@ -693,7 +685,7 @@ class ModeByMode:
         modes = []
         for i, k in enumerate(kold):
             if tvac[i] > teval[0]:
-                modes.append( self.EvolveFromBD(k, tvac[i], teval=teval, atol=atol, rtol=rtol) )
+                modes.append( self.EvolveFromBD(k, tvac[i], teval=teval, **SolverKwargs) )
             else:
                 yini = np.array(
                             [startspec["Ap"][i].real, startspec["dAp"][i].real,
@@ -701,7 +693,7 @@ class ModeByMode:
                             startspec["Am"][i].real, startspec["dAm"][i].real,
                             startspec["Am"][i].imag, startspec["dAm"][i].imag]
                             )
-                modes.append( self.EvolveMode(tstart, yini, k, teval, atol, rtol) ) 
+                modes.append( self.EvolveMode(tstart, yini, k, teval, **SolverKwargs) ) 
         modes = np.array(modes)
 
         updatespec.update({"Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})

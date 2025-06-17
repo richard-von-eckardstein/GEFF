@@ -43,22 +43,30 @@ class GEFSolver:
         return dydt
 
     def RunGEF(self, ntr, tend, atol, rtol, nmodes=500,
-               resumeMode=True, wbin=0.1, errthr=0.025,
-                 printstats=True, MbMattempts=5, **AlgorithmKwargs):
+                 printstats=True, **Kwargs):
         self.ntr=ntr
         self.tend=tend
         self.atol=atol
         self.rtol=rtol
-        reachNend = AlgorithmKwargs.get("reachNend", True)
-        ensureConvergence = AlgorithmKwargs.get("ensureConvergence", False)
-        maxattempts = AlgorithmKwargs.get("maxattempts", 5)
+
+        reachNend = Kwargs.get("reachNend", True)
+        ensureConvergence = Kwargs.get("ensureConvergence", False)
+        GEFattempts = Kwargs.get("GEFttempts", 5)
+        MbMattempts = Kwargs.get("MbMattempts", 5)
+        tstep = Kwargs.get("tstep", 0.1)
+        errthr = Kwargs.get("errthr", 0.025)
+        resumeMode = Kwargs.get("resumeMode", True)
+        IntMethod = Kwargs.get("IntMethod", "simpson")
+
+        MbMKwargs = {"method":IntMethod, "epsabs":self.atol, "epsrel":self.rtol}
+
 
         done=False
         sol = None
         attempt=0
         while not(done) and attempt<MbMattempts:
             attempt +=1
-            solnew, vals = self.GEFAlgorithm(reachNend, ensureConvergence, maxattempts)
+            solnew, vals = self.GEFAlgorithm(reachNend, ensureConvergence, GEFattempts)
             sol = self.UpdateSol(sol, solnew)
             self.ParseArrToUnitSystem(sol.t, sol.y, vals)
 
@@ -70,14 +78,14 @@ class GEFSolver:
                     try:
                         spec["t"]
                     except:
-                        spec = MbM.ComputeModeSpectrum(nmodes)
+                        spec = MbM.ComputeModeSpectrum(nmodes, tstep=tstep, rtol=self.rtol)
                     else:
-                        spec = MbM.UpdateSpectrum(spec, treinit)
+                        spec = MbM.UpdateSpectrum(spec, treinit, tstep=tstep, rtol=self.rtol)
                 else:
-                    spec = MbM.ComputeModeSpectrum(nmodes)
+                    spec = MbM.ComputeModeSpectrum(nmodes, tstep=tstep, rtol=self.rtol)
 
                 print("Performing mode-by-mode comparison with GEF results.")
-                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, wbin, errthr=errthr)
+                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, errthr=errthr, **MbMKwargs)
 
                 if agreement:
                     print(f"The mode-by-mode comparison indicates a convergent GEF run.")
@@ -88,7 +96,7 @@ class GEFSolver:
 
                     print(f"Attempting to solve GEF using self-correction starting from t={treinit}, N={Nreinit}.")
 
-                    self.InitialConditions = self.InitialiseFromMbM(sol, ReInitSpec)
+                    self.InitialConditions = self.InitialiseFromMbM(sol, ReInitSpec, **MbMKwargs)
             else:
                 done=True
         
@@ -143,8 +151,8 @@ class GEFSolver:
 
         return sol, vals
     
-    def ModeByModeCrossCheck(self, spec, vals, wbin, errthr):
-        errs, terr,_ = spec.CompareToBackgroundSolution(vals, binwidth=wbin, errthr=errthr, epsabs=1e-20, epsrel=self.rtol)
+    def ModeByModeCrossCheck(self, spec, vals, errthr, **MbMKwargs):
+        errs, terr,_ = spec.CompareToBackgroundSolution(vals, errthr=errthr, **MbMKwargs)
         
         reinitinds = []
         agreement=True
@@ -191,7 +199,7 @@ class GEFSolver:
         yini = self.__Initialise(vals, self.ntr)
         return t0, yini, vals
     
-    def InitialiseFromMbM(self, sol, ReInitSpec):
+    def InitialiseFromMbM(self, sol, ReInitSpec, **MbMKwargs):
         def NewInitialiser():
             ntr = self.ntr
             rtol = self.rtol
@@ -221,7 +229,7 @@ class GEFSolver:
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
                                     [
-                                    ReInitSpec.IntegrateSpecSlice(n=n,epsabs=atol, epsrel=rtol*1e-2)
+                                    ReInitSpec.IntegrateSpecSlice(n=n,**MbMKwargs)
                                     for n in range(1,ntr+1)
                                     ]
                                     )[:,:,0].reshape(3*(ntr))
@@ -229,53 +237,6 @@ class GEFSolver:
             self.ParseArrToUnitSystem(treinit, yini, Temp)
 
             return treinit, yini, Temp
-        return NewInitialiser
-        """def NewInitialiser():
-            ntr = self.ntr
-            rtol = self.rtol
-            atol = self.atol
-
-            treinit = ReInitSpec["t"]
-
-            #Use the original "Initialise" to zero out all GEF-bilinear values
-
-            Temp = deepcopy(self.iniVals)
-
-            Temp.N.value = ReInitSpec["N"]
-
-            ytmp = self.__Initialise(Temp, ntr)
-
-            gaugeinds = np.where(ytmp==0.)[0]
-
-
-            #Append initial data at time t based on the original ODE-solution
-
-            yini = np.zeros_like(ytmp)
-
-            for i in range(len(ytmp)):
-
-                if i not in gaugeinds[3:]:
-
-                    yini[i] = (CubicSpline(sol.t, sol.y[i,:])(treinit))
-
-            # compute En, Bn, Gn, for n>1 from Modes
-
-            yini[gaugeinds[3:]] = np.array([
-                                    MbM.IntegrateSpecSlice(ReInitSpec, n=n,epsabs=atol, epsrel=rtol*1e-2)[0]
-                                    for n in range(1,ntr+1)
-                                    ]
-                                    ).reshape(3*ntr)
-
-
-
-            #Prepare value system for solver
-
-            self.ParseArrToUnitSystem(treinit, yini, Temp)
-
-
-
-            return treinit, yini, Temp"""
-
         return NewInitialiser
         
     def ParseArrToUnitSystem(self, t, y, vals):
