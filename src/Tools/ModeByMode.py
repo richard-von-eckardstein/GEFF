@@ -287,7 +287,7 @@ class GaugeSpec(dict):
         return FMbM
 
     def CompareToBackgroundSolution(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
-                                    errthr=0.02, verbose : bool=True,
+                                    errthr=0.025, verbose : bool=True,
                                     **IntegratorKwargs) -> Tuple[list, NDArray]:
         """
         Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds.
@@ -326,7 +326,7 @@ class GaugeSpec(dict):
         for err in errs:
             #remove the first few errors where the density of modes is low:
             removals.append(np.where(err < errthr)[0][0])
-        
+        #ind = 0
         ind = max(removals)
         errs = [err[ind:] for err in errs]
         terr = np.round(terr[ind:], 1)
@@ -364,13 +364,22 @@ class GaugeSpecSlice(dict):
         return simps(integrand, x)
 
     def QuadInt(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
+        msk = np.where(abs(integrand) > epsrel*1e-2*abs(integrand))[0]
         spl = CubicSpline(x, np.log(abs(integrand)+epsabs/10))
         sgn = CubicSpline(x, np.sign(integrand))
         f = lambda x: sgn(x)*np.exp(spl(x) + x)
-        val, err = quad(f, min(x), 0., epsabs=epsabs, epsrel=epsrel)
+        val, err = quad(f, x[msk[0]], 0., epsabs=epsabs, epsrel=epsrel)
         return np.array([val, err])
+    
+    def OldQuadInt(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
+        spl = CubicSpline(x, integrand)
+        f = lambda x: spl(x)*np.exp(x)
+        val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
+        return np.array([val, err])
+
         
-    def IntegrateSpecSlice(self, n : int=0, epsabs : float=1e-20, epsrel : float=1e-4, method="simpson") -> Tuple[NDArray, NDArray]:
+    def IntegrateSpecSlice(self, n : int=0, epsabs : float=1e-20, epsrel : float=1e-4,
+                            method="simpson", modethr=100) -> Tuple[NDArray, NDArray]:
         """
         Integrate an input spectrum at a fixed time t to obtain (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
 
@@ -394,29 +403,36 @@ class GaugeSpecSlice(dict):
         """
         x = (n+4)*np.log(self["k"]/self["cut"])
 
-        prefac = 1/(2*np.pi)**2
         helicities = ["p", "m"]
-        integs = np.zeros((3, len(x)))
+        integs = np.zeros((3, 2, len(x)))
         for i, lam in enumerate(helicities):
             sgn = np.sign(0.5-i)
-            integs[0,:] += sgn**n*self.ESpec(lam)
-            integs[1,:] += sgn**n*self.BSpec(lam)
-            integs[2,:] += sgn**(n+1)*self.GSpec(lam)
+            integs[0,i,:] = self.ESpec(lam)
+            integs[1,i,:] = self.BSpec(lam)
+            integs[2,i,:] = sgn*self.GSpec(lam)
 
         res = np.zeros((3,2))
         
-        msk = np.where(x < 0)[0]
-        if len(msk) < 2:
-            return res
-        x = x[msk]
         for i in range(3):
             if method=="simpson":
-                res[i,:] = self.SimpsInt( integs[i,msk], x)
-            elif method=="quad":
-                res[i,:] = self.QuadInt( integs[i,msk], x, epsabs, epsrel)
-            res[i,1] = 1e-6*res[i,0]
+                msk = np.where(x < 0)[0]
+                if len(msk) < modethr: #cannot trust simpsons integration for too few modes.
+                    return res
+                x = x[msk]
+                res[i,0] = (self.SimpsInt( integs[i,0,msk] ,x) 
+                                         + (-1)**n*self.SimpsInt(integs[i,1,msk], x) )
+                res[i,1] = 1e-6*res[i,0]
 
-        res = prefac*res/(n+4)
+            elif method=="quad":
+                resp = self.QuadInt( integs[i,0,:], x, epsabs, epsrel)
+                resm = self.QuadInt(  (-1)**n*integs[i,1,:], x, epsabs, epsrel)
+                res[i,:] = resp +resm
+
+            elif method=="old":
+                res[i,:] = self.OldQuadInt( integs[i,0,:] + (-1)**n*integs[i,1,:], x, epsabs, epsrel)
+            
+
+        res = 1/(2*np.pi)**2*res/(n+4)
 
         res[:,1] = abs(res[:,1]/res[:,0])
         return res

@@ -53,12 +53,12 @@ class GEFSolver:
         ensureConvergence = Kwargs.get("ensureConvergence", False)
         GEFattempts = Kwargs.get("GEFttempts", 5)
         MbMattempts = Kwargs.get("MbMattempts", 5)
-        tstep = Kwargs.get("tstep", 0.1)
+        tstep = Kwargs.get("tstep", 0.5)
         errthr = Kwargs.get("errthr", 0.025)
         resumeMode = Kwargs.get("resumeMode", True)
-        IntMethod = Kwargs.get("IntMethod", "simpson")
+        method = Kwargs.get("method", "simpson")
 
-        MbMKwargs = {"method":IntMethod, "epsabs":self.atol, "epsrel":self.rtol}
+        MbMKwargs = {"epsabs":self.atol, "epsrel":self.rtol}
 
 
         done=False
@@ -85,6 +85,10 @@ class GEFSolver:
                     spec = MbM.ComputeModeSpectrum(nmodes, tstep=tstep, rtol=self.rtol)
 
                 print("Performing mode-by-mode comparison with GEF results.")
+                try:
+                    treinit = ReInitSpec["t"]
+                except:
+                    treinit = 0
                 agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, errthr=errthr, **MbMKwargs)
 
                 if agreement:
@@ -96,7 +100,7 @@ class GEFSolver:
 
                     print(f"Attempting to solve GEF using self-correction starting from t={treinit}, N={Nreinit}.")
 
-                    self.InitialConditions = self.InitialiseFromMbM(sol, ReInitSpec, **MbMKwargs)
+                    self.InitialConditions = self.InitialiseFromMbM(sol, ReInitSpec, method, **MbMKwargs)
             else:
                 done=True
         
@@ -152,8 +156,8 @@ class GEFSolver:
         return sol, vals
     
     def ModeByModeCrossCheck(self, spec, vals, errthr, **MbMKwargs):
-        errs, terr,_ = spec.CompareToBackgroundSolution(vals, errthr=errthr, **MbMKwargs)
-        
+        errs, terr,_ = spec.CompareToBackgroundSolution(vals, errthr=errthr, method="simpson", **MbMKwargs)
+
         reinitinds = []
         agreement=True
         for err in errs:
@@ -199,7 +203,7 @@ class GEFSolver:
         yini = self.__Initialise(vals, self.ntr)
         return t0, yini, vals
     
-    def InitialiseFromMbM(self, sol, ReInitSpec, **MbMKwargs):
+    def InitialiseFromMbM(self, sol, ReInitSpec, method, **MbMKwargs):
         def NewInitialiser():
             ntr = self.ntr
             rtol = self.rtol
@@ -229,7 +233,7 @@ class GEFSolver:
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
                                     [
-                                    ReInitSpec.IntegrateSpecSlice(n=n,**MbMKwargs)
+                                    ReInitSpec.IntegrateSpecSlice(n=n, method=method,**MbMKwargs)
                                     for n in range(1,ntr+1)
                                     ]
                                     )[:,:,0].reshape(3*(ntr))

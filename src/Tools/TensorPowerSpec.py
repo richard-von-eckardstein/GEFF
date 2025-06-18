@@ -399,6 +399,8 @@ class PowSpecT:
 
         logAs = np.linspace(np.log(max(0.5, cutIR)), np.log(cutUV), momgrid)
 
+        #Alternatives for interpolating mode functions directly? Could be problematic as they are highly oscillatory
+        #It may be better to directly interpolate the integrand...
         Afuncx = CubicSpline(np.log(kgrid), A1)
         dAfuncx = CubicSpline(np.log(kgrid), dA1)
         
