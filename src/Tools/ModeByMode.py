@@ -287,7 +287,7 @@ class GaugeSpec(dict):
         return FMbM
 
     def CompareToBackgroundSolution(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
-                                    errthr=0.025, verbose : bool=True,
+                                    errthr=0.025, steps=1, verbose : bool=True,
                                     **IntegratorKwargs) -> Tuple[list, NDArray]:
         """
         Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds.
@@ -310,17 +310,14 @@ class GaugeSpec(dict):
         """
 
         FMbM = self.IntegrateSpec(BG, n=0, cutoff=cutoff, **IntegratorKwargs)
-
-        errs = []
-
-        teval = self["t"]
-      
         Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
 
+        errs = []
+        teval = self["t"]
         for i, spl in enumerate(Fref):
             err =  abs( (FMbM[:,i,0]-spl) / spl )
-            errs.append(err)
-        terr = teval
+            errs.append(err[-1::-steps][::-1])
+        terr = teval[-1::-steps][::-1]
         
         removals = []
         for err in errs:
@@ -344,7 +341,7 @@ class GaugeSpec(dict):
                 print(f"maximum relative deviation: {maxerr}% at t={tmaxerr}")
                 print(f"final relative deviation: {errend}% at t={terrend}")
 
-        return errs, terr, FMbM[:,:,1]
+        return errs, terr
     
 class GaugeSpecSlice(dict):
     def __init__(self, modedic):
@@ -660,7 +657,7 @@ class ModeByMode:
             t_interval = (self.__tmin, max(self.__t))
         ks, tstart = self.InitialKTN(self.WavenumberArray(nvals, t_interval), mode="k")
 
-        teval = np.arange(np.ceil(5/tstep), np.floor(max(self.__t)/tstep)+1)*tstep
+        teval = np.arange(np.floor(max(self.__t)/tstep), np.ceil(5/tstep), -1)[::-1]*tstep
         Neval = CubicSpline(self.__t, self.__N)(teval)
 
         modes = np.array([self.EvolveFromBD(k, tstart[i], teval=teval, **SolverKwargs)
@@ -674,7 +671,7 @@ class ModeByMode:
     #at the moment, it does not seem feasable to use this.
     def UpdateSpectrum(self, spec : GaugeSpec, tstart, tstep : float=0.1, **SolverKwargs) -> GaugeSpec:
         
-        teval = np.arange(np.ceil(tstart/tstep), np.floor(max(self.__t)/tstep)+1)*tstep
+        teval = np.arange(np.floor(max(self.__t)/tstep), np.ceil(tstart/tstep), -1)[::-1]*tstep
         Neval = CubicSpline(self.__t, self.__N)(teval)
         
         tend = teval[-1]
