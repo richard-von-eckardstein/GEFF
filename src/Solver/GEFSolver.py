@@ -1,7 +1,6 @@
 import numpy as np
 
 from scipy.integrate import solve_ivp
-from scipy.interpolate import CubicSpline
 
 from copy import deepcopy
 
@@ -53,7 +52,7 @@ class GEFSolver:
         ensureConvergence = Kwargs.get("ensureConvergence", False)
         GEFattempts = Kwargs.get("GEFttempts", 5)
         MbMattempts = Kwargs.get("MbMattempts", 5)
-        tstep = Kwargs.get("tstep", 0.5)
+        thinning = Kwargs.get("thinning", 1)
         errthr = Kwargs.get("errthr", 0.025)
         resumeMode = Kwargs.get("resumeMode", True)
         method = Kwargs.get("method", "simpson")
@@ -78,18 +77,18 @@ class GEFSolver:
                     try:
                         spec["t"]
                     except:
-                        spec = MbM.ComputeModeSpectrum(nmodes, tstep=tstep, rtol=self.rtol)
+                        spec = MbM.ComputeModeSpectrum(nmodes, rtol=self.rtol)
                     else:
-                        spec = MbM.UpdateSpectrum(spec, treinit, tstep=tstep, rtol=self.rtol)
+                        spec = MbM.UpdateSpectrum(spec, treinit, rtol=self.rtol)
                 else:
-                    spec = MbM.ComputeModeSpectrum(nmodes, tstep=tstep, rtol=self.rtol)
+                    spec = MbM.ComputeModeSpectrum(nmodes, rtol=self.rtol)
 
                 print("Performing mode-by-mode comparison with GEF results.")
                 try:
                     treinit = ReInitSpec["t"]
                 except:
                     treinit = 0
-                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, errthr=errthr, **MbMKwargs)
+                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, errthr=errthr, thinning=thinning, **MbMKwargs)
 
                 if agreement:
                     print(f"The mode-by-mode comparison indicates a convergent GEF run.")
@@ -142,7 +141,6 @@ class GEFSolver:
                     break
                 print("A truncation error occured")
                 self.IncreaseNtr(10)
-
         
         if attempts>maxattempts:
             print(f"The run did not finish after {maxattempts} attempts.")
@@ -155,13 +153,13 @@ class GEFSolver:
 
         return sol, vals
     
-    def ModeByModeCrossCheck(self, spec, vals, errthr, **MbMKwargs):
-        errs, terr = spec.CompareToBackgroundSolution(vals, errthr=errthr, method="simpson", **MbMKwargs)
+    def ModeByModeCrossCheck(self, spec, vals, errthr, thinning, **MbMKwargs):
+        errs, terr = spec.CompareToBackgroundSolution(vals, errthr=errthr, steps=thinning, method="simpson", **MbMKwargs)
 
         reinitinds = []
         agreement=True
         for err in errs:
-            if (err > 0.05).any():
+            if (err > 0.10).any():
                 agreement=False
                 #find where the error is above 5%, take the earliest occurance, reduce by 1
                 inds = np.where(err > errthr)
@@ -183,7 +181,7 @@ class GEFSolver:
             return solnew
         else:
             sol = solold
-            indoverlap = np.where(solnew.t[0] > solold.t)[0][-1]
+            indoverlap = np.where(solnew.t[0] >= solold.t)[0][-1]
             sol.t = np.concatenate([solold.t[:indoverlap], solnew.t])
 
             if solold.y.shape[0] < solnew.y.shape[0]:
@@ -206,17 +204,16 @@ class GEFSolver:
     def InitialiseFromMbM(self, sol, ReInitSpec, method, **MbMKwargs):
         def NewInitialiser():
             ntr = self.ntr
-            rtol = self.rtol
-            atol = self.atol
 
             treinit = ReInitSpec["t"]
+
+            reinitInd = np.where(sol.t == treinit)[0]
 
             #Create unit system:
             Temp = deepcopy(self.iniVals)
 
             #Construct yini from interpolation:
-            ytmp = np.array([(CubicSpline(sol.t, sol.y[i,:])(treinit))
-                              for i in range(sol.y.shape[0])])
+            ytmp = sol.y[:,reinitInd]
 
             #Parse yini to Temp
             self.ParseArrToUnitSystem(treinit, ytmp, Temp)

@@ -82,7 +82,7 @@ class GaugeSpec(dict):
         """
         return cls(ReadMode(path))
     
-    def SaveSpec(self, path : str):
+    def SaveSpec(self, path : str, thinning = 5):
         """
         Store the spectrum in a file.
 
@@ -91,8 +91,8 @@ class GaugeSpec(dict):
         path : str
             path to the data 
         """
-        N = np.array([np.nan]+list(self["N"]))
-        t = np.array([np.nan]+list(self["t"]))
+        N = np.array([np.nan]+list(self["N"][-1::-thinning][::-1]))
+        t = np.array([np.nan]+list(self["t"][-1::-thinning][::-1]))
 
         dic = {"t":t, "N":N}
 
@@ -229,12 +229,25 @@ class GaugeSpec(dict):
             self[md] = np.delete(self[md], ind, axis=0)
         return
     
+    def CheckOverlap(self, t):
+        project = np.isin(t, self["t"], assume_unique=True)
+        if not(project.any()):
+            print("No overlaping time coordinates found.")
+            print("Reverting to interpolation")
+        return project.any(), project
+    
     def AddCutOff(self, BG : BGSystem, cutoff="kh"):
         units = BG.GetUnits()
         BG.SetUnits(False)
 
         scale = getattr(BG, cutoff)
-        self["cut"] = CubicSpline(BG.t, scale)(self["t"])
+
+        bl, mask = self.CheckOverlap(BG.t)
+
+        if bl:
+            self["cut"] = scale[mask]
+        else:
+            self["cut"] = CubicSpline(BG.t, scale)(self["t"])
         
         BG.SetUnits(units)
 
@@ -246,9 +259,15 @@ class GaugeSpec(dict):
 
         scale = getattr(BG, cutoff)
 
+        bl, mask = self.CheckOverlap(BG.t)
+
         Fref = []
-        for val in references:
-            Fref.append( CubicSpline(BG.t, getattr(BG, val)*(BG.a/scale)**4)(self["t"]) )
+        for val in references: 
+            val_arr = (getattr(BG, val)*(BG.a/scale)**4)
+            if bl:
+                Fref.append( val_arr[mask] )
+            else:
+                Fref.append( CubicSpline(BG.t, val_arr)(self["t"]) ) 
 
         BG.SetUnits(units)
 
@@ -373,7 +392,6 @@ class GaugeSpecSlice(dict):
         f = lambda x: spl(x)*np.exp(x)
         val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
         return np.array([val, err])
-
         
     def IntegrateSpecSlice(self, n : int=0, epsabs : float=1e-20, epsrel : float=1e-4,
                             method="simpson", modethr=100) -> Tuple[NDArray, NDArray]:
@@ -587,10 +605,12 @@ class ModeByMode:
         values.SetUnits(False)
 
         #store the time values of the GEF
-        self.__t = values.t
-        self.__N = values.N
+        self.__t = values.t.value
+        self.__N = values.N.value
         kh = values.kh
         a = values.a
+
+        self.__khf = CubicSpline(self.__t, kh)
 
         #import the keys 
         for key in self.EoMKwargs.keys(): 
@@ -603,18 +623,16 @@ class ModeByMode:
             if isinstance(val, Val):
                 self.InitKwargs[key] = CubicSpline(self.__t, val)
 
-        self.__af = CubicSpline(self.__t, a)
-        self.__khf = CubicSpline(self.__t, kh)
-
         for key in ["E", "B", "G"]:
             func = CubicSpline(self.__N, (a/kh)**4 * getattr(values, key))
             setattr(self, f"__{key}f", func)
         
+        self.__af = CubicSpline(self.__t, a)
         deta = lambda t, y: 1/self.__af(t)
         
         soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([-1]), t_eval=self.__t)
 
-        self.__etaf = CubicSpline(self.__t, soleta.y[0,:])
+        self.__eta = soleta.y[0,:]
 
         #Nend = G.EndOfInflation()
 
@@ -629,7 +647,7 @@ class ModeByMode:
         
         return
     
-    def ComputeModeSpectrum(self, nvals : int, tstep : float=0.1, t_interval=None, **SolverKwargs) -> GaugeSpec:
+    def ComputeModeSpectrum(self, nvals : int, t_interval=None, **SolverKwargs) -> GaugeSpec:
         """
         Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
 
@@ -657,22 +675,20 @@ class ModeByMode:
             t_interval = (self.__tmin, max(self.__t))
         ks, tstart = self.InitialKTN(self.WavenumberArray(nvals, t_interval), mode="k")
 
-        teval = np.arange(np.floor(max(self.__t)/tstep), np.ceil(5/tstep), -1)[::-1]*tstep
-        Neval = CubicSpline(self.__t, self.__N)(teval)
-
-        modes = np.array([self.EvolveFromBD(k, tstart[i], teval=teval, **SolverKwargs)
+        modes = np.array([self.EvolveFromBD(k, tstart[i], **SolverKwargs)
                   for i, k in enumerate(ks)])
         
-        spec = GaugeSpec({"t":teval, "N":Neval, "k":ks,
+        spec = GaugeSpec({"t":self.__t, "N":self.__N, "k":ks,
                     "Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
 
         return spec
     
     #at the moment, it does not seem feasable to use this.
-    def UpdateSpectrum(self, spec : GaugeSpec, tstart, tstep : float=0.1, **SolverKwargs) -> GaugeSpec:
+    def UpdateSpectrum(self, spec : GaugeSpec, tstart, **SolverKwargs) -> GaugeSpec:
         
-        teval = np.arange(np.floor(max(self.__t)/tstep), np.ceil(tstart/tstep), -1)[::-1]*tstep
-        Neval = CubicSpline(self.__t, self.__N)(teval)
+        indstart = np.where(tstart <= self.__t)[0][0]
+        teval = self.__t[indstart:]
+        Neval = self.__N[indstart:]
         
         tend = teval[-1]
         indstart = np.where(spec["t"]<teval[0])[0][-1]
@@ -698,7 +714,7 @@ class ModeByMode:
         modes = []
         for i, k in enumerate(kold):
             if tvac[i] > teval[0]:
-                modes.append( self.EvolveFromBD(k, tvac[i], teval=teval, **SolverKwargs) )
+                modes.append( self.EvolveFromBD(k, tvac[i], **SolverKwargs) )
             else:
                 yini = np.array(
                             [startspec["Ap"][i].real, startspec["dAp"][i].real,
@@ -714,7 +730,7 @@ class ModeByMode:
         spec.MergeSpectra(GaugeSpec(updatespec))
 
         if n_newmodes > 0:
-            newspec = self.ComputeModeSpectrum(n_newmodes, tstep=tstep, t_interval=(tstart, tend))
+            newspec = self.ComputeModeSpectrum(n_newmodes, t_interval=(tstart, tend))
             #Add new modes
             spec.AddMomenta(newspec)
         
@@ -764,7 +780,7 @@ class ModeByMode:
 
         return spec"""
     
-    def EvolveFromBD(self, k : float, tstart : float, teval : list=[],
+    def EvolveFromBD(self, k : float, tstart : float,
                     atol : float|None=None, rtol : float=1e-5) -> Tuple[NDArray, NDArray, NDArray, NDArray]:
         """
         Evolve gauge-field modes for a fixed wavenumber in time starting from Bunch-Davies initial conditions.
@@ -799,12 +815,14 @@ class ModeByMode:
         #Initial conditions for y and dydt for both helicities (rescaled appropriately)
         yini = self.BDInit(tstart, k, **self.InitKwargs)
 
+        teval = self.__t
+
         istart = np.where(teval>tstart)[0][0]
 
         yp, dyp, ym, dym = self.EvolveMode(tstart, yini, k, teval[istart:], atol, rtol)
 
         #conformal time needed for relative phases
-        eta = self.__etaf(teval)
+        eta = self.__eta
         
         #the mode was in vacuum before tstart
         yvac = np.array([self.BDInit(t, k, **self.InitKwargs) for t in teval[:istart]]).T 
