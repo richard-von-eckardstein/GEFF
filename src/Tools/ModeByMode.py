@@ -100,7 +100,7 @@ class GaugeSpec(dict):
             specslice = self.KSlice(j)
             logk = np.log10(specslice["k"])
             for key in ["Ap", "dAp", "Am", "dAm"]:
-                dictmp = {key + "_" + str(j) :np.array([logk] + list(specslice[key]))}
+                dictmp = {key + "_" + str(j) :np.array([logk] + list(specslice[key][-1::-thinning]))}
                 dic.update(dictmp)
     
         DirName = os.getcwd()
@@ -230,11 +230,14 @@ class GaugeSpec(dict):
         return
     
     def CheckOverlap(self, t):
-        project = np.isin(t, self["t"], assume_unique=True)
-        if not(project.any()):
-            print("No overlaping time coordinates found.")
-            print("Reverting to interpolation")
-        return project.any(), project
+        mask = np.isin(t, self["t"], assume_unique=True)
+        if len(t[mask]) != len(self["t"]):
+            print("The times in the current GaugeSpec instance are " \
+            "not a subset of the times in the BGSystem.")
+            print("Reverting to interpolation.")
+            return False, None
+        else:
+            return True, mask
     
     def AddCutOff(self, BG : BGSystem, cutoff="kh"):
         units = BG.GetUnits()
@@ -722,7 +725,9 @@ class ModeByMode:
                             startspec["Am"][i].real, startspec["dAm"][i].real,
                             startspec["Am"][i].imag, startspec["dAm"][i].imag]
                             )
+                
                 modes.append( self.EvolveMode(tstart, yini, k, teval, **SolverKwargs) ) 
+        
         modes = np.array(modes)
 
         updatespec.update({"Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
