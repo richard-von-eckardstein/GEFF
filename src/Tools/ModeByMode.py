@@ -895,7 +895,7 @@ class ModeByMode:
         #fill up the array of ks values with additional elements between gaps, favouring larger k
         while len(logks) < nvals:
             numnewvals = nvals - len(logks)
-            if numnewvals > len(logks):
+            if numnewvals >= len(logks):
                 newvals = (logks[1:] + logks[:-1])/2
             else:
                 newvals = (logks[-numnewvals:] + logks[-numnewvals-1:-1])/2

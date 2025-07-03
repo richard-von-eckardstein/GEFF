@@ -51,6 +51,8 @@ class GEFSolver:
         reachNend = Kwargs.get("reachNend", True)
         ensureConvergence = Kwargs.get("ensureConvergence", False)
         GEFattempts = Kwargs.get("GEFttempts", 5)
+        solmeth = Kwargs.get("solmeth", "RK45")
+
         MbMattempts = Kwargs.get("MbMattempts", 5)
         thinning = Kwargs.get("thinning", 5)
         errthr = Kwargs.get("errthr", 0.025)
@@ -65,7 +67,7 @@ class GEFSolver:
         attempt=0
         while not(done) and attempt<MbMattempts:
             attempt +=1
-            solnew, vals = self.GEFAlgorithm(reachNend, ensureConvergence, GEFattempts)
+            solnew, vals = self.GEFAlgorithm(solmeth, reachNend, ensureConvergence, GEFattempts)
             sol = self.UpdateSol(sol, solnew)
             self.ParseArrToUnitSystem(sol.t, sol.y, vals)
 
@@ -111,7 +113,7 @@ class GEFSolver:
         else:
             raise RuntimeError(f"GEF did not complete after {attempt} attempts.")
     
-    def GEFAlgorithm(self, reachNend=True, ensureConvergence=True, maxattempts=5):
+    def GEFAlgorithm(self, solmeth="RK45", reachNend=True, ensureConvergence=True, maxattempts=5):
         if reachNend: Nend=60 #set default Nend
         attempts=1
         done = False
@@ -119,7 +121,7 @@ class GEFSolver:
         while not(done):
             try:
                 t0, yini, vals = self.InitialConditions()
-                sol = self.SolveGEF(t0, yini, vals, reachNend=reachNend)
+                sol = self.SolveGEF(t0, yini, vals, reachNend=reachNend, solvermethod=solmeth)
 
                 if reachNend and ensureConvergence:
                     Ninf = sol.events["End of inflation"]["N"][-1]
@@ -247,7 +249,7 @@ class GEFSolver:
         self.__UpdateVals(ts, ys, vals)
         return
     
-    def SolveGEF(self, t0, yini, vals, reachNend=True):
+    def SolveGEF(self, t0, yini, vals, reachNend=True, solvermethod="RK45"):
         done = False
         attempts = 0
         sols = []
@@ -272,7 +274,7 @@ class GEFSolver:
                 teval = np.arange(np.ceil(10*t0), np.floor(10*tend) +1)/10 #hotfix
 
                 sol = solve_ivp(self.__ode, [t0,tend], yini, t_eval=teval, args=(vals, atol, rtol),
-                                method="RK45", atol=atol, rtol=rtol, events=eventfuncs)
+                                method=solvermethod, atol=atol, rtol=rtol, events=eventfuncs)
                 if not(sol.success):
                     raise ValueError
             except KeyboardInterrupt:
