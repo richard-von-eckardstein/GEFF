@@ -100,7 +100,8 @@ class GaugeSpec(dict):
             specslice = self.KSlice(j)
             logk = np.log10(specslice["k"])
             for key in ["Ap", "dAp", "Am", "dAm"]:
-                dictmp = {key + "_" + str(j) :np.array([logk] + list(specslice[key][-1::-thinning]))}
+                dictmp = {key + "_" + str(j) :np.array([logk] + 
+                                                       list(specslice[key][-1::-thinning][::-1]))}
                 dic.update(dictmp)
     
         DirName = os.getcwd()
@@ -309,7 +310,7 @@ class GaugeSpec(dict):
         return FMbM
 
     def CompareToBackgroundSolution(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
-                                    errthr=0.025, steps=1, verbose : bool=True,
+                                    errthr=0.025, steps=5, verbose : bool=True,
                                     **IntegratorKwargs) -> Tuple[list, NDArray]:
         """
         Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds.
@@ -331,16 +332,25 @@ class GaugeSpec(dict):
             an array of e-fold-bins to which the errors in errs are associated.
         """
 
+        binning=steps
+
         FMbM = self.IntegrateSpec(BG, n=0, cutoff=cutoff, **IntegratorKwargs)
         Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
-
-        errs = []
-        teval = self["t"]
-        for i, spl in enumerate(Fref):
-            err =  abs( (FMbM[:,i,0]-spl) / spl )
-            errs.append(err[-1::-steps][::-1])
-        terr = teval[-1::-steps][::-1]
         
+        teval = self["t"]
+
+        terr = teval[-1::-binning][::-1]
+        tbins = terr[1:] + (terr[1:] - terr[:-1])/2
+        
+        errs = []
+        count, _  = np.histogram(teval, bins=tbins)
+        for i, spl in enumerate(Fref):
+            err =  abs( 1 - FMbM[:,i,0]/ spl )
+            err = np.where(np.isnan(err), 1.0, err)
+            sum, _  = np.histogram(teval, bins=tbins, weights=err)
+            errs.append(sum/count)
+        terr = terr[2:]
+
         removals = []
         for err in errs:
             #remove the first few errors where the density of modes is low:
@@ -348,7 +358,7 @@ class GaugeSpec(dict):
         #ind = 0
         ind = max(removals)
         errs = [err[ind:] for err in errs]
-        terr = np.round(terr[ind:], 1)
+        terr = terr[ind:]
 
         if verbose:
             print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:")
