@@ -156,7 +156,7 @@ class GEFSolver:
         return sol, vals
     
     def ModeByModeCrossCheck(self, spec, vals, errthr, thinning, method, **MbMKwargs):
-        errs, terr = spec.CompareToBackgroundSolution(vals, errthr=errthr, steps=thinning, method=method, **MbMKwargs)
+        errs, terr, _ = spec.CompareToBackgroundSolution(vals, errthr=errthr, steps=thinning, method=method, **MbMKwargs)
 
         reinitinds = []
         agreement=True

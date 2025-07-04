@@ -308,6 +308,61 @@ class GaugeSpec(dict):
             FMbM[i,:] = specslice.IntegrateSpecSlice(n=n, **IntegratorKwargs)
         
         return FMbM
+    
+    def EstimateGEFError(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
+                         **IntegratorKwargs):
+        FMbM = self.IntegrateSpec(BG, n=0, cutoff=cutoff, **IntegratorKwargs)
+        Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
+
+        errs = []
+
+        for i, spl in enumerate(Fref):
+            err =  abs( 1 - FMbM[:,i,0]/ spl )
+            errs.append(np.where(np.isnan(err), 1.0, err))
+
+        return errs
+    
+    def ProcessError(self, errs, binning, errthr):
+        teval = self["t"]
+
+        terr = teval[-1::-binning][::-1]
+        tbins = terr[1:] + (terr[1:] - terr[:-1])/2
+        count, _  = np.histogram(teval, bins=tbins)
+
+        bin_errs = []
+        for err in errs:
+            sum, _  = np.histogram(teval, bins=tbins, weights=err)
+            bin_errs.append(sum/count)
+        terr = terr[2:] 
+
+        removals = []
+        for err in bin_errs:
+            #remove the first few errors where the density of modes is low:
+            removals.append(np.where(err < errthr)[0][0])
+        #ind = 0
+        ind = max(removals)
+        bin_errs = [err[ind:] for err in bin_errs]
+        terr = terr[ind:]
+
+        return bin_errs, terr
+    
+    @staticmethod
+    def ErrorSummary(errs, terr, references):
+        print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:")
+        for i, key in enumerate(references):
+            err = errs[i]
+            errind = np.where(err == max(err))
+            rmserr = np.round(100*np.sqrt(np.sum(err**2)/len(err)), 1)
+            maxerr = np.round(100*err[errind][0], 1)
+            tmaxerr = terr[errind][0]#np.round(Nerr[errind][0], 1)
+            errend = np.round(100*err[-1], 1)
+            terrend = terr[-1]#np.round(Nerr[-1], 1)
+            print(f"-- {key} --")
+            print(f"maximum relative deviation: {maxerr}% at t={tmaxerr}")
+            print(f"final relative deviation: {errend}% at t={terrend}")
+            print(f"RMS relative deviation: {rmserr}% at t={terrend}")
+        return
+
 
     def CompareToBackgroundSolution(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
                                     errthr=0.025, steps=5, verbose : bool=True,
@@ -332,48 +387,14 @@ class GaugeSpec(dict):
             an array of e-fold-bins to which the errors in errs are associated.
         """
 
-        binning=steps
+        errs = self.EstimateGEFError(BG, references, cutoff, **IntegratorKwargs)
 
-        FMbM = self.IntegrateSpec(BG, n=0, cutoff=cutoff, **IntegratorKwargs)
-        Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
-        
-        teval = self["t"]
-
-        terr = teval[-1::-binning][::-1]
-        tbins = terr[1:] + (terr[1:] - terr[:-1])/2
-        
-        errs = []
-        count, _  = np.histogram(teval, bins=tbins)
-        for i, spl in enumerate(Fref):
-            err =  abs( 1 - FMbM[:,i,0]/ spl )
-            err = np.where(np.isnan(err), 1.0, err)
-            sum, _  = np.histogram(teval, bins=tbins, weights=err)
-            errs.append(sum/count)
-        terr = terr[2:]
-
-        removals = []
-        for err in errs:
-            #remove the first few errors where the density of modes is low:
-            removals.append(np.where(err < errthr)[0][0])
-        #ind = 0
-        ind = max(removals)
-        errs = [err[ind:] for err in errs]
-        terr = terr[ind:]
+        bin_errs, bin_terr = self.ProcessError(errs, steps, errthr)
 
         if verbose:
-            print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:")
-            for i, key in enumerate(references):
-                err = errs[i]
-                errind = np.where(err == max(err))
-                maxerr = np.round(100*err[errind][0], 1)
-                tmaxerr = terr[errind][0]#np.round(Nerr[errind][0], 1)
-                errend = np.round(100*err[-1], 1)
-                terrend = terr[-1]#np.round(Nerr[-1], 1)
-                print(f"-- {key} --")
-                print(f"maximum relative deviation: {maxerr}% at t={tmaxerr}")
-                print(f"final relative deviation: {errend}% at t={terrend}")
+            self.ErrorSummary(bin_errs, bin_terr, references)
 
-        return errs, terr
+        return bin_errs, bin_terr, errs
     
 class GaugeSpecSlice(dict):
     def __init__(self, modedic):
