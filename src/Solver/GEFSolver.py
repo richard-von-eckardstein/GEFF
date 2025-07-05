@@ -103,13 +103,14 @@ class GEFSolver:
 
                     self.InitialConditions = self.InitialiseFromMbM(sol, ReInitSpec, method, **MbMKwargs)
             else:
+                spec=None
                 done=True
         
         if done:
             print("GEF run successfully completed.")
             if printstats:
                 PrintSummary(sol)
-            return sol
+            return sol, spec
         else:
             raise RuntimeError(f"GEF did not complete after {attempt} attempts.")
     
@@ -161,7 +162,8 @@ class GEFSolver:
         reinitinds = []
         agreement=True
         for err in errs:
-            if (err > 0.10).any():
+            rmserr = np.sqrt(np.sum(err**2)/len(err))
+            if max(err[-1], rmserr) > 0.10:
                 agreement=False
                 #find where the error is above 5%, take the earliest occurance, reduce by 1
                 inds = np.where(err > errthr)
