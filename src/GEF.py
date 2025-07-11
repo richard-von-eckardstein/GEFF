@@ -9,6 +9,8 @@ from src.Solver.GEFSolver import GEFSolver
 import importlib.util as util
 import os
 
+from types import NoneType
+
 def ModelLoader(modelname : str):
     """
     Import and execute a module containg a GEF model.
@@ -124,7 +126,7 @@ class GEF(BGSystem):
  
     def __init__(
                 self, model: str, beta: float, iniVals: dict, Funcs: dict,
-                userSettings: dict = {}, GEFData: None|str = None, ModeData: None|str = None
+                userSettings: dict = {}, GEFData: NoneType|str = None, ModeData: NoneType|str = None
                 ):
         
         #Get Model attributes
@@ -252,7 +254,7 @@ class GEF(BGSystem):
         
         return
 
-    def LoadGEFData(self, path=None):
+    def LoadGEFData(self, path : NoneType|str=None):
         """
         Load data and store its results in the current GEF instance.
 
@@ -310,7 +312,7 @@ class GEF(BGSystem):
 
         return
 
-    def SaveGEFData(self, path=None):
+    def SaveGEFData(self, path : NoneType|str=None):
         """
         Save the data in the current GEF instance in an ouput file.
 

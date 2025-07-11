@@ -58,11 +58,13 @@ def ComputeSigmaCollinear(a  : float|Val, H  : float|Val,
         gmz = 0.35
         gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*H0))))
         
-        sigma = (41.*gmu**3/(72.*np.pi**2 * H * np.tanh(np.pi*np.sqrt(B/E))))
+        C = 41/12
+
+        sigma = (C*gmu**3/(6*np.pi**2 * H * np.tanh(np.pi*np.sqrt(B/E))))
         sigmaE =  np.sqrt(B) * (min(1., (1.- pic))*E + max(-pic, 0.)*B) * sigma / (E+B)         
         sigmaB = -np.sign(G) * np.sqrt(E)*(min(1., (1.+ pic))*B + max(pic,0.)*E)* sigma/(E+B)
         
-        ks = gmu**(1/2)*E**(1/4)*a
+        ks = C**(1/3)*gmu*E**(1/4)*a
         
         return sigmaE, sigmaB, ks
 
@@ -106,12 +108,14 @@ def ComputeImprovedSigma(a  : float|Val, H  : float|Val,
         gmz = 0.35
         gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*H0))))
 
-        Eprime = np.sqrt(E - B + Sigma)
-        Bprime = np.sqrt(B- E + Sigma)
+        Eprime = np.sqrt( (E - B + Sigma)/2 )
+        Bprime = np.sqrt( (B- E + Sigma)/2 )
         Sum = E + B + Sigma
-        
-        sigma = ( 41.*gmu**3/(72.*np.pi**2) / (np.sqrt(Sigma*Sum)*H * np.tanh(np.pi*Bprime/Eprime)))
-        
-        ks = gmu**(1/2)*Eprime**(1/2)*a
 
-        return abs(G)*Eprime*sigma, -G*Bprime*sigma, ks
+        C = 41/12
+        
+        sigma = ( C*gmu**3/(6*np.pi**2) / (np.sqrt(Sigma*Sum)*H * np.tanh(np.pi*Bprime/Eprime)))
+        
+        ks = C**(1/3)*gmu*Eprime**(1/2)*a
+
+        return 2**(1/2)*abs(G)*Eprime*sigma, -2**(1/2)*G*Bprime*sigma, ks

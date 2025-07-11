@@ -228,10 +228,15 @@ def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
     except FileNotFoundError:
         raise FileNotFoundError(f"'{experiment}' is not a recognised experiment. Recognised experiments are {exp}")
     
-    f = fNoise
-    OmegaSignal = CubicSpline(np.log(fSignal), OmegaSignal)(np.log(f))
-
-    SNR = (ndet*(tobs*365.2425*3600*24)*simps((OmegaSignal/OmegaNoise)**2, f))**(1/2)
+    indLow = np.where(fNoise[0] < fSignal)[0]
+    indHigh = np.where(fNoise[-1] > fSignal)[0]
+    overlap = list(set(indLow) & set(indHigh))
+    if len(overlap)==0:
+        SNR = 0.
+    else:
+        f = fSignal[overlap]
+        OmegaNoise = np.exp(CubicSpline(np.log(fNoise), np.log(OmegaNoise))(np.log(f)))
+        SNR = (ndet*(tobs*365.2425*3600*24)*simps((OmegaSignal[overlap]/OmegaNoise)**2, f))**(1/2)
 
     return SNR
 

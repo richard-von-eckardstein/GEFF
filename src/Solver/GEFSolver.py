@@ -255,6 +255,12 @@ class GEFSolver:
         done = False
         attempts = 0
         sols = []
+    def AddEvents(self, reachNend):
+        def EventWrapper(eventfunc):
+            def SolveIVPcompatibleEvent(t, y, vals, atol, rtol):
+                self.ParseArrToUnitSystem(t, y, vals)
+                return eventfunc(vals, atol, rtol)
+            return SolveIVPcompatibleEvent
 
         eventfuncs = []
         eventdic = {}
@@ -263,8 +269,16 @@ class GEFSolver:
             if eventname == "End of inflation" and not(reachNend):
                 print("Removing default event 'End of inflation'")
             else:
-                eventfuncs.append(event.func)
+                eventfuncs.append(EventWrapper(event.func))
                 eventdic[eventname] = {"t":[], "N":[]}
+        return eventdic, eventfuncs
+    
+    def SolveGEF(self, t0, yini, vals, reachNend=True, solvermethod="RK45"):
+        done = False
+        attempts = 0
+        sols = []
+
+        eventdic, eventfuncs = self.AddEvents(reachNend=reachNend)
 
         print(f"The solver aims at reaching t={self.tend} with ntr={self.ntr}.")
         while not(done) and attempts < 10:

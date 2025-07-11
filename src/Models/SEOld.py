@@ -139,16 +139,15 @@ ModeByMode = ModeSolver(ModeEq=ModeEoMSchwinger, EoMkeys=["a", "xieff", "H", "si
                          BDEq=BDDamped, Initkeys=["a", "delta", "sigmaE"], default_atol=1e-5)
 
 #Event 1:
-def EndOfInflationFunc(t, y, vals, atol=1e-20, rtol=1e-6):
-    ratio = vals.H0/vals.MP
-    dphi = y[2]
-    V = vals.V.GetBaseFunc()(vals.MP*y[1])/vals.V.GetConversion()
-    rhoEB = 0.5*(y[6]+y[7])*ratio**2*np.exp(4*(y[3]-y[0]))
-    rhoChi = y[5]*ratio**2
-    val = np.log(abs((dphi**2 + rhoEB + rhoChi)/V))
+def EndOfInflation_Condition(vals, atol, rtol):
+    vals.SetUnits(True)
+    V = vals.V(vals.phi)
+    rhoEB = 0.5*(vals.E+vals.B)
+    val = np.log(abs((vals.dphi**2 + rhoEB  + vals.rhoChi)/V))
+    vals.SetUnits(False)
     return val
 
-def EndOfInflationConsequence(vals, occurance):
+def EndOfInflation_Consequence(vals, occurance):
     if occurance:
         return {"primary":"finish"}
     else:
@@ -159,6 +158,20 @@ def EndOfInflationConsequence(vals, occurance):
         print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
         return {"primary":"proceed", "secondary":{"tend":tend}}
     
-EndOfInflation = Event("End of inflation", EndOfInflationFunc, True, 1, EndOfInflationConsequence)
+EndOfInflation = Event("End of inflation",
+                        EndOfInflation_Condition, True, 1, EndOfInflation_Consequence)
 
-events = [EndOfInflation]
+#Event 2:
+def NegativeEnergies_Condition(vals, atol, rtol):
+    return min(vals.E, vals.B)
+
+def NegativeEnergies_Consequence(vals, occurance):
+    if occurance:
+        return {"primary":"finish"}
+    else:
+        return {"primary":"proceed"}
+    
+NegativeEnergies = Event("Negative energies",
+                          NegativeEnergies_Condition, True, -1, NegativeEnergies_Consequence)
+
+events = [EndOfInflation, NegativeEnergies]
