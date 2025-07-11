@@ -94,12 +94,11 @@ ModeByMode = ModeSolver(ModeEq=ModeEoMClassic, EoMkeys=["a", "xi", "H"],
                          BDEq=BDClassic, Initkeys=[], default_atol=1e-3)
 
 #Event 1:
-def EndOfInflation_Condition(vals, atol, rtol):
-    vals.SetUnits(True)
-    V = vals.V(vals.phi)
-    rhoEB = 0.5*(vals.E+vals.B)
-    val = np.log(abs((vals.dphi**2 + rhoEB)/V))
-    vals.SetUnits(False)
+def EndOfInflation_Condition(t, y, vals, atol, rtol):
+    dphi = y[2]
+    V = vals.V(y[1])
+    rhoEB = 0.5*(y[4]+y[5])*(vals.H0/vals.MP)**2*np.exp(4*(y[3]-y[0]))
+    val = np.log(abs((dphi**2 + rhoEB)/V))
     return val
 
 def EndOfInflation_Consequence(vals, occurance):
@@ -117,8 +116,8 @@ EndOfInflation = Event("End of inflation",
                         EndOfInflation_Condition, True, 1, EndOfInflation_Consequence)
 
 #Event 2:
-def NegativeEnergies_Condition(vals, atol, rtol):
-    return min(vals.E, vals.B)
+def NegativeEnergies_Condition(t, y, vals, atol, rtol):
+    return min(y[4], y[5])
 
 def NegativeEnergies_Consequence(vals, occurance):
     if occurance:

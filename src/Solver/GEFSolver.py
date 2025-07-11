@@ -251,16 +251,12 @@ class GEFSolver:
         self.__UpdateVals(ts, ys, vals)
         return
     
-    def SolveGEF(self, t0, yini, vals, reachNend=True, solvermethod="RK45"):
-        done = False
-        attempts = 0
-        sols = []
     def AddEvents(self, reachNend):
-        def EventWrapper(eventfunc):
+        """def EventWrapper(eventfunc):
             def SolveIVPcompatibleEvent(t, y, vals, atol, rtol):
                 self.ParseArrToUnitSystem(t, y, vals)
                 return eventfunc(vals, atol, rtol)
-            return SolveIVPcompatibleEvent
+            return SolveIVPcompatibleEvent"""
 
         eventfuncs = []
         eventdic = {}
@@ -269,7 +265,7 @@ class GEFSolver:
             if eventname == "End of inflation" and not(reachNend):
                 print("Removing default event 'End of inflation'")
             else:
-                eventfuncs.append(EventWrapper(event.func))
+                eventfuncs.append(event.func)
                 eventdic[eventname] = {"t":[], "N":[]}
         return eventdic, eventfuncs
     

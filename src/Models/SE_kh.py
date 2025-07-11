@@ -131,12 +131,13 @@ ModeByMode = ModeSolver(ModeEq=ModeEoMSchwinger_kS,
                          BDEq=BDClassic, Initkeys=[], default_atol=1e-3)
 
 #Event 1:
-def EndOfInflation_Condition(vals, atol, rtol):
-    vals.SetUnits(True)
-    V = vals.V(vals.phi)
-    rhoEB = 0.5*(vals.E+vals.B)
-    val = np.log(abs((vals.dphi**2 + rhoEB  + vals.rhoChi)/V))
-    vals.SetUnits(False)
+def EndOfInflation_Condition(t, y, vals, atol=1e-20, rtol=1e-6):
+    ratio = vals.H0/vals.MP
+    dphi = y[2]
+    V = vals.V.GetBaseFunc()(vals.MP*y[1])/vals.V.GetConversion()
+    rhoEB = 0.5*(y[6]+y[7])*ratio**2*np.exp(4*(y[3]-y[0]))
+    rhoChi = y[5]*ratio**2
+    val = np.log(abs((dphi**2 + rhoEB + rhoChi)/V))
     return val
 
 def EndOfInflation_Consequence(vals, occurance):
@@ -154,8 +155,8 @@ EndOfInflation = Event("End of inflation",
                         EndOfInflation_Condition, True, 1, EndOfInflation_Consequence)
 
 #Event 2:
-def NegativeEnergies_Condition(vals, atol, rtol):
-    return min(vals.E, vals.B)
+def NegativeEnergies_Condition(t, y, vals, atol=1e-20, rtol=1e-6):
+    return min(y[5], y[6])
 
 def NegativeEnergies_Consequence(vals, occurance):
     if occurance:
