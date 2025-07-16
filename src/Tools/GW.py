@@ -231,6 +231,7 @@ def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
     indLow = np.where(fNoise[0] < fSignal)[0]
     indHigh = np.where(fNoise[-1] > fSignal)[0]
     overlap = list(set(indLow) & set(indHigh))
+    overlap.sort()
     if len(overlap)==0:
         SNR = 0.
     else:

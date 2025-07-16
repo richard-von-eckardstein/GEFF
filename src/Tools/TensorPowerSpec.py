@@ -481,7 +481,7 @@ class PowSpecT:
             a dictionary containing all contributions to the tensor power spectrum, including the total power spectrum.
         """
 
-        k = np.logspace(np.log10(self.mink), np.log10(self.maxk), nmodes)
+        k = np.logspace(np.log10(self.mink), np.log10(10*self.maxk), nmodes)
         ks, tstarts = self._InitialKTN_(k, mode="k")
         
         spec = ReadMode(ModePath)
