@@ -179,10 +179,12 @@ class GEF(BGSystem):
 
         #Add the model information
         string = f"Model: {self.name}, "
-        #Add any additional settings if applicable
+
+        #TODO what to do about setttings?
+        """        #Add any additional settings if applicable
         if isinstance(self.settings, dict):
             for setting in self.settings.items():
-                string += f"{setting[0]} : {setting[1]}, "
+                string += f"{setting[0]} : {setting[1]}, """
         #Add coupling strength
         string += f"beta={self.beta}"
         return string
