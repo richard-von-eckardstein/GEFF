@@ -58,7 +58,7 @@ class GEFSolver:
         errthr = Kwargs.get("errthr", 0.025)
         resumeMode = Kwargs.get("resumeMode", True)
         method = Kwargs.get("method", "simpson")
-        selfcorrmethod = Kwargs.get("selfcorrmethod", "quad")
+        selfcorrmethod = Kwargs.get("selfcorrmethod", "simpson")
 
         MbMKwargs = {"epsabs":self.atol, "epsrel":self.rtol}
 
