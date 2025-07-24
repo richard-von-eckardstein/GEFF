@@ -415,10 +415,13 @@ class GaugeSpecSlice(dict):
 
     def QuadInt(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
         msk = np.where(abs(integrand) > epsrel*1e-2*abs(integrand))[0]
-        spl = CubicSpline(x, np.log(abs(integrand)+epsabs/10))
-        sgn = CubicSpline(x, np.sign(integrand))
-        f = lambda x: sgn(x)*np.exp(spl(x) + x)
-        val, err = quad(f, x[msk[0]], 0., epsabs=epsabs, epsrel=epsrel)
+        if len(msk) > 0:
+            spl = CubicSpline(x, np.log(abs(integrand)+epsabs/10))
+            sgn = CubicSpline(x, np.sign(integrand))
+            f = lambda x: sgn(x)*np.exp(spl(x) + x)
+            val, err = quad(f, x[msk][0], 0., epsabs=epsabs, epsrel=epsrel)
+        else:
+            return 0
         return np.array([val, err])
     
     def OldQuadInt(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
