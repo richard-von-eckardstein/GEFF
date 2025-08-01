@@ -100,9 +100,6 @@ def ComputeImprovedSigma(a  : float|Val, H  : float|Val,
     if Sigma<=0:
         return 0., 0., 0.
 
-    #if np.any(Sigma <= 0):
-    #    return 0., 0., 0.       # chatgpt cdv: damit nicht mehr ValueError, didnt work
-
     else:
         mFbar = mF / H0
 

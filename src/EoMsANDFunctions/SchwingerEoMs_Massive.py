@@ -90,7 +90,7 @@ def EoMDelta(delta : float|Val, sigmaE : float|Val) -> float:
 
 # inlcude variable EoS cdv
 def EoMrhoChi(rhoChi : float|Val, E : float|Val, G : float|Val, 
-               sigmaE : float|Val, sigmaB : float|Val, H : float|Val, mF : float, geff : float):      
+               sigmaE : float|Val, sigmaB : float|Val, H : float|Val, H0 : float, mF : float, geff : float):      
     """
     Calculate the derivative of the fermion energy density.
 
@@ -114,8 +114,9 @@ def EoMrhoChi(rhoChi : float|Val, E : float|Val, G : float|Val,
     float
         the time derivative of rhoChi
     """
-    w = 1/3 * (geff*E/H)**2/(mF**2+ (geff*E/H)**2)
-    
+    mFbar = mF/H0
+    w = 1/3 * E * (geff / H)**2 / (mFbar**2 + E * (geff / H)**2)  #frage mit einheiten? E = (E-Field)**2
+
     return (sigmaE*E - sigmaB*G - 3*H*(1+w)*rhoChi)
 
 

@@ -126,7 +126,7 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
 
 # Übergebe mF und geff  cdv
     dydt[5] = EoMrhoChi( vals.rhoChi, vals.E, vals.G,
-                         vals.sigmaE, vals.sigmaB, vals.H, modelSettings["mF"], modelSettings["geff"])
+                         vals.sigmaE, vals.sigmaB, vals.H, vals.H0, modelSettings["mF"], modelSettings["geff"])
 
     Fcol = y[6:].shape[0]//3
     F = y[6:].reshape(Fcol,3)

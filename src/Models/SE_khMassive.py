@@ -55,8 +55,7 @@ def Initialise(vals, ntr):
     yini[4] = vals.rhoChi.value
 
     global conductivity
-    #conductivity = np.vectorize(DefineConductivity(modelSettings))
-    conductivity = DefineConductivity(modelSettings)        #chatggpt sagt das cdv
+    conductivity = np.vectorize(DefineConductivity(modelSettings))
 
 
     #currently, all gauge-field expectation values are assumed to be 0 at initialisation
@@ -119,7 +118,7 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
 
 # Übergebe mF und geff  cdv
     dydt[4] = EoMrhoChi( vals.rhoChi, vals.E, vals.G,
-                         vals.sigmaE, vals.sigmaB, vals.H, modelSettings["mF"], modelSettings["geff"])
+                         vals.sigmaE, vals.sigmaB, vals.H, vals.H0, modelSettings["mF"], modelSettings["geff"])
 
     Fcol = y[5:].shape[0]//3
     F = y[5:].reshape(Fcol,3)
