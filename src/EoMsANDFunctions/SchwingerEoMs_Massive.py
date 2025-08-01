@@ -115,7 +115,9 @@ def EoMrhoChi(rhoChi : float|Val, E : float|Val, G : float|Val,
         the time derivative of rhoChi
     """
     mFbar = mF/H0
-    w = 1/3 * E * (geff / H)**2 / (mFbar**2 + E * (geff / H)**2)  #frage mit einheiten? E = (E-Field)**2
+    Eeff = E * (geff / H)**2
+
+    w = (1/3) * (Eeff) / (mFbar**2 + Eeff)                  #cdv
 
     return (sigmaE*E - sigmaB*G - 3*H*(1+w)*rhoChi)
 
