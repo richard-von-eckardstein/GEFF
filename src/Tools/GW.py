@@ -147,7 +147,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
     
     #Obtain List of experiments and running experiments
     exp = [a.replace("plis_","").replace(".dat", "") for a in arr ]
-    RunningExp = ["IPTA", "NANOGrav", "PPTA", "EPTA", "HLVO2"]
+    RunningExp = ["IPTA", "NANOGrav", "PPTA", "EPTA", "HLVO2", "HLVO3"]
 
     #Parse Input Names
     if names!=[]:
@@ -225,6 +225,7 @@ def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
             ndet = 2
         else:
             raise Exception
+        
     except FileNotFoundError:
         raise FileNotFoundError(f"'{experiment}' is not a recognised experiment. Recognised experiments are {exp}")
     
