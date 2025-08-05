@@ -1,4 +1,6 @@
 import numpy as np
+from src.BGQuantities.Variables import *
+
 from src.EoMsANDFunctions.ClassicEoMs import *
 from src.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox
 from src.EoMsANDFunctions.AuxiliaryFuncs import Heaviside
@@ -8,90 +10,138 @@ from src.Tools.ModeByMode import ModeSolver
 
 """
 Module defining the model "Classic" used by the GEF
-
-Functions
----------
-Friedmann
-    compute the Hubble rate
-EoMPhi
-    the Klein-Gordon equation in presence of gauge-field friction
-EoMlnkh
-    compute the time derivative of the instability scale kh
-EoMF
-    compute the time derivatives of the gauge-field bilinear tower
 """
 
 name = "Classic"
 
-modelQuantities = {}
-modelFunctions = {}
-modelRhos = []
+settings = {}
 
-modelSettings = {}
 
-def Initialise(vals, ntr):
-    yini = np.zeros((ntr+1)*3+4)
+##### Define Variables #####
+############################
 
-    yini[0] = vals.N.value
-    yini[1] = vals.phi.value
-    yini[2] = vals.dphi.value
+#Define all additional variables (besides default variables)
 
-    vals.kh.SetValue( abs(vals.dphi)*vals.dI(vals.phi) )
-    yini[3] = np.log(vals.kh.value)
+#dynamical variables
+phi = BGVal("phi", 0, 1) #
+dphi = BGVal("dphi", 1, 1) #
+lnkh = BGVal("lnkh", 0, 0) #log of instability scale
 
-    #currently, all gauge-field expectation values are assumed to be 0 at initialisation
-    return yini
+#static variables (which are given are derived from dynamical variables)
+kh = BGVal("kh", 1, 0) #log of instability scale
+xi = BGVal("xi", 0, 0) #instability parameter
+E = BGVal("E", 4, 0) #E^2 expectation value
+B = BGVal("B", 4, 0) #B^2 expectation value
+G = BGVal("G", 4, 0) #G^2 expecation value
 
-def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
-    vals.t.SetValue(t)
-    vals.N.SetValue(y[0])
-    vals.a.SetValue(np.exp(y[0]))
+#Define all constants
+beta = BGVal("beta", 0, -1)
 
-    vals.phi.SetValue(y[1])
-    vals.dphi.SetValue(y[2])
+#Define all functions (potentials, couplings etc.)
+V = BGFunc("V", [phi], 2, 2)
+dV = BGFunc("dV", [phi], 2, 1)
 
-    vals.kh.SetValue(np.exp(y[3]))
 
-    vals.E.SetValue( y[4]*np.exp(4*(y[3]-y[0])))
-    vals.B.SetValue( y[5]*np.exp(4*(y[3]-y[0])))
-    vals.G.SetValue( y[6]*np.exp(4*(y[3]-y[0])))
+#Assign quantities to a dictionary, classifying them by their role:
+quantities={
+            "dynamical":{phi, dphi, lnkh},
+            "static":{xi, kh, E, B, G},
+            "constant":{beta},
+            "function":{V, dV}
+            }
 
-    vals.H.SetValue( Friedmann(vals.dphi, vals.V(vals.phi),
-                                 vals.E, vals.B, 0., vals.H0) )
+##### Define Handling of Gauge Fields #####
+###########################################
+
+#define mode-by-mode solver
+MbM = ModeSolver(ModeEq=ModeEoMClassic, EoMVals=["a", "xi", "H"],
+                         BDEq=BDClassic, Initkeys=[], default_atol=1e-3)
+
+# define gauge field by assigning a name, 0th-order quantities, cut-off scale, and mode-by-mode solver
+GF1 = GaugeField(name="GF", zeroOrder={E, B, G}, UVcutoff=kh, MbM=MbM)
+GaugeFields = {GF1}
+
+
+
+##### Define Input hanlder #####
+################################
+
+#State which variables require input for initialisation
+Input = {
+        "dynamic":{phi, dphi},
+          "constant":{beta},
+        "function":{V, dV}
+        }
+
+#Define how initial data is used to infer the initial Hubble rate, Planck mass, and other initial conditions
+def Initialise(consts, init, funcs):
+    #Compute Hubble rate
+    H0 = np.sqrt( Friedmann( init["dphi"], funcs["V"](init["phi"]), 0., 0., 0., 0. ) )
     
-    vals.xi.SetValue( vals.dI(vals.phi)*(vals.dphi/(2*vals.H)))
+    freq = H0 #Characteristic frequency is the initial Hubble rate
+    Amp = 1. #Charatcterisic amplitude is the Planck mass
 
-    vals.ddphi.SetValue( EoMphi(vals.dphi, vals.dV(vals.phi),
-                                vals.dI(vals.phi), vals.G, vals.H, vals.H0) )
+    #Initialise tose dynamical variables not infered from the input
+    derivedInput = {"lnkh": np.log(consts["beta"]*init["dphi"]/(2*H0)), "GF":0}
+
+    init = init.update(derivedInput)
+
+    return consts, init, funcs, freq, Amp
+
+
+##### Define Solver #####
+#########################
+
+#Inform the solver how to compute static variables based on dynamical variables
+def ComputeStaticVariables(sol):
+
+    #Compute kh from logkh
+    sol.kh.SetValue(np.exp(sol.lnkh))
+
+    #Compute E, B, G from GF
+    sol.E.SetValue( sol.GF[0,0]*np.exp( 4*(sol.lnkh -sol.a) ) )
+    sol.B.SetValue( sol.GF[0,1]*np.exp( 4*(sol.lnkh -sol.a) ) )
+    sol.G.SetValue( sol.GF[0,2]*np.exp( 4*(sol.lnkh -sol.a) ) )
+
+    #Compute Hubble rate
+    sol.H.SetValue( Friedmann(sol.dphi, sol.V(sol.phi), sol.E, sol.B, 0., sol.H0) )
+    
+    #Compute instability parameter
+    sol.xi.SetValue( sol.dI(sol.phi)*(sol.dphi/(2*sol.H)))
+
     return
 
-def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
+#Tell the Solver how to compute time derivatives of dynamical variables
+def EoM(sol):
+    rtol = sol.rtol
+    atol = sol.atol
 
-    dydt = np.zeros(y.shape)
+    #Evolve phi field
+    sol.Evolve("phi")(sol.dphi)
 
-    dydt[0] = vals.H.value
-    dydt[1] = vals.dphi.value
-    dydt[2] = vals.ddphi.value
+    ddphi = EoMphi(sol.dphi, sol.dV(sol.phi), sol.dI(sol.phi), sol.G, sol.H, sol.H0)
+    sol.Evolve("dphi")(ddphi)
 
+    #Compute dlnkh/dt
+    dlnkhdt = EoMlnkh( sol.kh, sol.dphi, ddphi, sol.dI(sol.phi),
+                       sol.ddI(sol.phi), sol.xi, sol.a, sol.H )
+    logfc = np.log( 2*abs(sol.xi)*sol.H*sol.a )
+    eps = max(abs(sol.lnkh)*rtol, atol) 
+    dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-sol.lnkh[3]+10*eps, eps)
     
-    dlnkhdt = EoMlnkh( vals.kh, vals.dphi, vals.ddphi, vals.dI(vals.phi),
-                       vals.ddI(vals.phi), vals.xi, vals.a, vals.H )
-    logfc = y[0] + np.log( 2*abs(vals.xi)*dydt[0])
-    eps = max(abs(y[3])*rtol, atol) 
-    dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-y[3]+10*eps, eps)
-    dydt[3] = dlnkhdt
+    #Evolve dlnkh
+    sol.Evolve("lnkh")( dlnkhdt )
 
-    Fcol = y[4:].shape[0]//3
-    F = y[4:].reshape(Fcol,3)
-    W = WhittakerApprox(vals.xi.value)
-    dFdt = EoMF(F, vals.a, vals.kh, 2*vals.H*vals.xi, W, dlnkhdt, L=20)
-    
-    dydt[4:] = dFdt.reshape(Fcol*3)
+    #Compute gauge-field tower derivative
+    W = WhittakerApprox(sol.xi.value)
+    dFdt = EoMF(sol.GF, sol.a, sol.kh, 2*sol.H*sol.xi, W, dlnkhdt, L=20)
 
-    return dydt
+    #Evolve gauge-field tower
+    sol.Evolve("GF")(dFdt)
 
-ModeByMode = ModeSolver(ModeEq=ModeEoMClassic, EoMkeys=["a", "xi", "H"],
-                         BDEq=BDClassic, Initkeys=[], default_atol=1e-3)
+    return
+
+
 
 #Event 1:
 def EndOfInflation_Condition(t, y, vals, atol, rtol):

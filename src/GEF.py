@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-from src.BGQuantities import DefaultQuantities
+from src.BGQuantities import DefaultVariables
 from src.BGQuantities.BGTypes import BGSystem, Val, Func
 
 from src.Solver.GEFSolver import GEFSolver
@@ -11,52 +11,133 @@ import os
 
 from types import NoneType
 
-def ModelLoader(modelname : str):
-    """
-    Import and execute a module containg a GEF model.
 
-    Parameters
-    ----------
-    modelname : str
-        the name of the GEF model 
+class GEFModel:
+    def __init__(self, modelname : str, settings : dict):
+        self.name = modelname
 
-    Returns
-    -------
-    ModuleType
-        the executed module
-    """
+        #Load the model from file
+        model = self.__ModelLoader(settings)
 
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    modelpath = os.path.join(current_dir, f"Models/{modelname}.py")
-    #Check if Model exists
-    try:
-        #Load ModelAttributes from GEFFile
-        spec = util.spec_from_file_location(modelname, modelpath)
-        mod  = util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
-    except FileNotFoundError:
-        raise FileNotFoundError(f"No model found under '{modelpath}'")
-        
-def SpecifyModelSettings(model, settings : dict={}):
-    """
-    Update model settings of a GEF model according user specifications 
+        #Define all quantities in the model
+        self.__SetVariables(model)
 
-    Parameters
-    ----------
-    modelname : ModuleType
-        an executed GEF-model module
-    settings : dict
-        a dictionary containing the new model settings
-    """
+        #Register all necessary input variables
+        self.__SetInput(model)
 
-    for key, item in settings.items():
+
+        self.Configure = model.Configure
+
+        self.EoM = model.EoM
+        self.ComputeStatic = model.ComputeStaticVariables
+
+        self.MbMs = model.ModeByModes
+
+        self.events = model.events
+
+
+    def __ModelLoader(self, settings : dict):
+        """
+        Import and execute a module containg a GEF model.
+
+        Parameters
+        ----------
+        modelname : str
+            the name of the GEF model 
+        settings : dict
+            a dictionary containing the model settings
+
+        Returns
+        -------
+        ModuleType
+            the executed module
+        """
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        modelpath = os.path.join(current_dir, f"Models/{self.name}.py")
+        #Check if Model exists
         try:
-            model.modelSettings[key] = item
-        except AttributeError:
-            print(f"Ignoring unknown model setting '{key}'.")
+            #Load ModelAttributes from GEFFile
+            spec = util.spec_from_file_location(self.name, modelpath)
+            mod  = util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+
+            for key, item in settings.items():
+                try:
+                    mod.modelSettings[key] = item
+                except AttributeError:
+                    print(f"Ignoring unknown model setting '{key}'.")
+
+            return mod
+        
+        except FileNotFoundError:
+            raise FileNotFoundError(f"No model found under '{modelpath}'")
     
-    return
+    def __SetVariables(self, model):
+        """
+        Define the variables and functions used in this GEFModel.
+
+        Parameters
+        ----------
+        model : ModuleType
+            an executed GEF-model module
+        """
+
+        types = ["dynamical", "static", "constant", "function"]
+        variables = dict(zip(types, [set() for t in types]))
+
+        #Get default quantities which are always present in every GEF run
+        for variable in {DefaultVariables.spacetime, model.Variables, model.Constants, model.Functions}:
+            variables[variable.type].update(variable)
+        
+        self.variables = variables
+
+        return
+    
+    def __SetInput(self, model):
+        """
+        Set the necessary input for this GEFModel.
+
+        Parameters
+        ----------
+        model : ModuleType
+            an executed GEF-model module
+        """
+
+        inputcategories = ["constants", "initial conditions", "functions"]
+        input = dict( zip(inputcategories, [set() for i in inputcategories]) )
+
+        for const in model.Constants:
+            input["constants"].update(set(const.varnames))
+
+        for func in model.Functions:
+            input["initial conditions"].update(set(func.varnames))
+
+        for var in model.Variables:
+            input["functions"].update(set(var.varnames))
+
+        self.input = input
+
+        return
+
+    def ListQuantities(self):
+        """
+        List all variables for this GEFModel.
+
+        Returns
+        -------
+        quantities : dict of sets
+            all quantity names  known by the GEF model and classified by their type.
+        """
+
+        outdic = self.variables.copy()
+        for key, item in self.variables.items():
+            outdic[key] = []
+            outdic[key] = [outdic[key] + i for i in item.varnames]
+            outdic[key] = set(outdic[key])
+
+        return outdic
+
 
 class GEF(BGSystem):
     """
@@ -130,29 +211,18 @@ class GEF(BGSystem):
                 ):
         
         #Get Model attributes
-        model = ModelLoader(model)
-
-        #Configure model settings
-        SpecifyModelSettings(model, userSettings)
+        model = GEFModel(model, userSettings)
 
         #Set GEF-name
         self.name = model.name
 
-        #Set coupling constant
-        self.beta = beta
-        
-        #Define background quantities
-        quantities = self.__DefineQuantities(model.modelQuantities)
-
         #Compute H0 from initial conditions
-        rhoInf = 0.5*iniVals["dphi"]**2 + Funcs["V"](iniVals["phi"])
-        rhoEM = 0.
-        rhoExtra = [iniVals[rho] for rho in model.modelRhos]
-
-        H0 = np.sqrt( (rhoInf + rhoEM + sum(rhoExtra))/3 )
-        MP = 1.
+        iniVals, H0, MP = model.Configure(iniVals, Funcs)
 
         #Define the GEFClass as a BGSystem using the background quantities, functions and unit conversions
+
+        #Continue from here
+        quantities = ...
         super().__init__(quantities, H0, MP)
 
         #Get model-specific mode-by-mode class
@@ -207,12 +277,12 @@ class GEF(BGSystem):
 
         quantities = set()
         #Get default quantities which are always present in every GEF run
-        quantities.update(DefaultQuantities.spacetime)
-        quantities.update(DefaultQuantities.inflaton)
-        quantities.update(DefaultQuantities.gaugefield)
-        quantities.update(DefaultQuantities.auxiliary)
-        quantities.update(DefaultQuantities.inflatonpotential)
-        quantities.update(DefaultQuantities.coupling)
+        quantities.update(DefaultVariables.spacetime)
+        quantities.update(DefaultVariables.inflaton)
+        quantities.update(DefaultVariables.gaugefield)
+        quantities.update(DefaultVariables.auxiliary)
+        quantities.update(DefaultVariables.inflatonpotential)
+        quantities.update(DefaultVariables.coupling)
         quantities.update(modelSpecific)
 
         return quantities
