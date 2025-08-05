@@ -5,102 +5,237 @@ import inspect
 from numpy.typing import ArrayLike, NDArray
 from typing import Callable
 
-class BGSystem:
+def BGSystem(quantities):
     """
-    A collection of cosmological background quantities like cosmic time, Hubble rate, scale-factor etc.
-    Instances of this class define two base unit-systems, 'physical units' and 'numerical units' by setting two energy scales:
-       - H0: a reference Hubble rate (typically H(t=t_init) such that numerical units correspond to Hubble units at t_init).
-       - MP: a reference mass scale in Planck units (typically set to 1. such that physical units are equivalent to Planck units).
-    All quantities associated with this BGSystem can be converted from one unit-system to another by use of these energy-scales.
+    A class factory used to define a collection of cosmological background quantities like cosmic time, Hubble rate, scale-factor etc.
+
+    Parameters
+    ----------
+    quantities : set
+        a set of BGFunc and BGVal objects which define the BGSystem
+        
+    Returns
+    -------
+    BGSystem
+        a class representing a collection of cosmological quantities.
+    """
+
+    class BGSystem(System):
+        """
+        A collection of cosmological background quantities like cosmic time, Hubble rate, scale-factor etc.
+        Instances of this class define two base unit-systems, 'physical units' and 'numerical units' by setting two energy scales:
+        - H0: a reference Hubble rate (typically H(t=t_init) such that numerical units correspond to Hubble units at t_init).
+        - MP: a reference mass scale in Planck units (typically set to 1. such that physical units are equivalent to Planck units).
+        All Quantity objects associated with this BGSystem can be converted from one unit-system to another by use of these energy-scales.
+        This class inherits all methods from the underlying 'System' class, which takes care of the unit conversions
+
+        Attributes
+        ----------
+        H0 : float
+            the Hubble-rate energy scale used for conversion between numerical and physical units
+        MP : float
+            the Planck-mass energy scale used for conversions between numerical and physical units
+        'QuantityName' : Val or Func
+            The System can contain a number of attributes associated to instances of BGVal/BGFunc objects.
+            These attributes are assigned using the names of the Val and Func objects (see examples below).
+
+        Class Methods
+        -------------
+        FromSystem()
+            Initialise a new System from an existing System instance.
+        FromDic()
+            Initialise a new System from a dictionary.
+        ObjectSet():
+            Get a set of all BGVal / BGFunc classes attributed to this System.
+        ObjectNames()
+            Get a list of names for all BGVal / BGFunc classes attributed to this System.
+
+        Instance Methods
+        ----------------
+        Initialise()
+            Initialise a BGVal / BGFunc instance associated with this System instance.
+        SetUnits()
+            Convert the System and all its BGVal / BGFunc instances betweem numerical and physical units.
+        GetUnits()
+            Get a boolean representing the current unit system of this System instance.
+        ValueList() / FunctionList()
+            Get a list of all BGVal / BGFunc instances attributed to this System.
+        ValueNames() / FunctionNames()
+            Get a list of names for all BGVal / BGFunc instances attributed to this System.
+        CreateCopySystem()
+            Create a copy of tbis System including all instances of BGVal's and BGFunc's
+
+        Example
+        -------
+        ... #define two new variables cooresponding to physical time and Hubble rate.
+        >>> time = BGVal("t", H0=-1, MP=0)
+        >>> Hubble = BGVal("H", H0=-1, MP=0)
+        ...
+        ... #Create a System with the Hubble rate set to 1e-5*Mpl
+        >>> U = BGSystem({time, Hubble})(H0, MP)
+        ... 
+        ... #The BGSystem knows about the new variables time and Hubble
+        >>> print(U.ObjectNames()) #prints ["t", "H"]
+        ...
+        ... #Instantiate the objects "t" and "H" using the units defined by U:
+        >>> U.Initialise("t")(1e5)
+        >>> U.Initialise("H")(1e-5)
+        ...
+        ... #The BGSystem now recognises "t" and "H" as keys, you can access them like:
+        >>> print(f"In Planck units, the Hubble rate at time {U.t} is {U.H}.") #prints 1e5 and 1e-5
+        ...
+        ... #Convert everything to numerical units
+        >>> U.SetUnits(False)
+        >>> print(f"In numerical units, the Hubble rate at time {U.t} is {U.H}.") #prints 1 and 1
+        """
+        Objects = dict( {q.name : q for q in quantities} )
+
+    return BGSystem
+
+class System:
+    """
+    The parent class of 'BGSystem'. It defines a collection of quantities which can be instantiated to create a common unit system,
+    by defining a characteristic amplitude scale (MP) and a characteristic frequency scale (H0).
+    All 'Quantity' objects associated with this 'System' can be converted from one unit-system to another by use of these scales.
     This class is the fundamental building block of the GEF-code. 
+
+    Class Methods
+    -------------
+    FromSystem()
+        Initialise a new System from an existing System instance.
+    FromDic()
+        Initialise a new System from a dictionary.
+    ObjectSet():
+        Get a set of all BGVal / BGFunc classes attributed to this System.
+    ObjectNames()
+        Get a list of names for all BGVal / BGFunc classes attributed to this System.
 
     Attributes
     ----------
     H0 : float
         the Hubble-rate energy scale used for conversion between numerical and physical units
     MP : float
-        the Planck-mass energy scale used for conversions between numerical and physical units
-    'QuantityName' : Val or Func
-        The BGSystem can contain a number of attributes associated to instances of BGVal/BGFunc objects.
-        These attributes are assigned using the names of the Val and Func objects (see examples below).
-
-    Methods
-    -------
-    FromBGSystem()
-        Initialise a new BGSystem from an existing BGSystem instance.
+        the Planck-mass energy scale used for conversions between numerical and physical unit
+    
+    Instance Methods
+    ----------------
     Initialise()
-        Initialise a BGVal / BGFunc instance associated with this BGSystem instance.
+        Initialise a BGVal / BGFunc instance associated with this System instance.
     SetUnits()
-        Convert the BGSystem and all its BGVal / BGFunc instances betweem numerical and physical units.
+        Convert the System and all its BGVal / BGFunc instances betweem numerical and physical units.
     GetUnits()
-        Get a boolean representing the current unit system of this BGSystem instance.
-    ObjectSet():
-        Get a set of all BGVal / BGFunc objects (not necessarily instantiated) attributed to this BGSystem.
-    ObjectNames()
-        Get a list of names for all BGVal / BGFunc objects (not necessarily instantiated) attributed to this BGSystem.
+        Get a boolean representing the current unit system of this System instance.
     ValueList() / FunctionList()
-        Get a list of all BGVal / BGFunc instances attributed to this BGSystem.
+        Get a list of all BGVal / BGFunc instances attributed to this System.
     ValueNames() / FunctionNames()
-        Get a list of names for all BGVal / BGFunc instances attributed to this BGSystem.
+        Get a list of names for all BGVal / BGFunc instances attributed to this System.
     CreateCopySystem()
-        Create a copy of tbis BGSystem including all instances of BGVal's and BGFunc's
-
-    Example
-    -------
-    ... #define two new variables cooresponding to physical time and Hubble rate.
-    >>> time = BGVal("t", H0=-1, MP=0)
-    >>> Hubble = BGVal("H", H0=-1, MP=0)
-    ...
-    ... #Create a BGSystem with the Hubble rate set to 1e-5*Mpl
-    >>> U = BGSystem({time, Hubble}, H0, MP)
-    ... 
-    ... #The BGSystem knows about the new variables time and Hubble
-    >>> print(U.ObjectNames()) #prints ["t", "H"]
-    ...
-    ... #Instantiate the objects "t" and "H" using the units defined by U:
-    >>> U.Initialise("t")(1e5)
-    >>> U.Initialise("H")(1e-5)
-    ...
-    ... #The BGSystem now recognises "t" and "H" as keys, you can access them like:
-    >>> print(f"In Planck units, the Hubble rate at time {U.t} is {U.H}.") #prints 1e5 and 1e-5
-    ...
-    ... #Convert everything to numerical units
-    >>> U.SetUnits(False)
-    >>> print(f"In numerical units, the Hubble rate at time {U.t} is {U.H}.") #prints 1 and 1
+        Create a copy of tbis System including all instances of BGVal's and BGFunc's
     """
 
-    def __init__(self, quantities, H0, MP):
+    Objects = {}
+
+    def __init__(self, H0, MP):
         self.H0 = H0
         self.MP = MP
         self.__units=True
-        for quantity in quantities:
-            setattr(self, f"_{quantity.name}", quantity)
-        
+    
     @classmethod
-    def FromBGSystem(cls, system : 'BGSystem') -> 'BGSystem':
+    def FromDic(cls, dic, H0, MP):
         """
-        Initialise a new BGSystem from an existing BGSystem instance
+        Initialise a new System from a dictionary
 
         Parameters
         ----------
-        system : BGSystem
-            the BGSystem instance used for initialising the new BGSystem
+        dic : dictionary
+            a dictionary with keys corresponding to the systems object names and items corresponding to its value.
+        H0 : float
+            the H0 parameter of this instance
+        MP : float
+            the MP parameter of this instance
 
         Returns
         -------
-        BGSystem
-            the new BGSystem instance
+        System
+            the new System instance
         """
 
-        H0 = system.H0
-        MP = system.MP
-        quantities = system.ObjectSet()
-        newinstance = cls(quantities, H0, MP)
+        newinstance = cls(H0, MP)
+        names = cls.ObjectNames()
+        for key, item in dic.items():
+            if key in names:
+                newinstance.Initialise(key)(item)
+            else:
+                print(f"Skipping unkown object '{key}'")
+        
         return newinstance
+    
+    @classmethod
+    def FromSystem(cls, sys):
+        """
+        Initialise a new System from an existing System instance
+
+        Parameters
+        ----------
+        system : System
+            the System instance used for initialising the new System instance
+
+        Returns
+        -------
+        System
+            the new System instance
+        """
+
+        units = sys.GetUnits()
+        sys.SetUnits(True)
+
+        newinstance = cls(sys.H0, sys.MP)
+
+        values = sys.ValueList()
+        funcs = sys.FunctionList()
+        
+        for value in values:
+            obj = deepcopy(value)
+            newinstance.Initialise(obj.name)(obj.value)
+
+        for func in funcs:
+            obj = deepcopy(func)
+            newinstance.Initialise(obj.name)(obj.GetBaseFunc())
+        
+        sys.SetUnits(units)
+        
+        return newinstance
+    
+    @classmethod
+    def ObjectSet(cls) -> set[object]:
+        """
+        Get a set of all BGVal / BGFunc classes attributed to this System.
+
+        Returns
+        -------
+        set
+            the set of associated BGVal / BGFunc objects.
+        """
+
+        return cls.Objects
+    
+    @classmethod
+    def ObjectNames(cls) -> list[str]:
+        """
+        Get a list of names for all BGVal / BGFunc classes attributed to this System.
+
+        Returns
+        -------
+        list of str
+            the list of names.
+        """
+
+        return cls.Objects.keys()
+
 
     def Initialise(self, quantity : str) -> Callable:
         """
-        Initialise a BGVal / BGFunc instance associated with this BGSystem instance
+        Initialise a BGVal / BGFunc instance associated with this System instance
 
         Parameters
         ----------
@@ -116,7 +251,7 @@ class BGSystem:
         def init(obj):
             """
             Initialise a BGVal / BGFunc instance with an arithmetic type / Callable.
-            This adds the BGVal / BGFunc instance as a new attribute for the current BGSystem, with the attribute name
+            This adds the BGVal / BGFunc instance as a new attribute for the current System, with the attribute name
             corresponding to the BGVal / BGFunc instance's 'name' attribute. 
 
             Parameters
@@ -125,13 +260,29 @@ class BGSystem:
                 the NDArray / Callable with which the BGVal / BGFunc is to be instantiated.
             """
 
-            q = getattr(self, f"_{quantity}")
+            q = self.Objects[quantity]
             setattr(self, quantity, q(obj, self))
+            return
+        
         return init
+    
+    def Remove(self, name : str):
+        """
+        Remove a BGVal / BGFunc instance from the System.
+
+        Parameters
+        ----------
+        name : str
+            the name of the BGVal / BGFunc object
+        """
+
+        delattr(self, name)
+        return
+    
         
     def SetUnits(self, units : bool):
         """
-        Convert the BGSystem and all its BGVal / BGFunc instances betweem numerical and physical units.
+        Convert the System and all its BGVal / BGFunc instances betweem numerical and physical units.
 
         Parameters
         ----------
@@ -148,7 +299,7 @@ class BGSystem:
 
     def GetUnits(self) -> bool:
         """
-        Get a boolean representing the current unit system of this BGSystem instance.
+        Get a boolean representing the current unit system of this System instance.
 
         Returns
         -------
@@ -158,42 +309,9 @@ class BGSystem:
 
         return self.__units
     
-    def ObjectSet(self) -> set[object]:
-        """
-        Get a set of all BGVal / BGFunc objects (not necessarily instantiated) attributed to this BGSystem.
-
-        Returns
-        -------
-        set
-            the set of associated BGVal / BGFunc objects.
-        """
-
-        objects = []
-        for var in vars(self):
-            obj = getattr(self, var)
-            if inspect.isclass(obj):
-                if issubclass(obj, Quantity):
-                    objects.append(obj)      
-        return set(objects)
-    
-    def ObjectNames(self) -> list[str]:
-        """
-        Get a list of names for all BGVal / BGFunc objects (not necessarily instantiated) attributed to this BGSystem.
-
-        Returns
-        -------
-        list of str
-            the list of names.
-        """
-
-        names = []
-        for obj in self.ObjectSet():
-            names.append(obj.name)
-        return names
-    
     def ValueList(self) -> list['Val']:
         """
-        Get a list of all BGFunc instances attributed to this BGSystem.
+        Get a list of all BGFunc instances attributed to this System.
 
         Returns
         -------
@@ -210,7 +328,7 @@ class BGSystem:
     
     def ValueNames(self) -> list[str]:
         """
-        Get a list of names for all BGVal instances attributed to this BGSystem.
+        Get a list of names for all BGVal instances attributed to this System.
 
         Returns
         -------
@@ -225,7 +343,7 @@ class BGSystem:
 
     def FunctionList(self) -> list['Func']:
         """
-        Get a list of all BGFunc instances attributed to this BGSystem.
+        Get a list of all BGFunc instances attributed to this System.
 
         Returns
         -------
@@ -242,7 +360,7 @@ class BGSystem:
     
     def FunctionNames(self) -> list[str]:
         """
-        Get a list of names for all BGFunc instances attributed to this BGSystem.
+        Get a list of names for all BGFunc instances attributed to this System.
 
         Returns
         -------
@@ -254,129 +372,6 @@ class BGSystem:
         for val in self.FunctionList():
             names.append(val.name)
         return names
-
-    def CreateCopySystem(self) -> 'BGSystem':
-        """
-        Create a copy of tbis BGSystem including all instances of BGVal's and BGFunc's.
-
-        Returns
-        -------
-        BGSystem
-            a copy of this BGSystem
-        """
-
-        units = self.GetUnits()
-        newsystem = BGSystem.FromBGSystem(self)
-        self.SetUnits(True)
-
-        values = self.ValueList()
-        funcs = self.FunctionList()
-        
-        for value in values:
-            obj = deepcopy(value)
-            newsystem.Initialise(obj.name)(obj.value)
-
-        for func in funcs:
-            obj = deepcopy(func)
-            newsystem.Initialise(obj.name)(obj.GetBaseFunc())
-        
-        self.SetUnits(units)
-        
-        return newsystem
-
-    def Remove(self, name : str):
-        """
-        Remove a BGVal / BGFunc object including it's instance from the BGSystem.
-
-        Parameters
-        ----------
-        name : str
-            the name of the BGVal / BGFunc object
-        """
-
-        delattr(self, name)
-        delattr(self, f"_{name}")
-        return
-    
-    def AddBGVal(self, name : str, H0units : int, MPunits : int):
-        """
-        Add a BGVal object to the BGSystem.
-
-        Parameters
-        ----------
-        name : str
-            the name of the BGVal object.
-        H0units : int
-            the BGVal's 'u_H0' parameter.
-        MPunits : int
-            the BGVal's 'u_MP' parameter.
-        """
-
-        setattr(self, f"_{name}",
-                 BGVal(name, H0units, MPunits))
-        return
-    
-    def AddBGFunc(self, name : str, args : list['Val'], H0units : int, MPunits : int):
-        """
-        Add a BGFunc object to the BGSystem.
-
-        Parameters
-        ----------
-        name : str
-            the name of the BGVal object.
-        args : list of BGVal
-            the BGFunc's 'Args' parameter.
-        H0units : int
-            the BGFunc's 'u_H0' parameter.
-        MPunits : int
-            the BGFunc's 'u_MP' parameter.
-        """
-
-        setattr(self, f"_{name}",
-                 BGFunc(name, args, H0units, MPunits))
-        return
-    
-    def AddValue(self, name : str, value : NDArray, H0units : int, MPunits : int):
-        """
-        Add a BGVal object to the BGSystem and instantiate it.
-
-        Parameters
-        ----------
-        name : str
-            the name of the BGVal object.
-        value : NDArray or float
-            the value with which to instantiate the BGVal object.
-        H0units : int
-            the BGVal's 'u_H0' parameter.
-        MPunits : int
-            the BGVal's 'u_MP' parameter.
-        """
-
-        self.AddBGVal(name, H0units, MPunits)
-        self.Initialise(name)(value)
-        return
-    
-    def AddFunction(self, name : str, args : list['Val'], function : Callable, H0units : int, MPunits : int):
-        """
-        Add a BGFunc object to the BGSystem and instantiate it.
-
-        Parameters
-        ----------
-        name : str
-            the name of the BGVal object.
-        args : list of BGVal
-            the BGFunc's 'Args' parameter.
-        function : Callable
-            the function with which to instantiate the BGFunc object.
-        H0units : int
-            the BGFunc's 'u_H0' parameter.
-        MPunits : int
-            the BGFunc's 'u_MP' parameter.
-        """
-
-        self.AddBGFunc(name, args, H0units, MPunits)
-        self.Initialise(name)(function)
-        return
     
 def BGVal(Qname : str, H0 : int, MP : int, Qdtype : np.dtype=np.float64):
     """
@@ -447,8 +442,8 @@ def BGVal(Qname : str, H0 : int, MP : int, Qdtype : np.dtype=np.float64):
         ... #create a BGVal object: the electric field expectation value E^2
         >>> E0 = BGVal("E0", H0=4, MP=0) #since A_mu scales like d / dx^mu 
         ... 
-        ... #Add 'E0' to a BGSystem in Planck units (M_pl = 1) and H0 = 1e-5*M_pl:
-        >>> U = BGSystem([E0], H0=1e-5, MP=1.)
+        ... #Add 'E0' to a System in Planck units (M_pl = 1) and H0 = 1e-5*M_pl:
+        >>> U = BGSystem({E0})( H0=1e-5, MP=1.)
         ... 
         ... #initialise E0 with some value in Planck units:
         >>> U.Initialise("E0")( 6e-10 )
@@ -468,8 +463,8 @@ def BGVal(Qname : str, H0 : int, MP : int, Qdtype : np.dtype=np.float64):
         u_H0 = H0
         u_MP = MP
         dtype = Qdtype
-        def __init__(self, value, BGSystem):
-            super().__init__(value, BGSystem)
+        def __init__(self, value, System):
+            super().__init__(value, System)
 
     return BGVal
 
@@ -550,8 +545,8 @@ def BGFunc(Qname : str, args : list['Val'], H0 : int, MP : int, Qdtype : np.dtyp
         ... #define a BGFunc object: rhoE, the electric field energy density
         >>> rhoE = BGFunc("rhoE", args=[E0], H0=2, MP=2) # since 3 * M_pl^2 * H^2 = rho
         ... 
-        ... #collect both in a BGSystem in Planck units (M_pl = 1) and H0 = 1e-5*M_pl:
-        >>> U = BGSystem([E0, rhoE], H0=1e-5, MP=1.)
+        ... #collect both in a BGSystem initialised in Planck units (M_pl = 1) and H0 = 1e-5*M_pl:
+        >>> U = BGSystem({E0, rhoE})(H0=1e-5, MP=1.)
         ... 
         ... #initialise E0 with some value in Planck units:
         >>> U.Initialise("E0")( 6e-10 )
@@ -605,8 +600,8 @@ def BGFunc(Qname : str, args : list['Val'], H0 : int, MP : int, Qdtype : np.dtyp
         u_MP = MP
         Args = args
         dtype = Qdtype
-        def __init__(self, func, BGSystem):
-            super().__init__(func, BGSystem)
+        def __init__(self, func, System):
+            super().__init__(func, System)
 
     return BGFunc
     
@@ -665,13 +660,13 @@ class Val(Quantity):
         Get the conversion factor between numerical and physical units for this Val instance.
     """
 
-    def __init__(self, value : NDArray, BGSystem : BGSystem):
+    def __init__(self, value : NDArray, System : System):
         self.__DefineMassdim__()
 
         self.value = np.asarray(value, dtype=self.dtype)
-        self.__units = BGSystem.GetUnits()
+        self.__units = System.GetUnits()
         
-        self.__Conversion = (BGSystem.H0**self.u_H0*BGSystem.MP**self.u_MP)
+        self.__Conversion = (System.H0**self.u_H0*System.MP**self.u_MP)
 
     @classmethod
     def __DefineMassdim__(cls):
@@ -858,7 +853,7 @@ class Func(Quantity):
 
     """
     Args = []
-    def __init__(self, func, BGSystem):
+    def __init__(self, func, System):
         super().__init__()
         func = np.vectorize(func, otypes=[self.dtype])
         
@@ -872,10 +867,10 @@ class Func(Quantity):
         
         self.__basefunc = func
 
-        self.__units = BGSystem.GetUnits()
-        self.__ArgConversions = [(BGSystem.H0**arg.u_H0*BGSystem.MP**arg.u_MP)
+        self.__units = System.GetUnits()
+        self.__ArgConversions = [(System.H0**arg.u_H0*System.MP**arg.u_MP)
                                  for arg in self.Args]
-        self.__Conversion = (BGSystem.H0**self.u_H0*BGSystem.MP**self.u_MP)
+        self.__Conversion = (System.H0**self.u_H0*System.MP**self.u_MP)
         
     def GetUnits(self) -> bool:
         """
