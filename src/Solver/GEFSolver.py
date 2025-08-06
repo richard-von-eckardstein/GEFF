@@ -23,7 +23,26 @@ def PrintSummary(sol):
             print(rf"{event} at t={time} or N={efold}")
     return
 
-class GEFSolver:
+def GEFSolver(objects, dynamicalDict, EoM, ComputeStatic, events):
+    
+    class GEFSolver(BaseSolver):
+        DynamicalVariables = dynamicalDict
+        TimeStep = EoM
+        UpdateVals = ComputeStatic
+        Events = events
+
+        def __init__(self, settings, iniVals):
+            self.IndexMap = ... #Define the index map based on the solver settings
+            self.Initialise = ... #Set the initial Initialise function
+        
+        def CreateEvolver(self):
+            pass
+
+    return GEFSolver
+
+
+
+class BaseSolver:
     def __init__(self, UpdateVals, TimeStep, Initialise, events, ModeByMode, iniVals):
         self.__Initialise = Initialise
         self.iniVals = iniVals
@@ -36,11 +55,13 @@ class GEFSolver:
 
         self.ModeByMode = ModeByMode
 
+    #stays part of the solver
     def __ode(self, t, y, vals, atol=1e-20, rtol=1e-6):
         self.__UpdateVals(t, y, vals, atol=atol, rtol=rtol)
         dydt = self.TimeStep(t, y, vals, atol=atol, rtol=rtol)
         return dydt
 
+    #is moved to GEF
     def RunGEF(self, ntr, tend, atol, rtol, nmodes=500,
                  printstats=True, **Kwargs):
         self.ntr=ntr
@@ -114,6 +135,7 @@ class GEFSolver:
         else:
             raise RuntimeError(f"GEF did not complete after {attempt} attempts.")
     
+    #Can stay in the Solver
     def GEFAlgorithm(self, solmeth="RK45", reachNend=True, ensureConvergence=True, maxattempts=5):
         if reachNend: Nend=60 #set default Nend
         attempts=1
@@ -156,6 +178,7 @@ class GEFSolver:
 
         return sol, vals
     
+    #move to GEF
     def ModeByModeCrossCheck(self, spec, vals, errthr, thinning, method, **MbMKwargs):
         errs, terr, _ = spec.CompareToBackgroundSolution(vals, errthr=errthr, steps=thinning, method=method, **MbMKwargs)
 
@@ -180,6 +203,7 @@ class GEFSolver:
 
         return agreement, ReInitSlice
     
+    #can be moved to Solution?
     def UpdateSol(self, solold, solnew):
         if solold==None:
             return solnew
@@ -199,12 +223,14 @@ class GEFSolver:
             sol.nfev +=sol.nfev
             return sol
     
+    #stays in Solver
     def InitialiseFromSlowRoll(self):
         t0 = 0
         vals = deepcopy(self.iniVals)
         yini = self.__Initialise(vals, self.ntr)
         return t0, yini, vals
     
+    #stays in solver
     def InitialiseFromMbM(self, sol, ReInitSpec, method, **MbMKwargs):
         def NewInitialiser():
             ntr = self.ntr
@@ -244,6 +270,7 @@ class GEFSolver:
             return treinit, yini, Temp
         return NewInitialiser
         
+    #Taken care of by Map
     def ParseArrToUnitSystem(self, t, y, vals):
         ts = deepcopy(t)
         ys = deepcopy(y)
@@ -251,6 +278,7 @@ class GEFSolver:
         self.__UpdateVals(ts, ys, vals)
         return
     
+    #Stays in Solver
     def AddEvents(self, reachNend):
         """def EventWrapper(eventfunc):
             def SolveIVPcompatibleEvent(t, y, vals, atol, rtol):
@@ -324,6 +352,7 @@ class GEFSolver:
         
         return sol
     
+    #Stays in Solver
     def __AssessEvents(self, tevents, yevents, vals, reachNend=True):
         commands = {"primary":[], "secondary":[]}
         eventdic = {}
@@ -362,6 +391,7 @@ class GEFSolver:
         #if no primarycommand was passed, return "finish"
         return eventdic, "finish"
     
+    #Stays in Solver --> returns Solution
     def __FinaliseSolution(self, sols, eventdic):
         nfevs = 0
         y = []

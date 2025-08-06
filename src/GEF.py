@@ -4,7 +4,7 @@ import numpy as np
 from src.BGQuantities import DefaultVariables
 from src.BGQuantities.BGTypes import BGSystem, System, Val, Func
 
-from src.Solver.GEFSolver import GEFSolver
+from src.Solver.GEFSolver import GEFSolver, DefineSolver
 
 import importlib.util as util
 import os
@@ -118,9 +118,11 @@ class BaseGEF(System):
     Solver = None
 
     def __init__(
-                self, H0, MP, GEFData: NoneType|str = None, ModeData: NoneType|str = None
+                self, consts, iniVals, Funcs, GEFData: NoneType|str = None, ModeData: NoneType|str = None
                 ):
 
+        H0 = 1
+        MP = 1
         super().__init__(H0, MP)
 
         #Add information about file paths
@@ -150,34 +152,6 @@ class BaseGEF(System):
         #Add coupling strength
         string += f"beta={self.beta}"
         return string
-
-    @staticmethod
-    def __DefineQuantities(modelSpecific):
-        """
-        Create a dictionary of BGVals and BGFuncs used to initialise the GEF.
-
-        Parameters
-        ----------
-        modelSpecific : dict of BGVal's and BGFunc's
-            specifies the model-specific quantities used by the GEF
-
-        Returns
-        -------
-        quantities : dict of BGVal's and BGFunc's
-            all quantities known by the GEF system.
-        """
-
-        quantities = set()
-        #Get default quantities which are always present in every GEF run
-        quantities.update(DefaultVariables.spacetime)
-        quantities.update(DefaultVariables.inflaton)
-        quantities.update(DefaultVariables.gaugefield)
-        quantities.update(DefaultVariables.auxiliary)
-        quantities.update(DefaultVariables.inflatonpotential)
-        quantities.update(DefaultVariables.coupling)
-        quantities.update(modelSpecific)
-
-        return quantities
 
     def __SetupGEFSolver(self, model, iniVals : dict, Funcs : dict):
         """
@@ -330,7 +304,7 @@ class BaseGEF(System):
 
 
 
-def GEFModel(modelname, settings):
+def GEF(modelname, settings):
     #compile the model file
     model = LoadModel(modelname, settings)
 
@@ -342,15 +316,14 @@ def GEFModel(modelname, settings):
     gaugefields = model.gaugefields
 
     #These are used 
-    dynamical_variables = [q.name for q in quantities["dynamical"]]
-    dynamical_dict = {"dynamical":dynamical_variables, "GF": gaugefields.keys()}
+    dynamical_dict = {"dynamical":[q.name for q in quantities["dynamical"]], "GF": gaugefields.keys()}
 
     sys = BGSystem(set(quantities.Values()))
 
-    class GEFModel(sys):
+    class GEF(sys):
         #Add information about the mode-by-mode solver
         MbM = model.MbM
-        Solver = GEFSolver( dynamical_dict, model.EoM, model.events, model.MbM )
+        Solver = DefineSolver(sys, dynamical_dict, model.EoM, model.ComputeStaticVariables, model.events)
 
         def __init__(
                     self, constants : dict, iniVals: dict, Funcs: dict,
@@ -397,4 +370,4 @@ def GEFModel(modelname, settings):
 
            
 
-    return GEFModel
+    return GEF
