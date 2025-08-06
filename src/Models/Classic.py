@@ -58,23 +58,21 @@ MbM = ModeSolver(ModeEq=ModeEoMClassic, EoMVals=["a", "xi", "H"],
                          BDEq=BDClassic, Initkeys=[], default_atol=1e-3)
 
 # define gauge field by assigning a name, 0th-order quantities, cut-off scale, and mode-by-mode solver
-GF1 = GaugeField(name="GF", zeroOrder={E, B, G}, UVcutoff=kh, MbM=MbM)
-GaugeFields = {GF1}
-
-
+GF1 = {"GF":{"0thOrder":{E, B, G}, "UV":kh}}
+gaugefields = {GF1}
 
 ##### Define Input hanlder #####
 ################################
 
 #State which variables require input for initialisation
-Input = {
+input = {
         "dynamic":{phi, dphi},
           "constant":{beta},
         "function":{V, dV}
         }
 
 #Define how initial data is used to infer the initial Hubble rate, Planck mass, and other initial conditions
-def Initialise(consts, init, funcs):
+def ParseInput(consts, init, funcs):
     #Compute Hubble rate
     H0 = np.sqrt( Friedmann( init["dphi"], funcs["V"](init["phi"]), 0., 0., 0., 0. ) )
     
@@ -86,7 +84,7 @@ def Initialise(consts, init, funcs):
 
     init = init.update(derivedInput)
 
-    return consts, init, funcs, freq, Amp
+    return freq, Amp
 
 
 ##### Define Solver #####

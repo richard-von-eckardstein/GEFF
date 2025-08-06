@@ -21,6 +21,12 @@ class NameIndexTranslator:
 #For Step 1 and 2, I know the names. Do I ever need to retrieve names based on indices? No...?
 
 
+def Evolver(sys, dynamical_variables, gaugefield_variables):
+    class Evolver(BGSystem):
+        varnames = {"dynamical":dynamical_variables, "GF": gaugefield_variables}
+        def __init__(self, initialdata):
+            super().FromBGSystem(sys)
+            pass
 
 class Evolver(BGSystem):
     def __init__(self, dynamical_variables, gaugefields, InitialData, settings):
