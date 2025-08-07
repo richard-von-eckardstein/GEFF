@@ -135,8 +135,8 @@ def EndOfInflation_Condition(t, y, vals, atol=1e-20, rtol=1e-6):
     ratio = vals.H0/vals.MP
     dphi = y[2]
     V = vals.V.GetBaseFunc()(vals.MP*y[1])/vals.V.GetConversion()
-    rhoEB = 0.5*(y[6]+y[7])*ratio**2*np.exp(4*(y[3]-y[0]))
-    rhoChi = y[5]*ratio**2
+    rhoEB = 0.5*(y[5]+y[6])*ratio**2*np.exp(4*(y[3]-y[0]))
+    rhoChi = y[4]*ratio**2
     val = np.log(abs((dphi**2 + rhoEB + rhoChi)/V))
     return val
 
