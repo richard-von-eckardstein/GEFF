@@ -224,6 +224,75 @@ class BaseGEF(BGSystem):
                 except AssertionError:
                     raise TypeError(f"Input {inputtype} is '{type(inputdata[key])}' but should be 'Number' type.")
         return
+    
+    """def RunGEF(self, ntr, tend, nmodes=500, printstats=True, **Kwargs):
+        self.ntr=ntr
+        self.tend=tend
+
+        GEFKwargs = {setting : Kwargs[setting] for setting in self.settings if setting in Kwargs}
+        
+        self.Solver.UpdateSettings(**GEFKwargs)
+
+        MbMattempts = Kwargs.get("MbMattempts", 5)
+        thinning = Kwargs.get("thinning", 5)
+        errthr = Kwargs.get("errthr", 0.025)
+        resumeMode = Kwargs.get("resumeMode", True)
+        method = Kwargs.get("method", "simpson")
+        selfcorrmethod = Kwargs.get("selfcorrmethod", "simpson")
+
+        MbMKwargs = {"epsabs":self.settings["atol"], "epsrel":self.settings["rtol"]}
+
+        done=False
+        sol = None
+        attempt=0
+        while not(done) and attempt<MbMattempts:
+            attempt +=1
+            solnew, vals = self.Solver.GEFAlgorithm()
+            sol = self.Solver.UpdateSol(sol, solnew)
+            self.Solver.ParseArrToUnitSystem(sol.t, sol.y, vals)
+
+            if nmodes!=None:
+                print("Using last successful GEF solution to compute gauge-field mode functions.")
+                MbM = self.ModeByMode(vals)
+
+                if resumeMode:    
+                    try:
+                        spec["t"]
+                    except:
+                        spec = MbM.ComputeModeSpectrum(nmodes, rtol=self.rtol)
+                    else:
+                        spec = MbM.UpdateSpectrum(spec, treinit, rtol=self.rtol)
+                else:
+                    spec = MbM.ComputeModeSpectrum(nmodes, rtol=self.rtol)
+
+                print("Performing mode-by-mode comparison with GEF results.")
+                try:
+                    treinit = ReInitSpec["t"]
+                except:
+                    treinit = 0
+                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, errthr=errthr, thinning=thinning, method=selfcorrmethod, **MbMKwargs)
+
+                if agreement:
+                    print(f"The mode-by-mode comparison indicates a convergent GEF run.")
+                    done=True
+                else:
+                    Nreinit = np.round(ReInitSpec["N"], 1)
+                    treinit = np.round(ReInitSpec["t"], 1)
+
+                    print(f"Attempting to solve GEF using self-correction starting from t={treinit}, N={Nreinit}.")
+
+                    self.InitialConditions = self.InitialiseFromMbM(sol, ReInitSpec, method, **MbMKwargs)
+            else:
+                spec=None
+                done=True
+        
+        if done:
+            print("GEF run successfully completed.")
+            if printstats:
+                PrintSummary(sol)
+            return sol, spec
+        else:
+            raise RuntimeError(f"GEF did not complete after {attempt} attempts.")"""
 
     def LoadGEFData(self, path : NoneType|str=None):
         """
@@ -348,3 +417,20 @@ def GEF(modelname, settings):
         pass
 
     return GEF
+
+
+def PrintSummary(sol):
+    print("The run terminated with the following statistics:")
+    for attr in sol.keys():
+        if attr not in ["y", "t", "y_events", "t_events", "sol", "events"]:
+            print(rf"{attr} : {getattr(sol, attr)}")
+    events = sol.events
+    if len(events.keys())==0:
+        print("No events occured during the run")
+    else:
+        print("The following events occured during the run:")
+        for event in events.keys():
+            time = events[event]["t"]
+            efold = events[event]["N"]
+            print(rf"{event} at t={time} or N={efold}")
+    return
