@@ -25,7 +25,7 @@ class TestBGFunc():
         y = BGVal("y", 1, 0)
         f1 = BGFunc("f1", [x], 3, 1)
         f2 = BGFunc("f2", [x, y], 1, 3)
-        U = BGSystem({x, y, f1, f2})( 0.55, 0.32 )
+        U = BGSystem({x, y, f1, f2}, 0.55, 0.32 )
         return U
     
     def inst(self, func, nargs):

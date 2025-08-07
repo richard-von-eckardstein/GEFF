@@ -13,16 +13,11 @@ class TestBGSystem():
         f = BGFunc("f", [sample_bgval], 2, 1)
         return f
     
-    def createSys(self):
+    def init(self):
         x = BGVal("x", 2, 1)
         f = BGFunc("f", [x], 2, 1)
-        sys = BGSystem([x, f])
+        sys = BGSystem({x, f}, 0.55, 0.32)
         return sys
-    
-    def init(self):
-        sys = self.createSys()
-        U = sys(0.55, 0.32)
-        return U
     
     def test_init(self):
         U = self.init()
@@ -33,32 +28,28 @@ class TestBGSystem():
         U = self.init()
         U.Initialise("x")(10)
 
-        sys = self.createSys()
-        V = sys.FromSystem(U)
+        #check full copy
+        V = BGSystem.FromSystem(U, copy=True)
 
         assert V.H0 == U.H0
         assert V.MP == U.MP
         assert V.ObjectNames() == U.ObjectNames()
         assert V.ValueList() == U.ValueList()
+        assert V.FunctionList() == U.FunctionList()
 
-    def test_initFromDic(self):
-        U = self.init()
-        U.Initialise("x")(10)
-        U.Initialise("f")(lambda x: 5)
-        sys = self.createSys()
-
-        dic = {"f":lambda x: 5}
-        V = sys.FromDic(dic, U.H0, U.MP)
+        #check empty copy
+        V = BGSystem.FromSystem(U, copy=False)
 
         assert V.H0 == U.H0
         assert V.MP == U.MP
         assert V.ObjectNames() == U.ObjectNames()
         assert V.ValueList() == []
+        assert V.FunctionList() == []
 
     def test_Object_SetAndNames(self, sample_bgfunc, sample_bgval):
-        sys = self.createSys()
+        U = self.init()
         for val in ["x", "f"]:
-            assert val in sys.ObjectNames()
+            assert val in U.ObjectNames()
 
     def test_InitialiseValue(self):
         U = self.init()
@@ -105,24 +96,23 @@ class TestBGSystem():
         U.Remove("x")
         
         assert not(hasattr(U, "x"))
+        assert "x" not in U.ObjectNames()
 
-    """
     def test_AddObj(self):
-        U = self.createSys()
+        U = self.init()
         U.AddBGVal("y", 0, 2)
-        U.AddBGFunc("g", [U._y], 2, 0)
+        U.AddBGFunc("g", [U.Objects["y"]], 2, 0)
         names = U.ObjectNames()
         assert "y" in names
         assert "g" in names
 
-    def test_AddVal(self):
+    """def test_AddVal(self):
         U = self.createSys()
         U.AddValue("y", 3.0, 0, 2)
         U.AddFunction("g", [U._y], lambda x: x, 2, 0)
         names = U.ObjectNames()
         assert "y" in names
-        assert "g" in names
-    """
+        assert "g" in names"""
 
 
     def test_SetUnitsFalse(self):
