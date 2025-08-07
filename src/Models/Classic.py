@@ -153,7 +153,7 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
 
 
 #Event 1:
-def EndOfInflation_Condition(t, y, vals, atol, rtol):
+def EndOfInflation_Condition(t, y, vals):#, atol, rtol):
     dphi = y[2]
     V = vals.V(y[1])
     rhoEB = 0.5*(y[4]+y[5])*(vals.H0/vals.MP)**2*np.exp(4*(y[3]-y[0]))
@@ -175,7 +175,7 @@ EndOfInflation = Event("End of inflation",
                         EndOfInflation_Condition, True, 1, EndOfInflation_Consequence)
 
 #Event 2:
-def NegativeEnergies_Condition(t, y, vals, atol, rtol):
+def NegativeEnergies_Condition(t, y, vals):#, atol, rtol):
     return min(y[4], y[5])
 
 def NegativeEnergies_Consequence(vals, occurance):
@@ -194,8 +194,8 @@ events = [EndOfInflation, NegativeEnergies]
 ###########################################
 
 #define mode-by-mode solver
-MbM = ModeSolver(ModeEq=ModeEoMClassic, EoMkeys=["a", "xi", "H"],
-                         BDEq=BDClassic, Initkeys=[], default_atol=1e-3)
+MbM = ModeSolver(ModeEq=ModeEoMClassic, EoMkeys=["a", "xi", "H"], 
+                  BDEq=BDClassic, Initkeys=[], default_atol=1e-3)
 
 
 
