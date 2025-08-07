@@ -1,4 +1,5 @@
 import numpy as np
+from src.BGQuantities.BGTypes import BGSystem
 
 from scipy.integrate import solve_ivp
 
@@ -23,29 +24,10 @@ def PrintSummary(sol):
             print(rf"{event} at t={time} or N={efold}")
     return
 
-def GEFSolver(objects, dynamicalDict, EoM, ComputeStatic, events):
-    
-    class GEFSolver(BaseSolver):
-        DynamicalVariables = dynamicalDict
-        TimeStep = EoM
-        UpdateVals = ComputeStatic
-        Events = events
 
-        def __init__(self, settings, iniVals):
-            self.IndexMap = ... #Define the index map based on the solver settings
-            self.Initialise = ... #Set the initial Initialise function
-        
-        def CreateEvolver(self):
-            pass
-
-    return GEFSolver
-
-
-
-class BaseSolver:
-    def __init__(self, UpdateVals, TimeStep, Initialise, events, ModeByMode, iniVals):
+class GEFSolver:
+    def __init__(self, UpdateVals, TimeStep, Initialise, events, ModeByMode):
         self.__Initialise = Initialise
-        self.iniVals = iniVals
         self.InitialConditions = self.InitialiseFromSlowRoll
         
         self.__UpdateVals = UpdateVals
@@ -55,6 +37,10 @@ class BaseSolver:
 
         self.ModeByMode = ModeByMode
 
+    def SetIniVals(self, initsys):
+        self.iniVals = BGSystem.FromSystem(initsys, copy=True)
+        return
+    
     #stays part of the solver
     def __ode(self, t, y, vals, atol=1e-20, rtol=1e-6):
         self.__UpdateVals(t, y, vals, atol=atol, rtol=rtol)
@@ -227,6 +213,7 @@ class BaseSolver:
     def InitialiseFromSlowRoll(self):
         t0 = 0
         vals = deepcopy(self.iniVals)
+        vals.SetUnits(False)
         yini = self.__Initialise(vals, self.ntr)
         return t0, yini, vals
     

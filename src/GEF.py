@@ -1,15 +1,18 @@
 import pandas as pd
 import numpy as np
 
-from src.BGQuantities import DefaultVariables
-from src.BGQuantities.BGTypes import BGSystem, System, Val, Func
+from src.BGQuantities.BGTypes import BGSystem, Val, Func
 
-from src.Solver.GEFSolver import GEFSolver, DefineSolver
+from src.Solver.GEFSolver import GEFSolver
 
 import importlib.util as util
 import os
 
+from numbers import Number
 from types import NoneType
+
+class MissingInputError(Exception):
+    pass
 
 def LoadModel(name : str, settings : dict):
     """
@@ -48,8 +51,54 @@ def LoadModel(name : str, settings : dict):
     except FileNotFoundError:
         raise FileNotFoundError(f"No model found under '{modelpath}'")
     
-  
-class BaseGEF(System):
+
+def CompileModel(modelname, settings):
+    #compile the model file
+    model = LoadModel(modelname, settings)
+
+    #import quantities dictionary
+    Q_dic = model.quantities
+
+    #import information on input and how to handle it
+    input_signature = model.input
+    input_handler = model.ParseInput
+
+    #import information for solver:
+    init_func = model.Initialise
+    staticVariable_func = model.UpdateVals#model.ComputeStaticvariables
+    EoM_func = model.TimeStep
+    event_list = model.events
+
+    #import Mode-By-Mode class:
+    MbM_solver = model.MbM
+
+    return Q_dic, (input_signature, input_handler), (staticVariable_func, EoM_func, init_func, event_list, MbM_solver), MbM_solver
+    
+
+def ModelSetup(modelname, settings):
+    def GEF_decorator(cls):
+        quantity_info, input_info, solver_info, MbM_info = CompileModel(modelname, settings)
+        
+        cls.ObjectClassification = { key:{i.name for i in item} for key, item in quantity_info.items()}
+        quantity_info.pop("gaugefields")
+        cls.KnownObjects = set().union(*quantity_info.values())
+        
+
+        cls.InputSignature = input_info[0]
+        cls.InputHandler = staticmethod(input_info[1])
+        cls.Solver = GEFSolver(*solver_info)
+        cls.ModeSolver = MbM_info
+        return cls
+    return GEF_decorator
+
+class GEFType:
+    def __new__(cls, *args, **kwargs):
+        #Here, I can ensure that the input from the model really compiles, i.e.,
+        #that all class attributes are as intended
+        return super().__new__(cls, *args, **kwargs)
+
+@ModelSetup("Classic", {})
+class BaseGEF(BGSystem):
     """
     This class is the primary interface for the GEF. It's main function is to create the GEFSolver according to model-specification and to store the results of the GEF.
     Following a successful run, it contains all information about the evolution of the time-dependent background as specified by the model-file.
@@ -114,82 +163,66 @@ class BaseGEF(System):
     >>> plt.plot(G.N, G.E) #plot the evolution of the electric field expectation value E^2
     >>> plt.show()
     """
-    MbM = None
-    Solver = None
 
     def __init__(
-                self, consts, iniVals, Funcs, GEFData: NoneType|str = None, ModeData: NoneType|str = None
+                self, consts : dict, iniVals : dict, Funcs : dict, 
+                GEFData: NoneType|str = None, ModeData: NoneType|str = None
                 ):
+        
+        user_input = {"constants":consts, "initial data":iniVals, "functions":Funcs}
+        #Check that all necessary input is present and that its data type is correct
+        for inputtype, inputdic  in user_input.items():
+            self.__CheckInput(inputdic, inputtype)
 
-        H0 = 1
-        MP = 1
-        super().__init__(H0, MP)
+        H0, MP = self.InputHandler(*user_input.values())
 
+        super().__init__(self.KnownObjects, H0, MP)
+
+        #Add initial data to BGSystem
+        for name, constant in user_input["constants"].items():
+            self.Initialise(name)(constant)
+        for name, function in user_input["functions"].items():
+            self.Initialise(name)(function)
+        for name, value in user_input["initial data"].items():
+            self.Initialise(name)(value)
+
+        #Initialise the other values with dummy variables.
+        for name in self.ObjectNames():
+            if name not in (self.ValueNames() + self.FunctionNames()):
+                self.Initialise(name)(0)
+
+        self.Solver.SetIniVals(self)
+        
         #Add information about file paths
         self.GEFData = GEFData
         self.ModeData = ModeData
 
+    
+    @classmethod
+    def PrintInput(cls):
+        print("This 'GEF' model requires the following input:")
+        for key, item in cls.InputSignature.items():
+            print(f"\t {key.capitalize()}: {item}")
+        print("\n")
         return
 
-    def __str__(self):
-        """
-        Return a string representing the current GEF instance.
+    def __CheckInput(self, inputdata : dict, inputtype : str):
+        for key in self.InputSignature[inputtype]:
+            try:
+                assert key in inputdata.keys()
+            except AssertionError:
+                raise MissingInputError(f"Missing input in '{inputtype}': '{key}'")
 
-        Returns
-        -------
-        str
-            The GEF instance represented as a string.
-        """
-
-        #Add the model information
-        string = f"Model: {self.name}, "
-
-        #TODO what to do about setttings?
-        """        #Add any additional settings if applicable
-        if isinstance(self.settings, dict):
-            for setting in self.settings.items():
-                string += f"{setting[0]} : {setting[1]}, """
-        #Add coupling strength
-        string += f"beta={self.beta}"
-        return string
-
-    def __SetupGEFSolver(self, model, iniVals : dict, Funcs : dict):
-        """
-        Configure the GEF-Solver according to a GEF model file
-
-        Parameters
-        ----------
-        model : ModuleType
-            an executed GEF-model module
-        iniVals : dict
-            a dictionary of values used as initial conditions for the GEF-solver
-        Funcs : dict
-            a dictionary of functions used to specify model-specific functions like the inflaton potential
-        """
-
-        for obj in self.ObjectSet():
-            if issubclass(obj, Val):
-                self.Initialise(obj.name)(0.)
-            if issubclass(obj, Func):
-                self.Initialise(obj.name)(lambda x: 0.)
-
-        for key, item in iniVals.items():
-            self.Initialise(key)(item)
-        for key, item in Funcs.items():
-            self.Initialise(key)(item)
-
-        if not("dI" in Funcs.keys()):
-            self.Initialise("dI")(lambda x: float(self.beta))
-        if not("ddI" in Funcs.keys()):
-            self.Initialise("ddI")(lambda x: 0.)
-
-        self.SetUnits(False)
-
-        self.Solver = GEFSolver(
-                                model.UpdateVals, model.TimeStep, model.Initialise,
-                                    model.events, model.ModeByMode, self)
-        self.completed=False
-        
+            if inputtype == "functions":
+                try:
+                    assert callable(inputdata[key])
+                except AssertionError:
+                    raise TypeError(f"Input functions must be callable.")
+            else:
+                try:
+                    assert isinstance(inputdata[key], Number)
+                except AssertionError:
+                    raise TypeError(f"Input {inputtype} is '{type(inputdata[key])}' but should be 'Number' type.")
         return
 
     def LoadGEFData(self, path : NoneType|str=None):
@@ -274,8 +307,13 @@ class BaseGEF(System):
             raise Exception("You did not specify the file under which to store the GEF data. Set 'GEFData' to the location where you want to save your data.")
 
         else:
-            valuelist = self.ValueList()
-            if valuelist==[]:
+            storeables = set().union(
+                                     self.ObjectClassification["time"],
+                                     self.ObjectClassification["dynamical"],
+                                     self.ObjectClassification["static"]
+                                    )           
+            #Check that all dynamic and derived quantities are initialised in this GEF instance
+            if not( storeables.issubset(set( self.ValueNames() )) ):
                 print("No data to store.")
                 return
             else:
@@ -290,9 +328,8 @@ class BaseGEF(System):
                 #Data is always stored unitless
                 self.SetUnits(False)
 
-                for val in valuelist:
-                    key = val.name
-                    dic[key] = val.value
+                for key in storeables:
+                    dic[key] = getattr(self, key).value
                 
                 #Create pandas data frame and store the dictionary under the user-specified path
                 output_df = pd.DataFrame(dic)  
@@ -305,69 +342,9 @@ class BaseGEF(System):
 
 
 def GEF(modelname, settings):
-    #compile the model file
-    model = LoadModel(modelname, settings)
 
-    quantities = model.quantities
-    quantities = quantities.update(("spacetime",DefaultVariables.spacetime))
-
-    input_signature = {key : [q.name for q in item] for key, item in model.input.items()}
-
-    gaugefields = model.gaugefields
-
-    #These are used 
-    dynamical_dict = {"dynamical":[q.name for q in quantities["dynamical"]], "GF": gaugefields.keys()}
-
-    sys = BGSystem(set(quantities.Values()))
-
-    class GEF(sys):
-        #Add information about the mode-by-mode solver
-        MbM = model.MbM
-        Solver = DefineSolver(sys, dynamical_dict, model.EoM, model.ComputeStaticVariables, model.events)
-
-        def __init__(
-                    self, constants : dict, iniVals: dict, Funcs: dict,
-                    GEFData: NoneType|str = None, ModeData: NoneType|str = None
-                    ):
-            
-            self.__CheckInput(constants, "constant")
-            self.__CheckInput(iniVals, "dynamic")
-            self.__CheckInput(Funcs, "functions")
-
-            H0, MP = model.ParseInput(constants, iniVals, Funcs)
-
-            indic = constants
-            indic.update(iniVals)
-            indic.update(Funcs)
-            
-            super().FromDic(indic, H0, MP)
-
-            #Add 
-            for const, item in constants.items():
-                self.Initialise(const)(item)
-            
-            for func, item in Funcs.items():
-                self.Initialise(func)(item)
-
-            self.GEFData = GEFData
-            self.ModeData = ModeData
-
-        @classmethod
-        def ListInput(cls):
-            print("This 'GEF' model requires the following input: \n")
-            print(f"Constants: {input_signature["constant"]}")
-            print(f"Initial conditions: {input_signature["dynamic"]}")
-            print(f"Functions: {input_signature["functions"]}")
-            return
-
-        def __CheckInput(self, inputdata, inputtype):
-            for val in input_signature[inputtype]:
-                try:
-                    assert val in inputdata.keys()
-                except AssertionError:
-                    raise Exception(f"Missing input: '{val}'")     
-
-
-           
+    @ModelSetup(modelname, settings)
+    class GEF(BaseGEF):
+        pass
 
     return GEF
