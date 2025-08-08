@@ -1,12 +1,14 @@
 import numpy as np
-from GEFF.BGTypes import BGVal, BGFunc
+
+from GEFF.DefaultQuantities import *
+from GEFF.Events import Event
+from GEFF.ModeByMode import ModeSolver
 
 from GEFF.Models.EoMsANDFunctions.ClassicEoMs import *
 from GEFF.Models.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox
 from GEFF.Models.EoMsANDFunctions.AuxiliaryFuncs import Heaviside
 from GEFF.Models.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
-from GEFF.Events import Event
-from GEFF.ModeByMode import ModeSolver
+
 
 """
 Module defining the model "Classic" used by the GEF
@@ -22,44 +24,18 @@ settings = {}
 
 #Define all additional variables (besides default variables)
 
-#time variable
-t = BGVal("t", -1, 0) #physical time
-
-#dynamical variables
-N = BGVal("N", 0, 0) #e-folds
-phi = BGVal("phi", 0, 1) #
-dphi = BGVal("dphi", 1, 1) #
-ddphi = BGVal("ddphi", 2, 1) #
-kh = BGVal("kh", 1, 0) #log of instability scale
-
-#static variables (which are given are derived from dynamical variables)
-a = BGVal("a", 0, 0) #scale factor
-H = BGVal("H", 1, 0) #Hubble rate
-
-xi = BGVal("xi", 0, 0) #instability parameter
-E = BGVal("E", 4, 0) #E^2 expectation value
-B = BGVal("B", 4, 0) #B^2 expectation value
-G = BGVal("G", 4, 0) #G^2 expecation value
-
-#Define all constants
-beta = BGVal("beta", 0, -1)
-
-#Define all functions (potentials, couplings etc.)
-V = BGFunc("V", [phi], 2, 2)
-dV = BGFunc("dV", [phi], 2, 1)
-
 # define gauge field by assigning a name, 0th-order quantities and cut-off scale
 GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})
 
 
 #Assign quantities to a dictionary, classifying them by their role:
 quantities={
-            "time":{t},
-            "dynamical":{N, phi, dphi, kh},
-            "static":{a, H, xi, kh, E, B, G, ddphi},
-            "constant":{beta},
-            "function":{V, dV},
-            "gaugefields":{GF1}
+            "time":{t}, #time coordinate according to which EoMs are expressed
+            "dynamical":{N, phi, dphi, kh}, #variables which evolve in time according to an EoM
+            "static":{a, H, xi, kh, E, B, G, ddphi}, #variables which are derived from dynamical variables
+            "constant":{beta}, #constant quantities in the model
+            "function":{V, dV}, #functions of variables such as scalar potentials
+            "gaugefields":{GF1} #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
             }
 
 
