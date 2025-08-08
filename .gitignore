@@ -5,11 +5,13 @@ OldGEF/
 Notebooks/
 Config/
 .ipynb_checkpoints/
+*.ipynb
 __pycache__
 *.zip
 *.dat
 .vscode/
 GEFF.egg-info/
+Debug/*.py
 
 !src/Data/EffDoF.dat
 !src/Data/strains/*
