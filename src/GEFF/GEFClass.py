@@ -76,21 +76,23 @@ def CompileModel(modelname, settings):
     #import Mode-By-Mode class:
     MbM_solver = model.MbM
 
-    return Q_dic, (input_signature, input_handler), (staticVariable_func, EoM_func, init_func, event_list, MbM_solver), MbM_solver
+    return Q_dic, (input_signature, input_handler), (staticVariable_func, EoM_func, init_func, event_list), MbM_solver
     
 
 def ModelSetup(modelname, settings):
     def GEF_decorator(cls):
         quantity_info, input_info, solver_info, MbM_info = CompileModel(modelname, settings)
         
-        cls.ObjectClassification = { key:{i.name for i in item} for key, item in quantity_info.items()}
+        object_classifier = { key:{i.name for i in item} for key, item in quantity_info.items()}
+        cls.ObjectClassification = object_classifier
+        
         quantity_info.pop("gaugefields")
         cls.KnownObjects = set().union(*quantity_info.values())
         
 
         cls.InputSignature = input_info[0]
         cls.InputHandler = staticmethod(input_info[1])
-        cls.GEFSolver = GEFSolver(*solver_info)
+        cls.GEFSolver = GEFSolver(*solver_info, VariableDict=object_classifier)
         cls.ModeSolver = MbM_info
         return cls
     return GEF_decorator

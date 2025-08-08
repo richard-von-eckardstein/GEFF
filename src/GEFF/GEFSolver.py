@@ -27,7 +27,7 @@ def PrintSummary(sol):
 
 
 class GEFSolver:
-    def __init__(self, UpdateVals, TimeStep, Initialise, events, ModeByMode):
+    def __init__(self, UpdateVals, TimeStep, Initialise, events, VariableDict):
         self.__Initialise = Initialise
         self.InitialConditions = self.InitialiseFromSlowRoll
         
@@ -36,7 +36,7 @@ class GEFSolver:
 
         self.Events = events
 
-        self.ModeByMode = ModeByMode
+        self.VariableClassification = VariableDict
 
         self.settings={"atol":1e-20, "rtol":1e-6, "reachNend":True, "GEFattempts":5, "solmeth":"RK45"}
         self.ntr = 100
