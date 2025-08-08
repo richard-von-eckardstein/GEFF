@@ -2,9 +2,9 @@ import sys
 import os
 abspath = os.path.dirname(__file__)
 
-from src.GEF import GEF
+from GEFF import GEF
 import numpy as np
-from src.Tools.ModeByMode import ModeByMode, ReadMode
+from GEFF.ModeByMode import ReadMode
 
 basepath = os.path.dirname(__file__)
 
@@ -38,8 +38,7 @@ def Benchmark(model, setting, loadGEF=True, loadspec=True):
     if model=="SEOld":
         indic.update({"delta":1})
 
-    G = GEF(model, beta, indic, funcdic,
-                GEFData=GEFPath, userSettings=setting)
+    G = GEF(model, setting)( {"beta":beta}, indic, funcdic, GEFData=GEFPath, userSettings=setting)
 
     if loadGEF:
         G.LoadGEFData()
