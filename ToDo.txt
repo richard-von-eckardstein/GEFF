@@ -1,26 +1,13 @@
-ModeByMode:
-    - ReadMode
-    - Split ModeByMode Solver and SpecFunctions? 
-
-Tensor:
-    - store and load PT
-
 GEF:
-    - how to deal with end of inflation Event?
-    - How to get Nend when loading data (repurcussions for PT)
-    - Better way to track gauge-field indices
+    - Check model input for consistency with GEF
     - GEFAlgorithm: less unnecessary attempt trackers
     - Longterm:
-        x TimeStep, UpdateVals etc.: more streamlined
+        * TimeStep, UpdateVals etc.: more streamlined
+        * Better way to track gauge-field indices
+
+Solver:
+    - Event wrappers
 
 General:
     - Documentation
-    - New Models
-    - File structure
-        x Config, GEF, Spec, Tensor File
-        x Config knows about settings, GEF, Spec, and Tensor location
-
-SEModesl:
-    - treat modelSettings
-    - treat ModeEoM
-    
+    - Meta classes for consistent class creation
