@@ -8,7 +8,7 @@ Config/
 __pycache__
 *.zip
 *.dat
-*.vscode
+.vscode/
 
 !src/Data/EffDoF.dat
 !src/Data/strains/*
