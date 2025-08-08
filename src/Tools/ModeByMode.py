@@ -234,7 +234,7 @@ class GaugeSpec(dict):
         mask = np.isin(t, self["t"], assume_unique=True)
         if len(t[mask]) != len(self["t"]):
             print("The times in the current GaugeSpec instance are " \
-            "not a subset of the times in the BGSystem.")
+            "not a subset of the times in the BGSystem instance.")
             print("Reverting to interpolation.")
             return False, None
         else:
@@ -257,7 +257,7 @@ class GaugeSpec(dict):
 
         return self["cut"]
     
-    def GetReferenceGaugeFields(self, BG : BGSystem, references=["E", "B", "G"], cutoff="kh"): 
+    def GetReferenceGaugeFields(self, BG :  BGSystem, references=["E", "B", "G"], cutoff="kh"): 
         units = BG.GetUnits()
         BG.SetUnits(False)
 
@@ -277,7 +277,7 @@ class GaugeSpec(dict):
 
         return Fref
     
-    def IntegrateSpec(self, BG : BGSystem, n : int=0, cutoff="kh", **IntegratorKwargs) -> NDArray:
+    def IntegrateSpec(self, BG :  BGSystem, n : int=0, cutoff="kh", **IntegratorKwargs) -> NDArray:
         """
         Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
 
@@ -309,7 +309,7 @@ class GaugeSpec(dict):
         
         return FMbM
     
-    def EstimateGEFError(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
+    def EstimateGEFError(self, BG :  BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
                          **IntegratorKwargs):
         FMbM = self.IntegrateSpec(BG, n=0, cutoff=cutoff, **IntegratorKwargs)
         Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
@@ -360,11 +360,11 @@ class GaugeSpec(dict):
             print(f"-- {key} --")
             print(f"maximum relative deviation: {maxerr}% at t={tmaxerr}")
             print(f"final relative deviation: {errend}% at t={terrend}")
-            print(f"RMS relative deviation: {rmserr}% at t={terrend}")
+            print(f"RMS relative deviation: {rmserr}%")
         return
 
 
-    def CompareToBackgroundSolution(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
+    def CompareToBackgroundSolution(self, BG :  BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
                                     errthr=0.025, steps=5, verbose : bool=True,
                                     **IntegratorKwargs) -> Tuple[list, NDArray]:
         """
@@ -602,9 +602,6 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
         InitKwargs = dict(zip(Initkeys, [None for x in Initkeys]))
 
         atol=default_atol
-        
-        def __init__(self, values):
-            super().__init__(values)
     
     return ModeSolver
 
@@ -637,7 +634,7 @@ class ModeByMode:
     InitKwargs = {}
     atol=1e-3
 
-    def __init__(self, values : BGSystem):
+    def __init__(self, values :  BGSystem):
         #Ensure that all values from the GEF are imported without units
         values.SetUnits(False)
 

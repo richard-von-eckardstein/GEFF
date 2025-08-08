@@ -1,4 +1,9 @@
 import numpy as np
+from src.BGQuantities.BGTypes import BGSystem
+from src.Models.Classic import Initialise as ClassicInitialiser
+from src.Models.Classic import UpdateVals as ClassicComputStatic
+from src.Models.Classic import TimeStep as ClassicEoM
+from src.Models.Classic import events as ClassicEvents
 
 from scipy.integrate import solve_ivp
 
@@ -23,10 +28,10 @@ def PrintSummary(sol):
             print(rf"{event} at t={time} or N={efold}")
     return
 
+
 class GEFSolver:
-    def __init__(self, UpdateVals, TimeStep, Initialise, events, ModeByMode, iniVals):
+    def __init__(self, UpdateVals, TimeStep, Initialise, events, ModeByMode):
         self.__Initialise = Initialise
-        self.iniVals = iniVals
         self.InitialConditions = self.InitialiseFromSlowRoll
         
         self.__UpdateVals = UpdateVals
@@ -36,22 +41,46 @@ class GEFSolver:
 
         self.ModeByMode = ModeByMode
 
-    def __ode(self, t, y, vals, atol=1e-20, rtol=1e-6):
+        self.settings={"atol":1e-20, "rtol":1e-6, "reachNend":True, "GEFattempts":5, "solmeth":"RK45"}
+        self.ntr = 100
+        self.tend = 120
+
+    def SetIniVals(self, initsys):
+        self.iniVals = BGSystem.FromSystem(initsys, copy=True)
+        return
+    
+    def UpdateSettings(self, **newsettings):
+        unknownsettings = []
+        
+        for setting, value in newsettings.items():
+            if setting not in self.settings.keys():
+                unknownsettings.append(setting)
+            elif value != self.settings[setting]:
+                print(f"Changing {setting} from {self.settings[setting]} to {value}.")
+                self.settings[setting] = value
+        
+        if len(unknownsettings) > 0:
+            print(f"Unknown settings: {unknownsettings}")
+        return
+        
+    
+    #stays part of the solver
+    def __ode(self, t, y, vals):
+        atol = self.settings["atol"]
+        rtol = self.settings["rtol"]
         self.__UpdateVals(t, y, vals, atol=atol, rtol=rtol)
         dydt = self.TimeStep(t, y, vals, atol=atol, rtol=rtol)
         return dydt
 
-    def RunGEF(self, ntr, tend, atol, rtol, nmodes=500,
+    #is moved to GEF
+    def RunGEF(self, ntr, tend, nmodes=500,
                  printstats=True, **Kwargs):
         self.ntr=ntr
         self.tend=tend
-        self.atol=atol
-        self.rtol=rtol
 
-        reachNend = Kwargs.get("reachNend", True)
-        ensureConvergence = Kwargs.get("ensureConvergence", False)
-        GEFattempts = Kwargs.get("GEFttempts", 5)
-        solmeth = Kwargs.get("solmeth", "RK45")
+        GEFKwargs = {setting : Kwargs[setting] for setting in self.settings if setting in Kwargs}
+        
+        self.UpdateSettings(**GEFKwargs)
 
         MbMattempts = Kwargs.get("MbMattempts", 5)
         thinning = Kwargs.get("thinning", 5)
@@ -60,14 +89,14 @@ class GEFSolver:
         method = Kwargs.get("method", "simpson")
         selfcorrmethod = Kwargs.get("selfcorrmethod", "simpson")
 
-        MbMKwargs = {"epsabs":self.atol, "epsrel":self.rtol}
+        MbMKwargs = {"epsabs":self.settings["atol"], "epsrel":self.settings["rtol"]}
 
         done=False
         sol = None
         attempt=0
         while not(done) and attempt<MbMattempts:
             attempt +=1
-            solnew, vals = self.GEFAlgorithm(solmeth, reachNend, ensureConvergence, GEFattempts)
+            solnew, vals = self.GEFAlgorithm()
             sol = self.UpdateSol(sol, solnew)
             self.ParseArrToUnitSystem(sol.t, sol.y, vals)
 
@@ -79,11 +108,11 @@ class GEFSolver:
                     try:
                         spec["t"]
                     except:
-                        spec = MbM.ComputeModeSpectrum(nmodes, rtol=self.rtol)
+                        spec = MbM.ComputeModeSpectrum(nmodes, rtol=self.settings["rtol"])
                     else:
-                        spec = MbM.UpdateSpectrum(spec, treinit, rtol=self.rtol)
+                        spec = MbM.UpdateSpectrum(spec, treinit, rtol=self.settings["rtol"])
                 else:
-                    spec = MbM.ComputeModeSpectrum(nmodes, rtol=self.rtol)
+                    spec = MbM.ComputeModeSpectrum(nmodes, rtol=self.settings["rtol"])
 
                 print("Performing mode-by-mode comparison with GEF results.")
                 try:
@@ -114,36 +143,24 @@ class GEFSolver:
         else:
             raise RuntimeError(f"GEF did not complete after {attempt} attempts.")
     
-    def GEFAlgorithm(self, solmeth="RK45", reachNend=True, ensureConvergence=True, maxattempts=5):
-        if reachNend: Nend=60 #set default Nend
+    #Can stay in the Solver
+    def GEFAlgorithm(self):
+        maxattempts = self.settings["GEFattempts"]
         attempts=1
         done = False
         #Run GEF
         while not(done):
             try:
                 t0, yini, vals = self.InitialConditions()
-                sol = self.SolveGEF(t0, yini, vals, reachNend=reachNend, solvermethod=solmeth)
-
-                if reachNend and ensureConvergence:
-                    Ninf = sol.events["End of inflation"]["N"][-1]
-                    if abs(Ninf-Nend) < 0.1: 
-                        done=True
-                    else:
-                        attempts+=1
-                        if attempts > maxattempts:
-                            break
-                        print("To verify a consistent run, checking stability against increasing ntr.")
-                        self.IncreaseNtr(5)
-                        Nend = Ninf
-                        
-                else:
-                    done=True
+                sol = self.SolveGEF(t0, yini, vals)
             except TruncationError:
                 attempts+=1
                 if attempts > maxattempts:
                     break
                 print("A truncation error occured")
                 self.IncreaseNtr(10)
+            else:
+                done=True
         
         if attempts>maxattempts:
             print(f"The run did not finish after {maxattempts} attempts.")
@@ -156,6 +173,7 @@ class GEFSolver:
 
         return sol, vals
     
+    #move to GEF
     def ModeByModeCrossCheck(self, spec, vals, errthr, thinning, method, **MbMKwargs):
         errs, terr, _ = spec.CompareToBackgroundSolution(vals, errthr=errthr, steps=thinning, method=method, **MbMKwargs)
 
@@ -180,6 +198,7 @@ class GEFSolver:
 
         return agreement, ReInitSlice
     
+    #can be moved to Solution?
     def UpdateSol(self, solold, solnew):
         if solold==None:
             return solnew
@@ -199,12 +218,15 @@ class GEFSolver:
             sol.nfev +=sol.nfev
             return sol
     
+    #stays in Solver
     def InitialiseFromSlowRoll(self):
         t0 = 0
         vals = deepcopy(self.iniVals)
+        vals.SetUnits(False)
         yini = self.__Initialise(vals, self.ntr)
         return t0, yini, vals
     
+    #stays in solver
     def InitialiseFromMbM(self, sol, ReInitSpec, method, **MbMKwargs):
         def NewInitialiser():
             ntr = self.ntr
@@ -244,6 +266,7 @@ class GEFSolver:
             return treinit, yini, Temp
         return NewInitialiser
         
+    #Taken care of by Map
     def ParseArrToUnitSystem(self, t, y, vals):
         ts = deepcopy(t)
         ys = deepcopy(y)
@@ -251,41 +274,42 @@ class GEFSolver:
         self.__UpdateVals(ts, ys, vals)
         return
     
-    def AddEvents(self, reachNend):
-        """def EventWrapper(eventfunc):
-            def SolveIVPcompatibleEvent(t, y, vals, atol, rtol):
-                self.ParseArrToUnitSystem(t, y, vals)
-                return eventfunc(vals, atol, rtol)
-            return SolveIVPcompatibleEvent"""
+    #Stays in Solver
+    def UnpackEvents(self):
+        def EventWrapper(eventfunc):
+            def SolveIVPcompatibleEvent(t, y, vals):
+                return eventfunc(t, y, vals, self.settings["atol"], self.settings["rtol"])
+            return SolveIVPcompatibleEvent
 
         eventfuncs = []
         eventdic = {}
         for event in self.Events:
             eventname = event.name
-            if eventname == "End of inflation" and not(reachNend):
+            if eventname == "End of inflation" and not(self.settings["reachNend"]):
                 print("Removing default event 'End of inflation'")
             else:
                 eventfuncs.append(event.func)
                 eventdic[eventname] = {"t":[], "N":[]}
         return eventdic, eventfuncs
     
-    def SolveGEF(self, t0, yini, vals, reachNend=True, solvermethod="RK45"):
+    def SolveGEF(self, t0, yini, vals):
         done = False
         attempts = 0
         sols = []
 
-        eventdic, eventfuncs = self.AddEvents(reachNend=reachNend)
+        eventdic, eventfuncs = self.UnpackEvents()
 
         print(f"The solver aims at reaching t={self.tend} with ntr={self.ntr}.")
         while not(done) and attempts < 10:
             try:
                 tend = self.tend
-                atol = self.atol
-                rtol = self.rtol
+                atol = self.settings["atol"]
+                rtol = self.settings["rtol"]
+                solvermethod = self.settings["solmeth"]
 
                 teval = np.arange(np.ceil(10*t0), np.floor(10*tend) +1)/10 #hotfix
 
-                sol = solve_ivp(self.__ode, [t0,tend], yini, t_eval=teval, args=(vals, atol, rtol),
+                sol = solve_ivp(self.__ode, [t0,tend], yini, t_eval=teval, args=(vals,),
                                 method=solvermethod, atol=atol, rtol=rtol, events=eventfuncs)
                 if not(sol.success):
                     raise ValueError
@@ -299,7 +323,7 @@ class GEFSolver:
             else:
                 sols.append(sol)
 
-                eventdic_new, command = self.__AssessEvents(sol.t_events, sol.y_events, vals, reachNend=reachNend)
+                eventdic_new, command = self.__AssessEvents(sol.t_events, sol.y_events, vals)
 
                 for key in eventdic_new.keys():
                     eventdic[key]["t"].append(eventdic_new[key]["t"])
@@ -324,11 +348,12 @@ class GEFSolver:
         
         return sol
     
-    def __AssessEvents(self, tevents, yevents, vals, reachNend=True):
+    #Stays in Solver
+    def __AssessEvents(self, tevents, yevents, vals):
         commands = {"primary":[], "secondary":[]}
         eventdic = {}
         Events = deepcopy(self.Events)
-        if not(reachNend):
+        if not(self.settings["reachNend"]):
             #temporarily remove "End of inflation" from events
             for i, event in enumerate(Events):
                 if event.name=="End of inflation":
@@ -362,6 +387,7 @@ class GEFSolver:
         #if no primarycommand was passed, return "finish"
         return eventdic, "finish"
     
+    #Stays in Solver --> returns Solution
     def __FinaliseSolution(self, sols, eventdic):
         nfevs = 0
         y = []
