@@ -525,7 +525,7 @@ def ReadMode(path : str) -> GaugeSpec:
     
 def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : list, default_atol : float=1e-3):
     """
-    Class-factory creating a custom ModeByMode-class with new mode equations and initial conditions adapted to a modified version of the GEF.
+    Class-factory creating a custom ModeSolver-class with new mode equations and initial conditions adapted to a modified version of the GEF.
 
     Parameters
     ----------
@@ -566,10 +566,10 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
     >>> solver = CustomModeSolver(values)
     """
     
-    class ModeSolver(ModeByMode):
+    class ModeSolver(BaseModeSolver):
         """
-        A custom ModeByMode-class with new mode equations and initial conditions adapted to a modified version of the GEF
-        It Inherits all methods from ModeByMode but overwrites the following class attributes
+        A custom ModeSolver class with new mode equations and initial conditions adapted to a modified version of the GEF
+        It Inherits all methods from 'BaseModeSolver' but changes the following class attributes
             - ModeEoM
             - EoMKwargs
             - BDInit
@@ -591,7 +591,6 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
         >>> M = ModeSolver(G) #initialise the class by a BGSystem or GEF instance
         ... 
         >>> spec = M.ComputeModeSpectrum(500) #compute a gauge-field spectrum of 500 modes from G
-        >>> errs, Nerr = M.CompareToBackgroundSolution(spec) #asses the agreement between G and spec
         """
         
         #Overwrite class attibutes of ModeByMode with new mode equations, boundary conditions and default tolerances.
@@ -606,7 +605,7 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
     return ModeSolver
 
 
-class ModeByMode:
+class BaseModeSolver:
     """
     A class used to solve the gauge-field mode equations for standard axion inflation based on a solution to the GEF equations.
 
@@ -618,13 +617,6 @@ class ModeByMode:
         Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
     CompareToBackgroundSolution()
         Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds
-
-    Example
-    -------
-    >>> M = ModeByMode(G) #initialise the class by a BGSystem or GEF instance
-    ... 
-    >>> spec = M.ComputeModeSpectrum(500) #compute a gauge-field spectrum of 500 modes from G
-    >>> errs, Nerr = M.CompareToBackgroundSolution(spec) #asses the agreement between G and spec
     """
 
     #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
