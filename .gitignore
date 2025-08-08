@@ -8,12 +8,13 @@ Config/
 __pycache__
 *.zip
 *.dat
-*.vscode
+.vscode/
+GEFF.egg-info/
 
 !src/Data/EffDoF.dat
 !src/Data/strains/*
 !src/Data/power-law-integrated_sensitivities/*
 !Debug/DebugData.zip
 
-Debug/*Debug.py
+
 
