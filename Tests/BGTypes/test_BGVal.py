@@ -1,4 +1,4 @@
-from src.BGQuantities.BGTypes import BGVal, BGFunc, BGSystem, Val, Func
+from GEFF.BGTypes import BGVal, BGFunc, BGSystem, Val, Func
 import pytest
 import numpy as np
 
