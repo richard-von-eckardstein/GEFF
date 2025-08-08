@@ -276,9 +276,10 @@ class GEFSolver:
     
     #Stays in Solver
     def UnpackEvents(self):
-        def EventWrapper(eventfunc):
-            def SolveIVPcompatibleEvent(t, y, vals):
-                return eventfunc(t, y, vals, self.settings["atol"], self.settings["rtol"])
+
+        def EventWrapper(t, y, vals):
+            def SolveIVPcompatibleEvent(func):
+                return func(t, y, vals, self.settings["atol"], self.settings["rtol"])
             return SolveIVPcompatibleEvent
 
         eventfuncs = []
@@ -288,7 +289,7 @@ class GEFSolver:
             if eventname == "End of inflation" and not(self.settings["reachNend"]):
                 print("Removing default event 'End of inflation'")
             else:
-                eventfuncs.append(event.func)
+                eventfuncs.append(EventWrapper(event.func))
                 eventdic[eventname] = {"t":[], "N":[]}
         return eventdic, eventfuncs
     
