@@ -8,11 +8,12 @@ Config/
 __pycache__
 *.zip
 *.dat
+*.vscode
 
 !src/Data/EffDoF.dat
 !src/Data/strains/*
 !src/Data/power-law-integrated_sensitivities/*
 !Debug/DebugData.zip
 
-Debug/MbMDebug.py
-Debug/GEFDebug.py
+Debug/*Debug.py
+
