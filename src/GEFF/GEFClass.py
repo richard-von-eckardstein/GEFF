@@ -15,6 +15,9 @@ from types import NoneType
 class MissingInputError(Exception):
     pass
 
+class NegativeEnergyError(Exception):
+    pass
+
 def LoadModel(name : str, settings : dict):
     """
     Import and execute a module containg a GEF model.
@@ -87,7 +90,7 @@ def ModelSetup(modelname, settings):
 
         cls.InputSignature = input_info[0]
         cls.InputHandler = staticmethod(input_info[1])
-        cls.Solver = GEFSolver(*solver_info)
+        cls.GEFSolver = GEFSolver(*solver_info)
         cls.ModeSolver = MbM_info
         return cls
     return GEF_decorator
@@ -108,9 +111,9 @@ class BaseGEF(BGSystem):
     
     Attributes
     ----------
-    MbM : ModeByMode or ModeSolver
+    ModeSolver : ModeByMode subclass
         The mode-by-mode class associated to the current GEF-model
-    Solver : GEFSolver
+    GEFSolver : GEFSolver
         The GEFSolver-instance used to solve the GEF equations
 
     Methods
@@ -146,8 +149,8 @@ class BaseGEF(BGSystem):
     >>> ntr = 100 #the desired value for truncating gauge-field bilinear tower
     ...
     #Solve the GEF-equations and perform Mode-By-Mode comparison to check convergence
-    >>> sol = G.Solver.RunGEF(tend=120, ntr=ntr, atol=1e-20, rtol=1e-6, nmodes=500) 
-    >>> G.Solver.ParseArrToUnitsSystem(sol.t, sol.y, G) #Store results in GEF-instance
+    >>> sol = G.GEFSolver.RunGEF(tend=120, ntr=ntr, atol=1e-20, rtol=1e-6, nmodes=500) 
+    >>> G.GEFSolver.ParseArrToUnitsSystem(sol.t, sol.y, G) #Store results in GEF-instance
     ...
     #store the results of the GEF in a file under "Path/To/Some/Output/Directory/File.dat"
     >>> G.SaveGEFData("Path/To/Some/Output/Directory/File.dat")
@@ -192,7 +195,7 @@ class BaseGEF(BGSystem):
             if name not in (self.ValueNames() + self.FunctionNames()):
                 self.Initialise(name)(0)
 
-        self.Solver.SetIniVals(self)
+        self.GEFSolver.SetIniVals(self)
 
         #Add information about file paths
         self.GEFData = GEFData
@@ -225,14 +228,15 @@ class BaseGEF(BGSystem):
                     raise TypeError(f"Input {inputtype} is '{type(inputdata[key])}' but should be 'Number' type.")
         return
     
-    """def RunGEF(self, ntr, tend, nmodes=500, printstats=True, **Kwargs):
-        self.ntr=ntr
-        self.tend=tend
+    def RunGEF(self, ntr, tend, nmodes=500, printstats=True, **Kwargs):
 
-        GEFKwargs = {setting : Kwargs[setting] for setting in self.settings if setting in Kwargs}
-        
-        self.Solver.UpdateSettings(**GEFKwargs)
+        #Configuring GEFSolver
+        self.GEFSolver.ntr=ntr
+        self.GEFSolver.tend=tend
+        GEFKwargs = {setting : Kwargs[setting] for setting in self.GEFSolver.settings if setting in Kwargs}        
+        self.GEFSolver.UpdateSettings(**GEFKwargs)
 
+        #Configuring ModeSolver
         MbMattempts = Kwargs.get("MbMattempts", 5)
         thinning = Kwargs.get("thinning", 5)
         errthr = Kwargs.get("errthr", 0.025)
@@ -240,59 +244,61 @@ class BaseGEF(BGSystem):
         method = Kwargs.get("method", "simpson")
         selfcorrmethod = Kwargs.get("selfcorrmethod", "simpson")
 
-        MbMKwargs = {"epsabs":self.settings["atol"], "epsrel":self.settings["rtol"]}
+        MbMKwargs = {"epsabs":self.GEFSolver.settings["atol"], "epsrel":self.GEFSolver.settings["rtol"]}
+
+        rtol = self.GEFSolver.settings["rtol"]
 
         done=False
         sol = None
         attempt=0
+
         while not(done) and attempt<MbMattempts:
             attempt +=1
-            solnew, vals = self.Solver.GEFAlgorithm()
-            sol = self.Solver.UpdateSol(sol, solnew)
-            self.Solver.ParseArrToUnitSystem(sol.t, sol.y, vals)
+            #This can be taken care of internally
+            solnew, vals = self.GEFSolver.GEFAlgorithm()
+            sol = self.GEFSolver.UpdateSol(sol, solnew)
+            self.GEFSolver.ParseArrToUnitSystem(sol.t, sol.y, vals)
 
             if nmodes!=None:
                 print("Using last successful GEF solution to compute gauge-field mode functions.")
-                MbM = self.ModeByMode(vals)
+                MbM = self.ModeSolver(vals)
+                rtol = self.GEFSolver.settings["rtol"]
 
-                if resumeMode:    
-                    try:
-                        spec["t"]
-                    except:
-                        spec = MbM.ComputeModeSpectrum(nmodes, rtol=self.rtol)
-                    else:
-                        spec = MbM.UpdateSpectrum(spec, treinit, rtol=self.rtol)
+                if resumeMode and attempt > 1:
+                    spec = MbM.UpdateSpectrum(spec, treinit, rtol=rtol)
                 else:
-                    spec = MbM.ComputeModeSpectrum(nmodes, rtol=self.rtol)
-
+                    spec = MbM.ComputeModeSpectrum(nmodes, rtol=rtol)
                 print("Performing mode-by-mode comparison with GEF results.")
-                try:
-                    treinit = ReInitSpec["t"]
-                except:
-                    treinit = 0
-                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, errthr=errthr, thinning=thinning, method=selfcorrmethod, **MbMKwargs)
+
+                agreement, ReInitSpec = self.GEFSolver.ModeByModeCrossCheck(spec, vals, errthr=errthr, thinning=thinning, method=selfcorrmethod, **MbMKwargs)
 
                 if agreement:
-                    print(f"The mode-by-mode comparison indicates a convergent GEF run.")
-                    done=True
+                    if len(sol.events["Negative energies"]["t"]) > 0: 
+                        raise NegativeEnergyError(
+                            "The GEF solution claims convergence on a negative energy solution." \
+                        "Discarding the solution. Try lowering the mode-by-mode error tolerance."
+                        )
+                    else:
+                        print(f"The mode-by-mode comparison indicates a convergent GEF run.")
+                        done=True
+                
                 else:
                     Nreinit = np.round(ReInitSpec["N"], 1)
                     treinit = np.round(ReInitSpec["t"], 1)
-
                     print(f"Attempting to solve GEF using self-correction starting from t={treinit}, N={Nreinit}.")
 
-                    self.InitialConditions = self.InitialiseFromMbM(sol, ReInitSpec, method, **MbMKwargs)
+                    self.InitialConditions = self.GEFSolver.InitialiseFromMbM(sol, ReInitSpec, method, **MbMKwargs)
+                
             else:
                 spec=None
                 done=True
         
         if done:
             print("GEF run successfully completed.")
-            if printstats:
-                PrintSummary(sol)
+            if printstats: PrintSummary(sol)
             return sol, spec
         else:
-            raise RuntimeError(f"GEF did not complete after {attempt} attempts.")"""
+            raise RuntimeError(f"GEF did not complete after {attempt} attempts.")
 
     def LoadGEFData(self, path : NoneType|str=None):
         """
