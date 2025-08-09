@@ -289,7 +289,7 @@ class BaseGEF(BGSystem):
                     treinit = np.round(ReInitSpec["t"], 1)
                     print(f"Attempting to solve GEF using self-correction starting from t={treinit}, N={Nreinit}.")
 
-                    self.InitialConditions = self.GEFSolver.InitialiseFromMbM(sol, ReInitSpec, method, **MbMKwargs)
+                    self.GEFSolver.InitialConditions = self.GEFSolver.InitialiseFromMbM(sol, ReInitSpec, method, **MbMKwargs)
                 
             else:
                 spec=None
