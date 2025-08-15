@@ -9,6 +9,49 @@ from copy import deepcopy
 class TruncationError(Exception):
     pass
 
+class EventError(Exception):
+    pass
+
+class Event:
+    #Terminal events can modify a solver and pass concrete orders to the solver. The orders are:
+    ### finish: finalise the solver
+    ### repeat: repeat the last iteration of the solver
+    ### proceed: continue solving from the point of termination
+    #Any event may pass the secondary order "update" to the solver. This can update the following attributes of the solver:
+    ### __ODE__, __tend, __atol, __rtol, __method 
+    
+    #Terminal event consequences should distinguish the cases: termination on this event, termination not on this event, termination without event.
+    def __init__(self, name, eventtype, func, terminal, direction):
+        self.name = name
+
+        self.type = eventtype
+        
+        func.terminal = terminal
+        func.direction = direction
+        
+        #ToDo: check for func signature (once it is fixed)
+        self.EventFunc = func
+    
+        self.active = True
+        return
+    
+class TerminalEvent(Event):
+    def __init__(self, name, func, direction, consequence):
+        super().__init__(name, "terminal", func, True, direction)
+        #ToDo: check for Consequence signature (once it is fixed)
+        self.EventConsequence = consequence
+
+class ErrorEvent(Event):
+    def __init__(self, name, func, direction):
+        super().__init__(name, "error", func, True, direction)
+
+class ObserverEvent(Event):
+    def __init__(self, name, func, direction):
+        super().__init__(name, "observer", func, False, direction)
+
+
+
+
 def PrintSummary(sol):
     print("The run terminated with the following statistics:")
     for attr in sol.keys():
@@ -59,8 +102,12 @@ class GEFSolver:
         if len(unknownsettings) > 0:
             print(f"Unknown settings: {unknownsettings}")
         return
-        
     
+    def IncreaseNtr(self, val=10):
+        self.ntr+=val
+        print(f"Increasing ntr by {val} to {self.ntr}.")
+        return
+        
     #stays part of the solver
     def __ode(self, t, y, vals):
         atol = self.settings["atol"]
@@ -70,32 +117,37 @@ class GEFSolver:
         return dydt
     
     #Can stay in the Solver
-    def GEFAlgorithm(self):
+    def GEFAlgorithm(self, ntrstep=10):
+        maxntr = 200
         maxattempts = self.settings["GEFattempts"]
-        attempts=1
+        attempt=0
         done = False
         #Run GEF
-        while not(done):
+        while not(done) and (attempt<maxattempts):
+            attempt+=1
             try:
                 t0, yini, vals = self.InitialConditions()
-                sol = self.SolveGEF(t0, yini, vals)
+                sol, done = self.SolveGEF(t0, yini, vals)
+            except KeyboardInterrupt:
+                raise KeyboardInterrupt
             except TruncationError:
-                attempts+=1
-                if attempts > maxattempts:
+                done = False
+            
+            if not(done):
+                if self.ntr<=maxntr:
+                    self.IncreaseNtr( min(ntrstep, maxntr-self.ntr) )
+                else:
+                    print("Cannot increase ntr further.")
                     break
-                print("A truncation error occured")
-                self.IncreaseNtr(10)
-            else:
-                done=True
         
-        if attempts>maxattempts:
-            print(f"The run did not finish after {maxattempts} attempts.")
+        if not(done):
+            print(f"The run did not converge after {attempt} attempts.")
             try:
                 sol
-                print("Proceeding with last successful solution.")
+                print("Proceeding with last solution.")
                 return sol, vals
             except:
-                raise RuntimeError(f"Not a single successful solution after {maxattempts} attempts.")
+                raise RuntimeError(f"Not a single successful solution after {attempt} attempts.")
 
         return sol, vals
     
@@ -200,34 +252,16 @@ class GEFSolver:
         self.__UpdateVals(ts, ys, vals)
         return
     
-    #Stays in Solver
-    def UnpackEvents(self):
-
-        def EventWrapper(t, y, vals):
-            def SolveIVPcompatibleEvent(func):
-                return func(t, y, vals, self.settings["atol"], self.settings["rtol"])
-            return SolveIVPcompatibleEvent
-
-        eventfuncs = []
-        eventdic = {}
-        for event in self.Events:
-            eventname = event.name
-            if eventname == "End of inflation" and not(self.settings["reachNend"]):
-                print("Removing default event 'End of inflation'")
-            else:
-                eventfuncs.append(event.func)
-                eventdic[eventname] = {"t":[], "N":[]}
-        return eventdic, eventfuncs
-    
     def SolveGEF(self, t0, yini, vals):
         done = False
         attempts = 0
         sols = []
 
-        eventdic, eventfuncs = self.UnpackEvents()
+        eventdic, eventfuncs = self.EventSetup()
 
         print(f"The solver aims at reaching t={self.tend} with ntr={self.ntr}.")
         while not(done) and attempts < 10:
+
             try:
                 tend = self.tend
                 atol = self.settings["atol"]
@@ -244,9 +278,9 @@ class GEFSolver:
                 print(f"The run failed at t={vals.t}, N={vals.N}.")
                 raise KeyboardInterrupt
             except Exception as e:
-                print(f"Error MSG: {e}")
-                print(f"The run failed at t={vals.t}, N={vals.N}.")
+                print(f"While solving the GEF ODE, an error occured at t={vals.t}, N={vals.N} : \n \t {e}")
                 raise TruncationError
+            
             else:
                 sols.append(sol)
 
@@ -257,7 +291,10 @@ class GEFSolver:
                     eventdic[key]["N"].append(eventdic_new[key]["N"])
 
                 if command=="finish":
-                    print("Finishing")
+                    status=True
+                    done=True
+                elif command=="error":
+                    status=False
                     done=True
                 elif command=="repeat":
                     print("Repeating")
@@ -273,48 +310,8 @@ class GEFSolver:
             print(f"The run failed after {attempts} attempts.")
             raise RuntimeError
         
-        return sol
+        return sol, status
     
-    #Stays in Solver
-    def __AssessEvents(self, tevents, yevents, vals):
-        commands = {"primary":[], "secondary":[]}
-        eventdic = {}
-        Events = deepcopy(self.Events)
-        if not(self.settings["reachNend"]):
-            #temporarily remove "End of inflation" from events
-            for i, event in enumerate(Events):
-                if event.name=="End of inflation":
-                    Events.pop(i)
-
-        for i, event in enumerate(Events):
-
-            #Check if the event occured
-            occurance = (len(tevents[i]) != 0)
-            #Asses the events consequences based on its occurance or non-occurance
-            consequence = event.EventConsequence(vals, occurance)
-            for key, item in consequence.items(): 
-                commands[key].append(item)
-            #Add the event occurances to the event dictionary:
-            if occurance:
-                eventdic.update({event.name:{"t":tevents[i], "N": yevents[i][:,0]}})
-                print(f"{event.name} at t={np.round(tevents[i], 1)} and N={np.round(yevents[i][:,0],1)}.")
-
-        for command in commands["secondary"]:
-            for key, item in command.items():
-                if key in ["TimeStep", "tend", "atol", "rtol"]:
-                    setattr(self, key, item)
-                elif key == "ntr":
-                    self.IncreaseNtr(item)
-        
-        #Check command priority. Finish command takes priority over repeat, takes priority over proceed
-        for primarycommand in ["finish", "repeat", "proceed"]:
-            if primarycommand in commands["primary"]:
-                return eventdic, primarycommand
-
-        #if no primarycommand was passed, return "finish"
-        return eventdic, "finish"
-    
-    #Stays in Solver --> returns Solution
     def __FinaliseSolution(self, sols, eventdic):
         nfevs = 0
         y = []
@@ -345,8 +342,74 @@ class GEFSolver:
         solution.events = eventdic
         return solution
     
+    ### Handling of events ###
+    ##########################
+
+    #ToDo's:
+    #   - get rid of "reachNend" -> replace by Eventtoggle
+    #   - implement handling of 'error' events
+
+
+    def EventSetup(self):
         
-    def IncreaseNtr(self, val=10):
-        self.ntr+=val
-        print(f"Increasing ntr by {val} to {self.ntr}.")
-        return
+        #eventually reinstate this
+        def EventWrapper(t, y, vals):
+            def SolveIVPcompatibleEvent(func):
+                return func(t, y, vals, self.settings["atol"], self.settings["rtol"])
+            return SolveIVPcompatibleEvent
+
+        eventfuncs = []
+        eventdic = {}
+        for event in self.Events:
+            if event.active:
+                eventfuncs.append(event.func)
+                eventdic[event.namee] = {"t":[], "N":[]}
+        
+        return eventdic, eventfuncs
+    
+    def __AssessEvents(self, tevents, yevents, vals):
+        commands = {"primary":[], "secondary":[]}
+        eventdic = {}
+
+        activeEvents = [event for event in self.Events if event.active]
+
+        for i, event in enumerate(activeEvents):
+
+            #Check if the event occured
+            occurance = (len(tevents[i]) != 0)
+
+            #Add the event occurance to the event dictionary:
+            if occurance:
+                eventdic.update({event.name:{"t":tevents[i], "N": yevents[i][:,0]}})
+                print(f"{event.name} at t={np.round(tevents[i], 1)} and N={np.round(yevents[i][:,0],1)}.")
+
+            if event.type == "error" and occurance:
+                commands["primary"].append("error")
+            
+            elif event.type=="terminal":
+                #Asses the events consequences based on its occurance or non-occurance
+                primary, secondary = event.EventConsequence(vals, occurance)
+                
+                for key, item in {"primary":primary, "secondary":secondary}.items(): 
+                    commands[key].append(item)
+
+
+        #Handle secondary commands
+        for command in commands["secondary"]:
+            for key, item in command.items():
+                if key in ["TimeStep", "tend", "atol", "rtol"]:
+                    setattr(self, key, item)
+                else:
+                    print("Unknown setting 'key', ignoring input.")
+        
+        #Check command priority (in case of multiple final events occuring). error > finish > repeat > proceed
+        for primarycommand in ["error", "finish", "repeat", "proceed"]:
+            if primarycommand in commands["primary"]:
+                return eventdic, primarycommand
+
+        #if no primarycommand was passed, return "finish"
+        return eventdic, "finish"
+    
+    
+        
+    

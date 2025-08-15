@@ -1,7 +1,7 @@
 import numpy as np
 
 from GEFF.DefaultQuantities import *
-from GEFF.Events import Event
+from GEFF.GEFSolver import TerminalEvent, ErrorEvent
 from GEFF.ModeByMode import ModeSolver
 
 from GEFF.Models.EoMsANDFunctions.ClassicEoMs import *
@@ -11,7 +11,7 @@ from GEFF.Models.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
 
 
 """
-Module defining the model "Classic" used by the GEF
+Module defining the model "Classic" used by CreateGEF to define a GEF class including a custom GEFSolver and ModeSolver
 """
 
 name = "Classic"
@@ -97,6 +97,7 @@ def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.xi.SetValue( vals.beta*(vals.dphi/(2*vals.H)))
 
     vals.ddphi.SetValue( EoMphi(vals.dphi, vals.dV(vals.phi), vals.beta, vals.G, vals.H, vals.H0)  )
+
     return
 
 def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
@@ -110,6 +111,7 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
     
     dlnkhdt = EoMlnkh( vals.kh, vals.dphi, vals.ddphi, vals.beta,
                        0., vals.xi, vals.a, vals.H )
+    
     logfc = y[0] + np.log( 2*abs(vals.xi)*dydt[0])
     eps = max(abs(y[3])*rtol, atol) 
     dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-y[3]+10*eps, eps)
@@ -145,24 +147,15 @@ def EndOfInflation_Consequence(vals, occurance):
         print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
         return {"primary":"proceed", "secondary":{"tend":tend}}
     
-EndOfInflation = Event("End of inflation",
-                        EndOfInflation_Condition, True, 1, EndOfInflation_Consequence)
+EndOfInflation = TerminalEvent("End of inflation", EndOfInflation_Condition, 1, EndOfInflation_Consequence)
 
 #Event 2:
 def NegativeEnergies_Condition(t, y, vals):
     return min(y[4], y[5])
-
-def NegativeEnergies_Consequence(vals, occurance):
-    if occurance:
-        return {"primary":"finish"}
-    else:
-        return {"primary":"proceed"}
     
-NegativeEnergies = Event("Negative energies",
-                          NegativeEnergies_Condition, True, -1, NegativeEnergies_Consequence)
+NegativeEnergies = ErrorEvent("Negative energies", NegativeEnergies_Condition, -1)
 
 events = [EndOfInflation, NegativeEnergies]
-
 
 ##### Define Handling of Gauge Fields #####
 ###########################################
