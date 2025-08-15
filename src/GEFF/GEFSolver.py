@@ -27,7 +27,7 @@ class Event:
         func.direction = direction
         
         #ToDo: check for func signature (once it is fixed)
-        self.EventFunc = func
+        self.event_func = func
     
         self.active = True
         return
@@ -36,7 +36,7 @@ class TerminalEvent(Event):
     def __init__(self, name, func, direction, consequence):
         super().__init__(name, "terminal", func, True, direction)
         #ToDo: check for Consequence signature (once it is fixed)
-        self.EventConsequence = consequence
+        self.event_consequence = consequence
 
 class ErrorEvent(Event):
     def __init__(self, name, func, direction):
@@ -48,54 +48,54 @@ class ObserverEvent(Event):
 
 
 class GEFSolver:
-    def __init__(self, UpdateVals, TimeStep, Initialise, events, VariableDict):
-        self.__Initialise = Initialise
-        self.InitialConditions = self.InitialiseFromSlowRoll
+    def __init__(self, update_vals, timestep, initialise, events, variable_dict):
+        self._base_initialise = initialise
+        self.compute_initial_conditions = self.initialise_from_slowroll
         
-        self.__UpdateVals = UpdateVals
-        self.TimeStep = TimeStep
+        self._update_vals = update_vals
+        self.compute_timestep = timestep
 
-        self.Events = {event.name: event for event in events}
+        self.solver_events = {event.name: event for event in events}
 
-        self.VariableClassification = VariableDict
+        #self.variable_classification = variable_dict
 
         self.settings={"atol":1e-20, "rtol":1e-6, "GEFattempts":5, "GEFmethod":"RK45", "ntrstep":10}
         self.ntr = 100
         self.tend = 120
 
-    def SetIniVals(self, initsys):
-        self.iniVals = BGSystem.FromSystem(initsys, copy=True)
+    def set_init_vals(self, initsys):
+        self.init_vals = BGSystem.FromSystem(initsys, copy=True)
         return
     
-    def UpdateSettings(self, **newsettings):
-        unknownsettings = []
+    def update_settings(self, **new_settings):
+        unknown_settings = []
         
-        for setting, value in newsettings.items():
+        for setting, value in new_settings.items():
             if setting not in self.settings.keys():
-                unknownsettings.append(setting)
+                unknown_settings.append(setting)
             elif value != self.settings[setting]:
                 print(f"Changing {setting} from {self.settings[setting]} to {value}.")
                 self.settings[setting] = value
         
-        if len(unknownsettings) > 0:
-            print(f"Unknown settings: {unknownsettings}")
+        if len(unknown_settings) > 0:
+            print(f"Unknown settings: {unknown_settings}")
         return
     
-    def IncreaseNtr(self, val):
+    def _increase_ntr(self, val):
         self.ntr+=val
         print(f"Increasing ntr by {val} to {self.ntr}.")
         return
         
     #stays part of the solver
-    def __ode(self, t, y, vals):
+    def _ode(self, t, y, vals):
         atol = self.settings["atol"]
         rtol = self.settings["rtol"]
-        self.__UpdateVals(t, y, vals, atol=atol, rtol=rtol)
-        dydt = self.TimeStep(t, y, vals, atol=atol, rtol=rtol)
+        self._update_vals(t, y, vals, atol=atol, rtol=rtol)
+        dydt = self.compute_timestep(t, y, vals, atol=atol, rtol=rtol)
         return dydt
     
     #Can stay in the Solver
-    def GEFAlgorithm(self):
+    def compute_GEF_solution(self):
         #initial configuration
         maxntr = 200
         maxattempts = self.settings["GEFattempts"]
@@ -108,8 +108,8 @@ class GEFSolver:
             attempt+=1
             try:
                 #Try to get convergent solution
-                t0, yini, vals = self.InitialConditions()
-                sol = self.SolveGEF(t0, yini, vals)
+                t0, yini, vals = self.compute_initial_conditions()
+                sol = self.solve_GEF(t0, yini, vals)
                 done = sol.success
             except KeyboardInterrupt:
                 raise KeyboardInterrupt
@@ -119,7 +119,7 @@ class GEFSolver:
             #Standard response to error: increase ntr (maximum: 200)
             if not(done):
                 if self.ntr<maxntr:
-                    self.IncreaseNtr( min(ntrstep, maxntr-self.ntr) )
+                    self._increase_ntr( min(ntrstep, maxntr-self.ntr) )
                 else:
                     print("Cannot increase ntr further.")
                     break
@@ -138,10 +138,10 @@ class GEFSolver:
         return sol, vals
     
     #move to GEF
-    def ModeByModeCrossCheck(self, spec, vals, errthr, thinning, method, **MbMKwargs):
-        errs, terr, _ = spec.CompareToBackgroundSolution(vals, errthr=errthr, steps=thinning, method=method, **MbMKwargs)
+    def MbMcrosscheck(self, spec, vals, errthr, thinning, method, **MbMkwargs):
+        errs, terr, _ = spec.CompareToBackgroundSolution(vals, errthr=errthr, steps=thinning, method=method, **MbMkwargs)
 
-        reinitinds = []
+        reinit_inds = []
         agreement=True
         for err in errs:
             rmserr = np.sqrt(np.sum(err**2)/len(err))
@@ -149,27 +149,27 @@ class GEFSolver:
                 agreement=False
                 #find where the error is above 5%, take the earliest occurance, reduce by 1
                 inds = np.where(err > errthr)
-                errInd = inds[0][0]-1               
+                err_ind = inds[0][0]-1               
             else:
-                errInd = len(terr)-1
-            reinitinds.append( errInd )
+                err_ind = len(terr)-1
+            reinit_inds.append( err_ind )
 
-        t0 = terr[min(reinitinds)]
+        t0 = terr[min(reinit_inds)]
 
         ind = np.where(spec["t"] <= t0)[0][-1]
 
-        ReInitSlice = spec.TSlice(ind)
+        reinit_slice = spec.TSlice(ind)
 
-        return agreement, ReInitSlice
+        return agreement, reinit_slice
     
     #can be moved to Solution?
-    def UpdateSol(self, solold, solnew):
+    def update_sol(self, solold, solnew):
         if solold==None:
             return solnew
         else:
             sol = solold
-            indoverlap = np.where(solnew.t[0] >= solold.t)[0][-1]
-            sol.t = np.concatenate([solold.t[:indoverlap], solnew.t])
+            ind_overlap = np.where(solnew.t[0] >= solold.t)[0][-1]
+            sol.t = np.concatenate([solold.t[:ind_overlap], solnew.t])
 
             if solold.y.shape[0] < solnew.y.shape[0]:
                 #if ntr increased from one solution to the next, fill up solold with zeros to match solnew
@@ -177,39 +177,42 @@ class GEFSolver:
                 yfill = np.zeros( fillshape )
                 solold.y = np.concatenate([solold.y, yfill], axis=0)
 
-            sol.y = np.concatenate([solold.y[:,:indoverlap], solnew.y], axis=1)
+            sol.y = np.concatenate([solold.y[:,:ind_overlap], solnew.y], axis=1)
             sol.events.update(solnew.events)
-            sol.nfev +=sol.nfev
+            for attr in ["nfev", "njev", "nlu"]:
+                setattr(sol, attr, getattr(solold, attr) + getattr(solnew, attr))
+            for attr in ["message", "success", "status"]:
+                setattr(sol, attr, getattr(solnew, attr))
             return sol
     
     #stays in Solver
-    def InitialiseFromSlowRoll(self):
+    def initialise_from_slowroll(self):
         t0 = 0
-        vals = deepcopy(self.iniVals)
+        vals = deepcopy(self.init_vals)
         vals.SetUnits(False)
-        yini = self.__Initialise(vals, self.ntr)
+        yini = self._base_initialise(vals, self.ntr)
         return t0, yini, vals
     
     #stays in solver
-    def InitialiseFromMbM(self, sol, ReInitSpec, method, **MbMKwargs):
-        def NewInitialiser():
+    def initialise_from_MbM(self, sol, reinit_spec, method, **MbMkwargs):
+        def new_initialiser():
             ntr = self.ntr
 
-            treinit = ReInitSpec["t"]
+            t_reinit = reinit_spec["t"]
 
-            reinitInd = np.where(sol.t == treinit)[0]
+            reinitInd = np.where(sol.t == t_reinit)[0]
 
             #Create unit system:
-            Temp = deepcopy(self.iniVals)
+            temp = deepcopy(self.init_vals)
 
             #Construct yini from interpolation:
             ytmp = sol.y[:,reinitInd]
 
-            #Parse yini to Temp
-            self.ParseArrToUnitSystem(treinit, ytmp, Temp)
+            #Parse yini to temp
+            self.parse_arr_to_sys(t_reinit, ytmp, temp)
 
             #Use "Initialise" to zero out all GEF-bilinear values
-            yini = self.__Initialise(Temp, ntr)
+            yini = self._base_initialise(temp, ntr)
             gaugeinds = np.where(yini==0.)[0]
 
             #parse back E0, B0, G0 (assuming they are at the same spot, should be the case.)
@@ -220,30 +223,30 @@ class GEFSolver:
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
                                     [
-                                    ReInitSpec.IntegrateSpecSlice(n=n, method=method,**MbMKwargs)
+                                    reinit_spec.IntegrateSpecSlice(n=n, method=method,**MbMkwargs)
                                     for n in range(1,ntr+1)
                                     ]
                                     )[:,:,0].reshape(3*(ntr))
             
-            self.ParseArrToUnitSystem(treinit, yini, Temp)
+            self.parse_arr_to_sys(t_reinit, yini, temp)
 
-            return treinit, yini, Temp
-        return NewInitialiser
+            return t_reinit, yini, temp
+        return new_initialiser
         
     #Taken care of by Map
-    def ParseArrToUnitSystem(self, t, y, vals):
+    def parse_arr_to_sys(self, t, y, vals):
         ts = deepcopy(t)
         ys = deepcopy(y)
         vals.SetUnits(False)
-        self.__UpdateVals(ts, ys, vals)
+        self._update_vals(ts, ys, vals)
         return
     
-    def SolveGEF(self, t0, yini, vals):
+    def solve_GEF(self, t0, yini, vals):
         done = False
         attempts = 0
         sols = []
 
-        eventdic, eventfuncs = self.EventSetup()
+        event_dict, event_funcs = self._setup_events()
 
         print(f"The solver aims at reaching t={self.tend} with ntr={self.ntr}.")
         while not(done) and attempts < 10:
@@ -256,8 +259,8 @@ class GEFSolver:
 
                 teval = np.arange(np.ceil(10*t0), np.floor(10*tend) +1)/10 #hotfix
 
-                sol = solve_ivp(self.__ode, [t0,tend], yini, t_eval=teval, args=(vals,),
-                                method=solvermethod, atol=atol, rtol=rtol, events=eventfuncs)
+                sol = solve_ivp(self._ode, [t0,tend], yini, t_eval=teval, args=(vals,),
+                                method=solvermethod, atol=atol, rtol=rtol, events=event_funcs)
                 if not(sol.success):
                     raise ValueError
             except KeyboardInterrupt:
@@ -270,11 +273,11 @@ class GEFSolver:
             else:
                 sols.append(sol)
 
-                eventdic_new, command, terminalevent = self.__AssessEventOccurances(sol.t_events, sol.y_events, vals)
+                event_dict_new, command, terminal_event = self._assess_event_occurances(sol.t_events, sol.y_events, vals)
 
-                for key in eventdic_new.keys():
-                    eventdic[key]["t"].append(eventdic_new[key]["t"])
-                    eventdic[key]["N"].append(eventdic_new[key]["N"])
+                for key in event_dict_new.keys():
+                    event_dict[key]["t"].append(event_dict_new[key]["t"])
+                    event_dict[key]["N"].append(event_dict_new[key]["N"])
 
                 if command in ["finish", "error"]:
                     done=True
@@ -286,7 +289,7 @@ class GEFSolver:
                     t0 = sol.t[-1]
                     yini = sol.y[:,-1]
 
-        self.__FinaliseSolution(sols, eventdic, terminalevent)
+        self._finalise_solution(sols, event_dict, terminal_event)
     
         if attempts != 1 and not(done):
             print(f"The run failed after {attempts} attempts.")
@@ -294,7 +297,7 @@ class GEFSolver:
         
         return sol
     
-    def __FinaliseSolution(self, sols, eventdic, triggerevent):
+    def _finalise_solution(self, sols, event_dict, trigger_event):
         nfevs = 0
         y = []
         t = []
@@ -313,74 +316,76 @@ class GEFSolver:
         solution.y = y
         solution.nfev = nfevs
 
-        if triggerevent==None:
+        if trigger_event==None:
             solution.success = True
         else:
-            solution.success = not(triggerevent in [event.name for event in self.Events.values() if event.active and event.type=="error"])
-            solution.message = f"A terminal event occured: {triggerevent}"
+            solution.success = not(trigger_event in [event.name for event in self.solver_events.values() if event.active and event.type=="error"])
+            solution.message = f"A terminal event occured: '{trigger_event}'"
 
-        for eventname in (eventdic.keys()):
+        for event_name in (event_dict.keys()):
             try:
-                eventdic[eventname]["t"] = np.round(np.concatenate(eventdic[eventname]["t"]), 1)
-                eventdic[eventname]["N"] = np.round(np.concatenate(eventdic[eventname]["N"]), 3)
+                event_dict[event_name]["t"] = np.round(np.concatenate(event_dict[event_name]["t"]), 1)
+                event_dict[event_name]["N"] = np.round(np.concatenate(event_dict[event_name]["N"]), 3)
             except ValueError:
-                eventdic[eventname]["t"] = np.array(eventdic[eventname]["t"])
-                eventdic[eventname]["N"] = np.array(eventdic[eventname]["N"])
+                event_dict[event_name]["t"] = np.array(event_dict[event_name]["t"])
+                event_dict[event_name]["N"] = np.array(event_dict[event_name]["N"])
 
-        solution.events = eventdic
+        solution.events = event_dict
         return solution
     
     ### Handling of events ###
     ##########################
 
-    def ToggleEvent(self, eventname, toggle):
-        if eventname in [event for event in self.Events.keys()]:
-            self.Events[eventname].active = toggle
+    def toggle_event(self, event_name, toggle):
+        if event_name in [event for event in self.solver_events.keys()]:
+            self.solver_events[event_name].active = toggle
             humanreadable = {True:"active", False:"inactive"}
-            print(f"The event '{eventname}' is now {humanreadable[toggle]}")
+            print(f"The event '{event_name}' is now {humanreadable[toggle]}")
         else:
-            print(f"Unknown event: '{eventname}'")
+            print(f"Unknown event: '{event_name}'")
         return
 
-    def EventSetup(self):
+    def _setup_events(self):
         
         #eventually reinstate this
+        """
         def EventWrapper(t, y, vals):
             def SolveIVPcompatibleEvent(func):
                 return func(t, y, vals, self.settings["atol"], self.settings["rtol"])
             return SolveIVPcompatibleEvent
+        """
 
-        eventfuncs = []
-        eventdic = {}
-        for name, event in self.Events.items():
+        event_funcs = []
+        event_dict = {}
+        for name, event in self.solver_events.items():
             if event.active:
-                eventfuncs.append(event.EventFunc)
-                eventdic[name] = {"t":[], "N":[]}
+                event_funcs.append(event.event_func)
+                event_dict[name] = {"t":[], "N":[]}
         
-        return eventdic, eventfuncs
+        return event_dict, event_funcs
     
-    def __AssessEventOccurances(self, tevents, yevents, vals):
+    def _assess_event_occurances(self, t_events, y_events, vals):
         commands = {"primary":[], "secondary":[]}
-        eventdic = {}
+        event_dict = {}
 
-        activeEvents = [event for event in self.Events.values() if event.active]
+        active_events = [event for event in self.solver_events.values() if event.active]
 
-        for i, event in enumerate(activeEvents):
+        for i, event in enumerate(active_events):
 
             #Check if the event occured
-            occurance = (len(tevents[i]) != 0)
+            occurance = (len(t_events[i]) != 0)
 
             #Add the event occurance to the event dictionary:
             if occurance:
-                eventdic.update({event.name:{"t":tevents[i], "N": yevents[i][:,0]}})
-                print(f"{event.name} at t={np.round(tevents[i], 1)} and N={np.round(yevents[i][:,0],1)}.")
+                event_dict.update({event.name:{"t":t_events[i], "N": y_events[i][:,0]}})
+                print(f"{event.name} at t={np.round(t_events[i], 1)} and N={np.round(y_events[i][:,0],1)}.")
 
             if event.type == "error" and occurance:
                 commands["primary"].append( ("error", event.name) )
             
             elif event.type=="terminal":
                 #Asses the events consequences based on its occurance or non-occurance
-                primary, secondary = event.EventConsequence(vals, occurance)
+                primary, secondary = event.event_consequence(vals, occurance)
                 
                 for key, item in {"primary":(primary, event.name), "secondary":secondary}.items(): 
                     commands[key].append(item)
@@ -389,21 +394,21 @@ class GEFSolver:
         #Handle secondary commands
         for command in commands["secondary"]:
             for key, item in command.items():
-                if key in ["TimeStep", "tend", "atol", "rtol"]:
+                if key in ["timestep", "tend", "atol", "rtol"]:
                     setattr(self, key, item)
                 else:
                     print("Unknown setting 'key', ignoring input.")
         
         #Check command priority (in case of multiple final events occuring). error > finish > repeat > proceed
-        for primarycommand in ["error", "finish", "repeat", "proceed"]:
+        for primary_command in ["error", "finish", "repeat", "proceed"]:
             for item in commands["primary"]:
                 command = item[0]
                 trigger = item[1]
-                if command == primarycommand:
-                    return eventdic, command, trigger 
+                if command == primary_command:
+                    return event_dict, command, trigger 
 
         #if no primarycommand was passed, return "finish"
-        return eventdic, "finish", None
+        return event_dict, "finish", None
     
     
         

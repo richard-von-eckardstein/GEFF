@@ -11,10 +11,10 @@ from GEFF.Models.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
 
 
 """
-Module defining the model "Classic" used by CreateGEF to define a GEF class including a custom GEFSolver and ModeSolver
+Module defining the model "classic" used by GEF to define a class including a custom GEFSolver and ModeSolver
 """
 
-name = "Classic"
+name = "classic"
 
 settings = {}
 
@@ -50,7 +50,7 @@ input = {
         }
 
 #Define how initial data is used to infer the initial Hubble rate, Planck mass, and other initial conditions
-def ParseInput(consts, init, funcs):
+def parse_input(consts, init, funcs):
     #Compute Hubble rate
     H0 = Friedmann( init["dphi"], funcs["V"](init["phi"]), 0., 0., 0., 0. )
     
@@ -64,7 +64,7 @@ def ParseInput(consts, init, funcs):
 #########################
 
 #Inform the solver how to compute static variables based on dynamical variables
-def Initialise(vals, ntr):
+def initial_conditions(vals, ntr):
     yini = np.zeros((ntr+1)*3+4)
 
     yini[0] = vals.N.value
@@ -77,7 +77,7 @@ def Initialise(vals, ntr):
     #currently, all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
 
-def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
+def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.t.SetValue(t)
     vals.N.SetValue(y[0])
     vals.a.SetValue(np.exp(y[0]))
@@ -100,7 +100,7 @@ def UpdateVals(t, y, vals, atol=1e-20, rtol=1e-6):
 
     return
 
-def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
+def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
 
     dydt = np.zeros(y.shape)
 
@@ -129,14 +129,14 @@ def TimeStep(t, y, vals, atol=1e-20, rtol=1e-6):
 
 
 #Event 1:
-def EndOfInflation_Condition(t, y, vals):
+def condition_EndOfInflation(t, y, vals):
     dphi = y[2]
     V = vals.V(y[1])
     rhoEB = 0.5*(y[4]+y[5])*(vals.H0/vals.MP)**2*np.exp(4*(y[3]-y[0]))
     val = np.log(abs((dphi**2 + rhoEB)/V))
     return val
 
-def EndOfInflation_Consequence(vals, occurance):
+def consequence_EndOfInflation(vals, occurance):
     if occurance:
         return "finish", {}
     else:
@@ -147,13 +147,13 @@ def EndOfInflation_Consequence(vals, occurance):
         print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
         return "proceed", {"tend":tend}
     
-EndOfInflation = TerminalEvent("End of inflation", EndOfInflation_Condition, 1, EndOfInflation_Consequence)
+EndOfInflation= TerminalEvent("End of inflation", condition_EndOfInflation, 1, consequence_EndOfInflation)
 
 #Event 2:
-def NegativeEnergies_Condition(t, y, vals):
+def condition_NegativeEnergies(t, y, vals):
     return min(y[4], y[5])
     
-NegativeEnergies = ErrorEvent("Negative energies", NegativeEnergies_Condition, -1)
+NegativeEnergies = ErrorEvent("Negative energies", condition_NegativeEnergies, -1)
 
 events = [EndOfInflation, NegativeEnergies]
 
