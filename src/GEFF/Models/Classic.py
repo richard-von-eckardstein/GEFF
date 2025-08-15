@@ -32,7 +32,7 @@ GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})
 quantities={
             "time":{t}, #time coordinate according to which EoMs are expressed
             "dynamical":{N, phi, dphi, kh}, #variables which evolve in time according to an EoM
-            "static":{a, H, xi, kh, E, B, G, ddphi}, #variables which are derived from dynamical variables
+            "static":{a, H, xi, E, B, G, ddphi}, #variables which are derived from dynamical variables
             "constant":{beta}, #constant quantities in the model
             "function":{V, dV}, #functions of variables such as scalar potentials
             "gaugefields":{GF1} #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
@@ -52,12 +52,12 @@ input = {
 #Define how initial data is used to infer the initial Hubble rate, Planck mass, and other initial conditions
 def parse_input(consts, init, funcs):
     #Compute Hubble rate
-    H0 = Friedmann( init["dphi"], funcs["V"](init["phi"]), 0., 0., 0., 0. )
+    H0 = Friedmann( init["dphi"], funcs["V"](init["phi"]), 0., 0., 0., 1. )
     
     freq = H0 #Characteristic frequency is the initial Hubble rate
-    Amp = 1. #Charatcterisic amplitude is the Planck mass
+    amp = 1. #Charatcterisic amplitude is the Planck mass
 
-    return freq, Amp
+    return freq, amp
 
 
 ##### Define Solver #####
@@ -71,10 +71,10 @@ def initial_conditions(vals, ntr):
     yini[1] = vals.phi.value
     yini[2] = vals.dphi.value
 
-    vals.Initialise("kh")( abs(vals.dphi)*vals.beta/2 )
+    vals.Initialise("kh")( abs(vals.dphi)*vals.beta )
     yini[3] = np.log(vals.kh.value)
 
-    #currently, all gauge-field expectation values are assumed to be 0 at initialisation
+    #all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
 
 def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
