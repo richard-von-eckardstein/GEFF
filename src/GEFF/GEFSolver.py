@@ -9,9 +9,6 @@ from copy import deepcopy
 class TruncationError(Exception):
     pass
 
-class EventError(Exception):
-    pass
-
 class Event:
     #Terminal events can modify a solver and pass concrete orders to the solver. The orders are:
     ### finish: finalise the solver
@@ -50,25 +47,6 @@ class ObserverEvent(Event):
         super().__init__(name, "observer", func, False, direction)
 
 
-
-
-def PrintSummary(sol):
-    print("The run terminated with the following statistics:")
-    for attr in sol.keys():
-        if attr not in ["y", "t", "y_events", "t_events", "sol", "events"]:
-            print(rf"{attr} : {getattr(sol, attr)}")
-    events = sol.events
-    if len(events.keys())==0:
-        print("No events occured during the run")
-    else:
-        print("The following events occured during the run:")
-        for event in events.keys():
-            time = events[event]["t"]
-            efold = events[event]["N"]
-            print(rf"{event} at t={time} or N={efold}")
-    return
-
-
 class GEFSolver:
     def __init__(self, UpdateVals, TimeStep, Initialise, events, VariableDict):
         self.__Initialise = Initialise
@@ -77,11 +55,11 @@ class GEFSolver:
         self.__UpdateVals = UpdateVals
         self.TimeStep = TimeStep
 
-        self.Events = events
+        self.Events = {event.name: event for event in events}
 
         self.VariableClassification = VariableDict
 
-        self.settings={"atol":1e-20, "rtol":1e-6, "reachNend":True, "GEFattempts":5, "solmeth":"RK45"}
+        self.settings={"atol":1e-20, "rtol":1e-6, "GEFattempts":5, "GEFmethod":"RK45", "ntrstep":10}
         self.ntr = 100
         self.tend = 120
 
@@ -103,7 +81,7 @@ class GEFSolver:
             print(f"Unknown settings: {unknownsettings}")
         return
     
-    def IncreaseNtr(self, val=10):
+    def IncreaseNtr(self, val):
         self.ntr+=val
         print(f"Increasing ntr by {val} to {self.ntr}.")
         return
@@ -117,24 +95,30 @@ class GEFSolver:
         return dydt
     
     #Can stay in the Solver
-    def GEFAlgorithm(self, ntrstep=10):
+    def GEFAlgorithm(self):
+        #initial configuration
         maxntr = 200
         maxattempts = self.settings["GEFattempts"]
+        ntrstep = self.settings["ntrstep"]
+
         attempt=0
         done = False
         #Run GEF
         while not(done) and (attempt<maxattempts):
             attempt+=1
             try:
+                #Try to get convergent solution
                 t0, yini, vals = self.InitialConditions()
-                sol, done = self.SolveGEF(t0, yini, vals)
+                sol = self.SolveGEF(t0, yini, vals)
+                done = sol.success
             except KeyboardInterrupt:
                 raise KeyboardInterrupt
             except TruncationError:
                 done = False
             
+            #Standard response to error: increase ntr (maximum: 200)
             if not(done):
-                if self.ntr<=maxntr:
+                if self.ntr<maxntr:
                     self.IncreaseNtr( min(ntrstep, maxntr-self.ntr) )
                 else:
                     print("Cannot increase ntr further.")
@@ -144,10 +128,12 @@ class GEFSolver:
             print(f"The run did not converge after {attempt} attempts.")
             try:
                 sol
-                print("Proceeding with last solution.")
+                print("Processing last solution.\n")
                 return sol, vals
             except:
                 raise RuntimeError(f"Not a single successful solution after {attempt} attempts.")
+        else: 
+            print("Run converged.\n")
 
         return sol, vals
     
@@ -266,7 +252,7 @@ class GEFSolver:
                 tend = self.tend
                 atol = self.settings["atol"]
                 rtol = self.settings["rtol"]
-                solvermethod = self.settings["solmeth"]
+                solvermethod = self.settings["GEFmethod"]
 
                 teval = np.arange(np.ceil(10*t0), np.floor(10*tend) +1)/10 #hotfix
 
@@ -284,17 +270,13 @@ class GEFSolver:
             else:
                 sols.append(sol)
 
-                eventdic_new, command = self.__AssessEvents(sol.t_events, sol.y_events, vals)
+                eventdic_new, command, terminalevent = self.__AssessEventOccurances(sol.t_events, sol.y_events, vals)
 
                 for key in eventdic_new.keys():
                     eventdic[key]["t"].append(eventdic_new[key]["t"])
                     eventdic[key]["N"].append(eventdic_new[key]["N"])
 
-                if command=="finish":
-                    status=True
-                    done=True
-                elif command=="error":
-                    status=False
+                if command in ["finish", "error"]:
                     done=True
                 elif command=="repeat":
                     print("Repeating")
@@ -304,15 +286,15 @@ class GEFSolver:
                     t0 = sol.t[-1]
                     yini = sol.y[:,-1]
 
-        self.__FinaliseSolution(sols, eventdic)
+        self.__FinaliseSolution(sols, eventdic, terminalevent)
     
         if attempts != 1 and not(done):
             print(f"The run failed after {attempts} attempts.")
             raise RuntimeError
         
-        return sol, status
+        return sol
     
-    def __FinaliseSolution(self, sols, eventdic):
+    def __FinaliseSolution(self, sols, eventdic, triggerevent):
         nfevs = 0
         y = []
         t = []
@@ -331,6 +313,12 @@ class GEFSolver:
         solution.y = y
         solution.nfev = nfevs
 
+        if triggerevent==None:
+            solution.success = True
+        else:
+            solution.success = not(triggerevent in [event.name for event in self.Events.values() if event.active and event.type=="error"])
+            solution.message = f"A terminal event occured: {triggerevent}"
+
         for eventname in (eventdic.keys()):
             try:
                 eventdic[eventname]["t"] = np.round(np.concatenate(eventdic[eventname]["t"]), 1)
@@ -345,10 +333,14 @@ class GEFSolver:
     ### Handling of events ###
     ##########################
 
-    #ToDo's:
-    #   - get rid of "reachNend" -> replace by Eventtoggle
-    #   - implement handling of 'error' events
-
+    def ToggleEvent(self, eventname, toggle):
+        if eventname in [event for event in self.Events.keys()]:
+            self.Events[eventname].active = toggle
+            humanreadable = {True:"active", False:"inactive"}
+            print(f"The event '{eventname}' is now {humanreadable[toggle]}")
+        else:
+            print(f"Unknown event: '{eventname}'")
+        return
 
     def EventSetup(self):
         
@@ -360,18 +352,18 @@ class GEFSolver:
 
         eventfuncs = []
         eventdic = {}
-        for event in self.Events:
+        for name, event in self.Events.items():
             if event.active:
-                eventfuncs.append(event.func)
-                eventdic[event.namee] = {"t":[], "N":[]}
+                eventfuncs.append(event.EventFunc)
+                eventdic[name] = {"t":[], "N":[]}
         
         return eventdic, eventfuncs
     
-    def __AssessEvents(self, tevents, yevents, vals):
+    def __AssessEventOccurances(self, tevents, yevents, vals):
         commands = {"primary":[], "secondary":[]}
         eventdic = {}
 
-        activeEvents = [event for event in self.Events if event.active]
+        activeEvents = [event for event in self.Events.values() if event.active]
 
         for i, event in enumerate(activeEvents):
 
@@ -384,13 +376,13 @@ class GEFSolver:
                 print(f"{event.name} at t={np.round(tevents[i], 1)} and N={np.round(yevents[i][:,0],1)}.")
 
             if event.type == "error" and occurance:
-                commands["primary"].append("error")
+                commands["primary"].append( ("error", event.name) )
             
             elif event.type=="terminal":
                 #Asses the events consequences based on its occurance or non-occurance
                 primary, secondary = event.EventConsequence(vals, occurance)
                 
-                for key, item in {"primary":primary, "secondary":secondary}.items(): 
+                for key, item in {"primary":(primary, event.name), "secondary":secondary}.items(): 
                     commands[key].append(item)
 
 
@@ -404,11 +396,14 @@ class GEFSolver:
         
         #Check command priority (in case of multiple final events occuring). error > finish > repeat > proceed
         for primarycommand in ["error", "finish", "repeat", "proceed"]:
-            if primarycommand in commands["primary"]:
-                return eventdic, primarycommand
+            for item in commands["primary"]:
+                command = item[0]
+                trigger = item[1]
+                if command == primarycommand:
+                    return eventdic, command, trigger 
 
         #if no primarycommand was passed, return "finish"
-        return eventdic, "finish"
+        return eventdic, "finish", None
     
     
         

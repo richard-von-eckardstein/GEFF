@@ -138,14 +138,14 @@ def EndOfInflation_Condition(t, y, vals):
 
 def EndOfInflation_Consequence(vals, occurance):
     if occurance:
-        return {"primary":"finish"}
+        return "finish", {}
     else:
         tdiff = np.round(5/vals.H, 0)
         #round again, sometimes floats cause problems in t_span and t_eval.
         tend  = np.round(vals.t + tdiff, 0)
 
         print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
-        return {"primary":"proceed", "secondary":{"tend":tend}}
+        return "proceed", {"tend":tend}
     
 EndOfInflation = TerminalEvent("End of inflation", EndOfInflation_Condition, 1, EndOfInflation_Consequence)
 

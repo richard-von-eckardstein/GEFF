@@ -275,19 +275,13 @@ class BaseGEF(BGSystem):
                 agreement, ReInitSpec = self.GEFSolver.ModeByModeCrossCheck(spec, vals, errthr=errthr, thinning=thinning, method=selfcorrmethod, **MbMKwargs)
 
                 if agreement:
-                    if len(sol.events["Negative energies"]["t"]) > 0: 
-                        raise NegativeEnergyError(
-                            "The GEF solution claims convergence on a negative energy solution." \
-                        "Discarding the solution. Try lowering the mode-by-mode error tolerance."
-                        )
-                    else:
-                        print(f"The mode-by-mode comparison indicates a convergent GEF run.")
-                        done=True
+                    print(f"The mode-by-mode comparison indicates a convergent GEF run.\n")
+                    done=True
                 
                 else:
                     Nreinit = np.round(ReInitSpec["N"], 1)
                     treinit = np.round(ReInitSpec["t"], 1)
-                    print(f"Attempting to solve GEF using self-correction starting from t={treinit}, N={Nreinit}.")
+                    print(f"Attempting to solve GEF using self-correction starting from t={treinit}, N={Nreinit}.\n")
 
                     self.GEFSolver.InitialConditions = self.GEFSolver.InitialiseFromMbM(sol, ReInitSpec, method, **MbMKwargs)
                 
@@ -296,9 +290,15 @@ class BaseGEF(BGSystem):
                 done=True
         
         if done:
-            print("GEF run successfully completed.")
+            
             if printstats: PrintSummary(sol)
+            if sol.success:
+                print("\nStoring results in GEF instance.")
+                self.GEFSolver.ParseArrToUnitSystem(sol.t, sol.y, self)
+            else:
+                print("The run terminated on with an error, check output for details.")
             return sol, spec
+        
         else:
             raise RuntimeError(f"GEF did not complete after {attempt} attempts.")
 
@@ -396,7 +396,7 @@ class BaseGEF(BGSystem):
             else:
                 path = self.GEFData
 
-                #Create a dictionary used to create pandas data table
+                #Create a dictionary used to initialise the pandas DataFrame
                 dic = {}
 
                 #remember the original units of the GEF
@@ -428,17 +428,18 @@ def GEF(modelname, settings):
 
 
 def PrintSummary(sol):
-    print("The run terminated with the following statistics:")
+    print("GEF run completed with the following statistics")
     for attr in sol.keys():
         if attr not in ["y", "t", "y_events", "t_events", "sol", "events"]:
-            print(rf"{attr} : {getattr(sol, attr)}")
+            print(rf" - {attr} : {getattr(sol, attr)}")
     events = sol.events
-    if len(events.keys())==0:
+    if np.array([(len(event["t"])==0) for event in events.values()]).all():
         print("No events occured during the run")
     else:
         print("The following events occured during the run:")
         for event in events.keys():
             time = events[event]["t"]
             efold = events[event]["N"]
-            print(rf"{event} at t={time} or N={efold}")
+            if len(time > 0):
+                print(f"  - {event} at t={time} or N={efold}")
     return
