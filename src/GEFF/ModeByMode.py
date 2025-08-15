@@ -764,49 +764,51 @@ class BaseModeSolver:
         
         return spec
     
-    """def EvolveSpectrum(self, spec : GaugeSpec, Nstart, Nstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
-        Neval = np.arange(Nstart, max(self.__N), Nstep)
-        teval = CubicSpline(self.__N, self.__t)(Neval)
+        """
+        def EvolveSpectrum(self, spec : GaugeSpec, Nstart, Nstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
+            Neval = np.arange(Nstart, max(self.__N), Nstep)
+            teval = CubicSpline(self.__N, self.__t)(Neval)
 
-        indstart = np.where(spec["N"]<Nstart)[0][-1]
-        startspec = spec.TSlice(indstart)
+            indstart = np.where(spec["N"]<Nstart)[0][-1]
+            startspec = spec.TSlice(indstart)
 
-        klen = len(spec["k"])
+            klen = len(spec["k"])
 
-        vecode = np.vectorize(lambda t, y, k: self.ModeEoM(t, y, k, **self.EoMKwargs),
-                                excluded={0, "t"},
-                               signature="(8,n),(n)->(8,n)",
-                               )
-        def ode(t, y):
-            #(k,8) to reshape correctly
-            #transposing to match signature of vecode
-            y = y.reshape(klen,8).T
-            #transposing result s.t. dydt.shape=(k,8)
-            dydt  = vecode(t, y, spec["k"]).T
-            #reshape is correct again
-            return dydt.reshape(8*klen)
-        
-        if atol==None:
-            atol = self.atol
-        
-        yini = np.dstack( (startspec["Ap"].real, startspec["dAp"].real,
-                            startspec["Ap"].imag, startspec["dAp"].imag,
-                            startspec["Am"].real, startspec["dAm"].real,
-                            startspec["Am"].imag, startspec["dAm"].imag))[0].reshape(8*klen)
-        
-        #Solve differential equation from tstart to tmax
-        sol = solve_ivp(ode, [startspec["t"], max(teval)],
-                         yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
-
-        newspec = {"t":teval, "N":Neval, "k":spec["k"]}
-        for i, key in enumerate(["Ap", "dAp"]):
-            newspec[key] = sol.y[i::8,:] + 1j*sol.y[2+i::8,:]
-        for i, key in enumerate(["Am", "dAm"]):
-            newspec[key] = sol.y[4+i::8,:] + 1j*sol.y[6+i::8,:]
+            vecode = np.vectorize(lambda t, y, k: self.ModeEoM(t, y, k, **self.EoMKwargs),
+                                    excluded={0, "t"},
+                                signature="(8,n),(n)->(8,n)",
+                                )
+            def ode(t, y):
+                #(k,8) to reshape correctly
+                #transposing to match signature of vecode
+                y = y.reshape(klen,8).T
+                #transposing result s.t. dydt.shape=(k,8)
+                dydt  = vecode(t, y, spec["k"]).T
+                #reshape is correct again
+                return dydt.reshape(8*klen)
             
-        spec.MergeSpectra(GaugeSpec(newspec))
+            if atol==None:
+                atol = self.atol
+            
+            yini = np.dstack( (startspec["Ap"].real, startspec["dAp"].real,
+                                startspec["Ap"].imag, startspec["dAp"].imag,
+                                startspec["Am"].real, startspec["dAm"].real,
+                                startspec["Am"].imag, startspec["dAm"].imag))[0].reshape(8*klen)
+            
+            #Solve differential equation from tstart to tmax
+            sol = solve_ivp(ode, [startspec["t"], max(teval)],
+                            yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
 
-        return spec"""
+            newspec = {"t":teval, "N":Neval, "k":spec["k"]}
+            for i, key in enumerate(["Ap", "dAp"]):
+                newspec[key] = sol.y[i::8,:] + 1j*sol.y[2+i::8,:]
+            for i, key in enumerate(["Am", "dAm"]):
+                newspec[key] = sol.y[4+i::8,:] + 1j*sol.y[6+i::8,:]
+                
+            spec.MergeSpectra(GaugeSpec(newspec))
+
+            return spec
+        """
     
     def EvolveFromBD(self, k : float, tstart : float,
                     atol : float|None=None, rtol : float=1e-5) -> Tuple[NDArray, NDArray, NDArray, NDArray]:
