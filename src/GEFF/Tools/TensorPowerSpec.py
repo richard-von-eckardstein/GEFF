@@ -183,7 +183,7 @@ class PowSpecT:
         self.__khN = CubicSpline(N, values.kh)
 
         #Obtain eta as a functio of time
-        deta = lambda t, y: 1/self.__af(t)
+        def deta(t, y): 1/self.__af(t)
         
         soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([-1]), t_eval=self.__t)
 
@@ -210,22 +210,22 @@ class PowSpecT:
         """
 
         t = self.__t
-        logkH = lambda t: np.log(self.__af(t)*self.__Hf(t))
+        def logkH(t): np.log(self.__af(t)*self.__Hf(t))
         if mode=="t":
             tstart = init
             logks = logkH(tstart)
             k = 10**(pwr)*np.exp(logks)
 
         elif mode=="k":
-            k = init
+            ks = init
             x0 = np.log(k[0]) - 5/2*np.log(10)
             tstart = []
-            for i, l in enumerate(k):
-                f = lambda x: np.log(l) - logkH(x) - pwr*np.log(10)
+            for i, k in enumerate(ks):
+                def f(x): np.log(k) - logkH(x) - pwr*np.log(10)
                 ttmp = fsolve(f, x0)[0]
                 #Update the initial guess based on the previous result
                 if i < len(k)-1:
-                    x0 = ttmp + np.log(k[i+1]/l)
+                    x0 = ttmp + np.log(k[i+1]/k)
                 tstart.append(ttmp)
             tstart = np.array(tstart)
 
@@ -275,7 +275,7 @@ class PowSpecT:
             istart+=1
         
         #define the ODE for the GW modes
-        ode = lambda t, y: TensorModeEoM( y, k, self.__Hf(t), self.__af(t) )
+        def ode(t, y): TensorModeEoM( y, k, self.__Hf(t), self.__af(t) )
         
         #Initialise the modes in Bunch Davies
         Zini = np.array([1, -10**(-5/2), 0, -1])
@@ -332,7 +332,7 @@ class PowSpecT:
     
 
         # Solve the EoM for G backwards in time starting from G(k, t, t)
-        Aode = lambda t, y: -GreenEoM(y, k, self.__Hf(-t), self.__af(-t))
+        def Aode(t, y): -GreenEoM(y, k, self.__Hf(-t), self.__af(-t))
         solA = solve_ivp(Aode, [-teval[ind], -tstart], Aini, t_eval=-teval[istart:ind+1][::-1],
                          method="RK45", atol=atol, rtol=rtol)
 
@@ -491,7 +491,7 @@ class PowSpecT:
 
         GaugeModes = {"+":(spec["Ap"], spec["dAp"]), "-":(spec["Am"], spec["dAm"])}
 
-        if N==None:
+        if N is None:
             N = self.maxN
         
         inds = np.where(Ngrid < N)[0]

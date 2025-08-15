@@ -1,8 +1,6 @@
 import numpy as np
 from copy import deepcopy
-import inspect
-
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import NDArray
 from typing import Callable
 
 

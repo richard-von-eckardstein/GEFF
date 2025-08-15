@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 import pandas as pd
-from scipy.interpolate import CubicSpline, interp1d
+from scipy.interpolate import CubicSpline
 from scipy.integrate import solve_ivp
 from scipy.integrate import quad, simps
 
@@ -418,7 +418,7 @@ class GaugeSpecSlice(dict):
         if len(msk) > 0:
             spl = CubicSpline(x, np.log(abs(integrand)+epsabs/10))
             sgn = CubicSpline(x, np.sign(integrand))
-            f = lambda x: sgn(x)*np.exp(spl(x) + x)
+            def f(x): sgn(x)*np.exp(spl(x) + x)
             val, err = quad(f, x[msk][0], 0., epsabs=epsabs, epsrel=epsrel)
         else:
             return 0
@@ -426,7 +426,7 @@ class GaugeSpecSlice(dict):
     
     def OldQuadInt(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
         spl = CubicSpline(x, integrand)
-        f = lambda x: spl(x)*np.exp(x)
+        def f(x): spl(x)*np.exp(x)
         val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
         return np.array([val, err])
         
@@ -654,7 +654,7 @@ class BaseModeSolver:
             setattr(self, f"__{key}f", func)
         
         self.__af = CubicSpline(self.__t, a)
-        deta = lambda t, y: 1/self.__af(t)
+        def deta(t, y): 1/self.__af(t)
         
         soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([-1]), t_eval=self.__t)
 
@@ -697,7 +697,7 @@ class BaseModeSolver:
             the gauge-field spectrum
         """
 
-        if t_interval==None:
+        if t_interval is None:
             t_interval = (self.__tmin, max(self.__t))
         ks, tstart = self.InitialKTN(self.WavenumberArray(nvals, t_interval), mode="k")
 
@@ -787,7 +787,7 @@ class BaseModeSolver:
                 #reshape is correct again
                 return dydt.reshape(8*klen)
             
-            if atol==None:
+            if atol is None:
                 atol = self.atol
             
             yini = np.dstack( (startspec["Ap"].real, startspec["dAp"].real,
@@ -870,9 +870,9 @@ class BaseModeSolver:
     def EvolveMode(self, tini, yini, k : float, teval : NDArray,
                     atol : float|None=None, rtol : float=1e-5):
         #Define ODE
-        ode = lambda t, y: self.ModeEoM(t, y, k, **self.EoMKwargs)
+        def ode(t, y): self.ModeEoM(t, y, k, **self.EoMKwargs)
 
-        if atol==None:
+        if atol is None:
             atol = self.atol
         
         #Solve differential equation from tstart to tmax
@@ -947,11 +947,11 @@ class BaseModeSolver:
             k = 10**(5/2)*self.__khf(tstart)
 
         elif mode=="k":
-            k = init
+            ks = init
             
             tstart = []
-            for i, l in enumerate(k):
-                ttmp  = self.__t[np.where(l >= 10**(5/2)*self.__khf(self.__t))[0][-1]]
+            for k in ks:
+                ttmp  = self.__t[np.where(k >= 10**(5/2)*self.__khf(self.__t))[0][-1]]
                 tstart.append(ttmp)
             tstart = np.array(tstart)
 

@@ -1,9 +1,7 @@
 import pandas as pd
 import numpy as np
 
-from GEFF import DefaultQuantities
-from GEFF.BGTypes import BGSystem, Val, Func
-
+from GEFF.BGTypes import BGSystem
 from GEFF.GEFSolver import GEFSolver
 
 import importlib.util as util
@@ -18,7 +16,7 @@ class MissingInputError(Exception):
 class NegativeEnergyError(Exception):
     pass
 
-def _load_model(name : str, settings : dict):
+def _load_model(name : str, user_settings : dict):
     """
     Import and execute a module containg a GEF model.
 
@@ -44,9 +42,9 @@ def _load_model(name : str, settings : dict):
         mod  = util.module_from_spec(spec)
         spec.loader.exec_module(mod)
 
-        for key, item in settings.items():
+        for key, item in user_settings.items():
             try:
-                mod.modelSettings[key] = item
+                mod.settings[key] = item
             except AttributeError:
                 print(f"Ignoring unknown model setting '{key}'.")
 
@@ -56,9 +54,9 @@ def _load_model(name : str, settings : dict):
         raise FileNotFoundError(f"No model found under '{modelpath}'")
     
 
-def _compile_model(modelname, settings):
+def _compile_model(modelname, user_settings):
     #compile the model file
-    model = _load_model(modelname, settings)
+    model = _load_model(modelname, user_settings)
 
     #import quantities dictionary
     q_dict = model.quantities
@@ -79,9 +77,9 @@ def _compile_model(modelname, settings):
     return q_dict, (input_signature, input_handler), (static_variable_func, EoM_func, init_func, event_list), MbM_solver
     
 
-def _model_setup(model_name, settings):
+def _model_setup(model_name, user_settings):
     def GEF_decorator(cls):
-        quantity_info, input_info, solver_info, MbM_info = _compile_model(model_name, settings)
+        quantity_info, input_info, solver_info, MbM_info = _compile_model(model_name, user_settings)
         
         object_classifier = { key:{i.name for i in item} for key, item in quantity_info.items()}
         cls._object_classification = object_classifier
@@ -221,7 +219,7 @@ class BaseGEF(BGSystem):
                 try:
                     assert callable(input_data[key])
                 except AssertionError:
-                    raise TypeError(f"Input 'functions' must be callable.")
+                    raise TypeError("Input 'functions' must be callable.")
             else:
                 try:
                     assert isinstance(input_data[key], Number)
@@ -229,7 +227,7 @@ class BaseGEF(BGSystem):
                     raise TypeError(f"Input '{input_type}' is '{type(input_data[key])}' but should be 'Number' type.")
         return
     
-    def RunGEF(self, ntr, tend, nmodes=500, print_stats=True, **kwargs):
+    def run(self, ntr, tend, nmodes=500, print_stats=True, **kwargs):
 
         #Configuring GEFSolver
         self.GEFSolver.ntr=ntr
@@ -251,6 +249,8 @@ class BaseGEF(BGSystem):
 
         done=False
         sol = None
+        spec = None
+        t_reinit = 0.
         attempt=0
 
         while not(done) and attempt<MbMattempts:
@@ -260,12 +260,13 @@ class BaseGEF(BGSystem):
             sol = self.GEFSolver.update_sol(sol, solnew)
             self.GEFSolver.parse_arr_to_sys(sol.t, sol.y, vals)
 
-            if nmodes!=None:
+            if nmodes is not None:
                 print("Using last successful GEF solution to compute gauge-field mode functions.")
                 MbM = self.ModeSolver(vals)
                 rtol = self.GEFSolver.settings["rtol"]
 
                 if resumeMbM and attempt > 1:
+                    #How to fix?
                     spec = MbM.UpdateSpectrum(spec, t_reinit, rtol=rtol)
                 else:
                     spec = MbM.ComputeModeSpectrum(nmodes, rtol=rtol)
@@ -274,7 +275,7 @@ class BaseGEF(BGSystem):
                 agreement, reinit_spec = self.GEFSolver.MbMcrosscheck(spec, vals, errthr=errthr, thinning=thinning, method=selfcorrmethod, **MbMkwargs)
 
                 if agreement:
-                    print(f"The mode-by-mode comparison indicates a convergent GEF run.\n")
+                    print("The mode-by-mode comparison indicates a convergent GEF run.\n")
                     done=True
                 
                 else:
@@ -284,12 +285,12 @@ class BaseGEF(BGSystem):
                     self.GEFSolver.compute_initial_conditions = self.GEFSolver.initialise_from_MbM(sol, reinit_spec, method, **MbMkwargs)
                 
             else:
-                spec=None
                 done=True
         
         if done:
             
-            if print_stats: print_summary(sol)
+            if print_stats:
+                print_summary(sol)
             if sol.success:
                 print("\nStoring results in GEF instance.")
                 self.GEFSolver.parse_arr_to_sys(sol.t, sol.y, self)
@@ -319,13 +320,13 @@ class BaseGEF(BGSystem):
             if the file contains a column labeled by a key which does not match any GEF-value name.
         """
 
-        if path==None:
+        if path is None:
             path=self.GEFdata
         else:
             self.GEFdata=path
 
         #Check if GEF has a file path associated with it
-        if path == None:
+        if path is None:
             raise Exception("You did not specify the file from which to load the GEF data. Set 'GEFdata' to the file's path from which you want to load your data.")
         else:
             #Check if file exists
@@ -342,7 +343,7 @@ class BaseGEF(BGSystem):
         #Befor starting to load, check that the file is compatible with the GEF setup.
         names = self.ObjectNames()
         for key in data.keys():
-            if not(key in names):
+            if key not in names:
                 raise AttributeError(f"The data table you tried to load contains an unkown quantity: '{key}'")
         
         #Store current units to switch back to later
@@ -373,12 +374,12 @@ class BaseGEF(BGSystem):
             if 'path' is None but self.GEFdata is also None
         
         """
-        if path==None:
+        if path is None:
             path=self.GEFdata
         else:
             self.GEFdata=path
         
-        if path==None:
+        if path is None:
             raise Exception("You did not specify the file under which to store the GEF data. Set 'GEFdata' to the location where you want to save your data.")
 
         else:

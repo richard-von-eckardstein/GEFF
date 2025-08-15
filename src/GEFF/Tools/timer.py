@@ -20,7 +20,7 @@ class Timer:
 
         if self._start_time is not None:
 
-            raise TimerError(f"Timer is running. Use .stop() to stop it")
+            raise TimerError("Timer is running. Use .stop() to stop it")
 
 
         self._start_time = time.perf_counter()
@@ -32,7 +32,7 @@ class Timer:
 
         if self._start_time is None:
 
-            raise TimerError(f"Timer is not running. Use .start() to start it")
+            raise TimerError("Timer is not running. Use .start() to start it")
 
 
         elapsed_time = time.perf_counter() - self._start_time

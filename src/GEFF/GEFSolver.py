@@ -103,6 +103,7 @@ class GEFSolver:
 
         attempt=0
         done = False
+        sol = None
         #Run GEF
         while not(done) and (attempt<maxattempts):
             attempt+=1
@@ -126,12 +127,14 @@ class GEFSolver:
         
         if not(done):
             print(f"The run did not converge after {attempt} attempts.")
-            try:
+
+            if sol is None:
+                raise RuntimeError(f"Not a single successful solution after {attempt} attempts.")
+            else:
                 sol
                 print("Processing last solution.\n")
                 return sol, vals
-            except:
-                raise RuntimeError(f"Not a single successful solution after {attempt} attempts.")
+                
         else: 
             print("Run converged.\n")
 
@@ -164,7 +167,7 @@ class GEFSolver:
     
     #can be moved to Solution?
     def update_sol(self, solold, solnew):
-        if solold==None:
+        if solold is None:
             return solnew
         else:
             sol = solold
@@ -316,10 +319,10 @@ class GEFSolver:
         solution.y = y
         solution.nfev = nfevs
 
-        if trigger_event==None:
+        if trigger_event is None:
             solution.success = True
         else:
-            solution.success = not(trigger_event in [event.name for event in self.solver_events.values() if event.active and event.type=="error"])
+            solution.success = (trigger_event not in [event.name for event in self.solver_events.values() if event.active and event.type=="error"])
             solution.message = f"A terminal event occured: '{trigger_event}'"
 
         for event_name in (event_dict.keys()):
