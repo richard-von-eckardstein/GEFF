@@ -16,7 +16,7 @@ from typing import Tuple
 class OmegaGW:
     def __init__(self, values):
         #Set GEF results to Hubble units.
-        values.SetUnits(False)
+        values.set_units(False)
 
         N = values.N
         H = values.H

@@ -19,33 +19,33 @@ class BGSystem:
         the Hubble-rate energy scale used for conversion between numerical and physical units
     MP : float
         the Planck-mass energy scale used for conversions between numerical and physical units
-    Objects : dict
+    objects : dict
         A dictionary of all 'Quantity' objects associated with this 'BGSystem'. The keys are the object names, the items are the objects themselves. 
-        Each 'Quantity' can be initialised using Initialise(), adding the instance as a new attribute with its assigned name to the 'BGSystem'.
+        Each 'Quantity' can be initialised using initialise(), adding the instance as a new attribute with its assigned name to the 'BGSystem'.
     'QuantityName' : Val or Func
-        The 'BGSystem' can contain a number of attributes associated to instances of BGVal/BGFunc objects (see Objects).
+        The 'BGSystem' can contain a number of attributes associated to instances of BGVal/BGFunc objects (see objects).
 
         
     Class Methods
     -------------
-    FromSystem()
+    from_system()
         Initialise a new BGSystem from an existing BGSystem instance.
 
     Instance Methods
     ----------------
-    Initialise()
+    initialise()
         Initialise a BGVal / BGFunc instance associated with this BGSystem instance.
-    SetUnits()
+    set_units()
         Convert the BGSystem and all its BGVal / BGFunc instances betweem numerical and physical units.
-    GetUnits()
+    get_units()
         Get a boolean representing the current unit system of this BGSystem instance.
-    ObjectSet():
+    object_set():
         Get a set of all 'Quantity' objects attributed to this BGSystem.
-    ObjectNames()
+    object_names()
         Get a list of names for 'Quantity' objects attributed to this BGSystem.
-    ValueList() / FunctionList()
+    value_list() / function_list()
         Get a list of all BGVal / BGFunc instances attributed to this BGSystem.
-    ValueNames() / FunctionNames()
+    value_names() / function_names()
         Get a list of names for all BGVal / BGFunc instances attributed to this BGSystem.
 
     Example
@@ -58,28 +58,28 @@ class BGSystem:
     >>> U = BGSystem({time, Hubble}, H0, MP)
     ... 
     ... #The BGSystem knows about the new variables time and Hubble
-    >>> print(U.ObjectNames()) #prints ["t", "H"]
+    >>> print(U.object_names()) #prints ["t", "H"]
     ...
     ... #Instantiate the objects "t" and "H" using the units defined by U:
-    >>> U.Initialise("t")(1e5)
-    >>> U.Initialise("H")(1e-5)
+    >>> U.initialise("t")(1e5)
+    >>> U.initialise("H")(1e-5)
     ...
     ... #The BGSystem now recognises "t" and "H" as keys, you can access them like:
     >>> print(f"In Planck units, the Hubble rate at time {U.t} is {U.H}.") #prints 1e5 and 1e-5
     ...
     ... #Convert everything to numerical units
-    >>> U.SetUnits(False)
+    >>> U.set_units(False)
     >>> print(f"In numerical units, the Hubble rate at time {U.t} is {U.H}.") #prints 1 and 1
     """
 
     def __init__(self, quantity_set, H0, MP):
-        self.Objects = {q.name:q for q in quantity_set}
+        self.objects = {q.name:q for q in quantity_set}
         self.H0 = H0
         self.MP = MP
         self.__units=True
     
     @classmethod
-    def FromSystem(cls, sys : 'BGSystem', copy : bool=False) -> 'BGSystem':
+    def from_system(cls, sys : 'BGSystem', copy : bool=False) -> 'BGSystem':
         """
         Initialise a new BGSystem from an existing BGSystem instance
 
@@ -96,32 +96,32 @@ class BGSystem:
             the new BGSystem instance
         """
 
-        newinstance = cls(sys.ObjectSet(), sys.H0, sys.MP)
+        newinstance = cls(sys.object_set(), sys.H0, sys.MP)
 
         if copy:
             #store units of original sys
-            units = sys.GetUnits()
+            units = sys.get_units()
             #match units of new system
-            sys.SetUnits(True)
+            sys.set_units(True)
 
             #Copy values and functions
-            values = sys.ValueList()
-            funcs = sys.FunctionList()
+            values = sys.value_list()
+            funcs = sys.function_list()
 
             for value in values:
                 obj = deepcopy(value)
-                newinstance.Initialise(obj.name)(obj.value)
+                newinstance.initialise(obj.name)(obj.value)
 
             for func in funcs:
                 obj = deepcopy(func)
-                newinstance.Initialise(obj.name)(obj.GetBaseFunc())
+                newinstance.initialise(obj.name)(obj.get_basefunc())
             
             #restore old units
-            sys.SetUnits(units)
+            sys.set_units(units)
         
         return newinstance
     
-    def ObjectSet(self) -> set[object]:
+    def object_set(self) -> set[object]:
         """
         Get a set of all BGVal / BGFunc classes attributed to this BGSystem.
 
@@ -131,9 +131,9 @@ class BGSystem:
             the set of associated BGVal / BGFunc objects.
         """
 
-        return set(self.Objects.values())
+        return set(self.objects.values())
     
-    def ObjectNames(self) -> list[str]:
+    def object_names(self) -> list[str]:
         """
         Get a list of names for all BGVal / BGFunc classes attributed to this BGSystem.
 
@@ -143,10 +143,10 @@ class BGSystem:
             the list of names.
         """
 
-        return self.Objects.keys()
+        return self.objects.keys()
     
 
-    def Initialise(self, quantity : str) -> Callable:
+    def initialise(self, quantity : str) -> Callable:
         """
         Initialise a BGVal / BGFunc instance associated with this BGSystem instance
 
@@ -173,13 +173,13 @@ class BGSystem:
                 the NDArray / Callable with which the BGVal / BGFunc is to be instantiated.
             """
 
-            q = self.Objects[quantity]
+            q = self.objects[quantity]
             setattr(self, quantity, q(obj, self))
             return
         
         return init
         
-    def SetUnits(self, units : bool):
+    def set_units(self, units : bool):
         """
         Convert the BGSystem and all its BGVal / BGFunc instances betweem numerical and physical units.
 
@@ -192,11 +192,11 @@ class BGSystem:
         for var in vars(self):
             obj = getattr(self, var)
             if isinstance(obj, Quantity):
-                obj.SetUnits(units)
+                obj.set_units(units)
         self.__units=units
         return
 
-    def GetUnits(self) -> bool:
+    def get_units(self) -> bool:
         """
         Get a boolean representing the current unit system of this BGSystem instance.
 
@@ -208,7 +208,7 @@ class BGSystem:
 
         return self.__units
     
-    def ValueList(self) -> list['Val']:
+    def value_list(self) -> list['Val']:
         """
         Get a list of all BGFunc instances attributed to this BGSystem.
 
@@ -225,7 +225,7 @@ class BGSystem:
                 vals.append(obj)    
         return vals
     
-    def ValueNames(self) -> list[str]:
+    def value_names(self) -> list[str]:
         """
         Get a list of names for all BGVal instances attributed to this BGSystem.
 
@@ -236,11 +236,11 @@ class BGSystem:
         """
 
         names = []
-        for val in self.ValueList():
+        for val in self.value_list():
             names.append(val.name)
         return names
 
-    def FunctionList(self) -> list['Func']:
+    def function_list(self) -> list['Func']:
         """
         Get a list of all BGFunc instances attributed to this BGSystem.
 
@@ -257,7 +257,7 @@ class BGSystem:
                     funcs.append(obj)      
         return funcs
     
-    def FunctionNames(self) -> list[str]:
+    def function_names(self) -> list[str]:
         """
         Get a list of names for all BGFunc instances attributed to this BGSystem.
 
@@ -268,11 +268,11 @@ class BGSystem:
         """
 
         names = []
-        for val in self.FunctionList():
+        for val in self.function_list():
             names.append(val.name)
         return names
     
-    def Remove(self, name : str):
+    def remove(self, name : str):
         """
         Remove a BGVal / BGFunc object including it's instance from the BGSystem.
 
@@ -283,10 +283,10 @@ class BGSystem:
         """
 
         delattr(self, name)
-        self.Objects.pop(name)
+        self.objects.pop(name)
         return
     
-    def AddBGVal(self, name : str, H0units : int, MPunits : int):
+    def add_BGVal(self, name : str, H0units : int, MPunits : int):
         """
         Add a BGVal object to the BGSystem.
 
@@ -300,10 +300,10 @@ class BGSystem:
             the BGVal's 'u_MP' parameter.
         """
 
-        self.Objects[name] = BGVal(name, H0units, MPunits)
+        self.objects[name] = BGVal(name, H0units, MPunits)
         return
     
-    def AddBGFunc(self, name : str, args : list['Val'], H0units : int, MPunits : int):
+    def add_BGFunc(self, name : str, args : list['Val'], H0units : int, MPunits : int):
         """
         Add a BGFunc object to the BGSystem.
 
@@ -312,18 +312,18 @@ class BGSystem:
         name : str
             the name of the BGVal object.
         args : list of BGVal
-            the BGFunc's 'Args' parameter.
+            the BGFunc's 'args' parameter.
         H0units : int
             the BGFunc's 'u_H0' parameter.
         MPunits : int
             the BGFunc's 'u_MP' parameter.
         """
 
-        self.Objects[name] = BGFunc(name, args, H0units, MPunits)
+        self.objects[name] = BGFunc(name, args, H0units, MPunits)
         return
     
 
-def BGVal(Qname : str, H0 : int, MP : int, Qdtype : np.dtype=np.float64):
+def BGVal(qname : str, H0 : int, MP : int, qdtype : np.dtype=np.float64):
     """
     A class factory used to define cosmological quantities like "time", "Hubble rate" etc. with a specific scaling behaviour w.r.t
     an inverse time scale (typically Hubble rate) and a mass scale (typically the Planck mass).
@@ -345,9 +345,9 @@ def BGVal(Qname : str, H0 : int, MP : int, Qdtype : np.dtype=np.float64):
         a class representing a cosmological quantity like physical time, Hubble rate, etc.
     """
 
-    if not( np.issubdtype(Qdtype, np.floating)
+    if not( np.issubdtype(qdtype, np.floating)
              or
-             np.issubdtype(Qdtype, np.complexfloating)
+             np.issubdtype(qdtype, np.complexfloating)
             ):
         raise TypeError("BGVal's data-type must be a subtype of np.floating or np.complexfloating.")
 
@@ -374,17 +374,17 @@ def BGVal(Qname : str, H0 : int, MP : int, Qdtype : np.dtype=np.float64):
             the data type of the BGVal object.
         value : NDArray
             (inherited from 'Val') a 1-dimensional array of values set to the current units of this BGVal-instance.
-            This attribute is used for all arithmetic operations and is converted to physical and numerical units via SetUnits().
+            This attribute is used for all arithmetic operations and is converted to physical and numerical units via set_units().
         massdim : int
             (inherited from 'Val') the mass dimension of this BGVal-instance
 
         Methods
         -------
-        GetUnits()
+        get_units()
             (inherited from 'Val') returns 'True' if the BGVal-instance is set to physical units and 'False' if set to numerical units.
-        SetUnits()
+        set_units()
             (inherited from 'Val') convert the 'value' of the BGVal-instance to physical units or numerical units.
-        GetConversion()
+        get_conversion()
             (inherited from 'Val') retrieve the conversion factor for this BGVal-instance
 
         Example 1 (defining a BGVal) 
@@ -396,7 +396,7 @@ def BGVal(Qname : str, H0 : int, MP : int, Qdtype : np.dtype=np.float64):
         >>> U = BGSystem({E0}, H0=1e-5, MP=1.)
         ... 
         ... #initialise E0 with some value in Planck units:
-        >>> U.Initialise("E0")( 6e-10 )
+        >>> U.initialise("E0")( 6e-10 )
         ... #U.E0 is now an instance of BGVal
 
         Example 2 (converting the units of a BGVal)
@@ -405,21 +405,21 @@ def BGVal(Qname : str, H0 : int, MP : int, Qdtype : np.dtype=np.float64):
         >>> print( U.E0.value )#gives 6e-10 (in Planck units)
         ... 
         ... #Switch E0 to numerical units changes the value stored in U.E0:
-        >>> U.E0.SetUnits(False)
+        >>> U.E0.set_units(False)
         >>> print( U.E0.value )#gives 6e10 = 6e-10 * U.H0**4 (in numerical units)
         """
 
-        name=Qname
+        name=qname
         u_H0 = H0
         u_MP = MP
-        dtype = Qdtype
+        dtype = qdtype
         def __init__(self, value, sys):
             super().__init__(value, sys)
 
     return BGVal
 
 
-def BGFunc(Qname : str, args : list['Val'], H0 : int, MP : int, Qdtype : np.dtype=np.float64):
+def BGFunc(qname : str, func_args : list['Val'], H0 : int, MP : int, qdtype : np.dtype=np.float64):
     """
     A class factory used to define dimensionful functions of cosmological quantities with a specific scaling behaviour w.r.t
     an inverse time scale (typically Hubble rate) and a mass scale (typically the Planck mass).
@@ -434,7 +434,7 @@ def BGFunc(Qname : str, args : list['Val'], H0 : int, MP : int, Qdtype : np.dtyp
         the functions' scaling w.r.t. a typical inverse time scale
     MP : int
         the functions' scaling w.r.t. a typical mass scale
-    Qdtype : Numpy data type returned by the BGFunc
+    qdtype : Numpy data type returned by the BGFunc
         the data type of the BGVal object.
         
     Returns
@@ -443,9 +443,9 @@ def BGFunc(Qname : str, args : list['Val'], H0 : int, MP : int, Qdtype : np.dtyp
         a class representing a dimensionful function of a cosmological quantity, e.g., a scalar potential.
     """
 
-    if not( np.issubdtype(Qdtype, np.floating)
+    if not( np.issubdtype(qdtype, np.floating)
              or
-             np.issubdtype(Qdtype, np.complexfloating)
+             np.issubdtype(qdtype, np.complexfloating)
             ):
         raise TypeError("BGFunc's data-type must be a subtype of np.floating or np.complexfloating.")
     
@@ -467,7 +467,7 @@ def BGFunc(Qname : str, args : list['Val'], H0 : int, MP : int, Qdtype : np.dtyp
         ----------
         name : str
             the quantities name
-        Args : list of BGVal
+        args : list of BGVal
             a list of BGVals indicating the arguments of the BGFunc.
         u_H0 : int
             the quantities' scaling w.r.t. a typical inverse time scale
@@ -478,13 +478,13 @@ def BGFunc(Qname : str, args : list['Val'], H0 : int, MP : int, Qdtype : np.dtyp
 
         Methods
         -------
-        GetBaseFunc()
+        get_basefunc()
             (inherited from 'Func') returns the underlying function defining the BGFunc-instance.
-        GetUnits()
+        get_units()
             (inherited from 'Func') returns 'True' if the BGFunc-instance is set to physical units and 'False' if set to numerical units.
-        SetUnits()
+        set_units()
             (inherited from 'Func') change __call__() of the BGFunc-instance to physical units or numerical units.
-        GetConversion()
+        get_conversion()
             (inherited from 'Func') retrieve the conversion factor for this BGFunc-instance
         
         Example 1 (defining a BGFunc) 
@@ -499,10 +499,10 @@ def BGFunc(Qname : str, args : list['Val'], H0 : int, MP : int, Qdtype : np.dtyp
         >>> U = BGSystem({E0, rhoE}, H0=1e-5, MP=1.)
         ... 
         ... #initialise E0 with some value in Planck units:
-        >>> U.Initialise("E0")( 6e-10 )
+        >>> U.initialise("E0")( 6e-10 )
         ... #define a function: rhoE = 0.5*E^2
         >>> func = lambda x: 0.5 * x
-        >>> U.Initialise("rhoE")( func )
+        >>> U.initialise("rhoE")( func )
         ... 
         ... #U.rhoE is now a Callable function with a single argument
 
@@ -515,15 +515,15 @@ def BGFunc(Qname : str, args : list['Val'], H0 : int, MP : int, Qdtype : np.dtyp
         >>> print( func(6e-10) )  #gives 3e-10 (in Planck units)
         ... 
         ... #Even if we switch E0 to numerical units, as long as rhoE is in physical units, we get the same result:
-        >>> U.E0.SetUnits(False) #E0.value = 6e10
+        >>> U.E0.set_units(False) #E0.value = 6e10
         >>> print( U.rhoE(U.E0) ) #gives 3e-10 (still in Planck units)
         ... 
         ... #Switching U.rhoE to numerical units means calling rhoE returns values in numerical units:
-        >>> U.rhoE.SetUnits(False)
+        >>> U.rhoE.set_units(False)
         >>> print( U.rhoE(U.E0) ) #gives 3. = 3e-10 / (U.H0*U.MP)**2 (in numerical units)
         ... 
         ... #Again, this outcome does not depend on the units of E0:
-        >>> U.E0.SetUnits(True)
+        >>> U.E0.set_units(True)
         >>> print( U.rhoE(U.E0) ) #gives 3. = 3e-10 / (U.H0*U.MP)**2 (in numerical units)
 
         Example 3 (calling a BGFunc by a float)
@@ -532,11 +532,11 @@ def BGFunc(Qname : str, args : list['Val'], H0 : int, MP : int, Qdtype : np.dtyp
         >>> val = 6e-10
         ... 
         ... #First the behaviour if rhoE is in physical units:
-        >>> U.rhoE.SetUnits(True)
+        >>> U.rhoE.set_units(True)
         >>> print( U.rhoE( val ) )  #gives 3e-10 (in Planck units)
         ... 
         ... #Things are different if rhoE is in numerical units:
-        >>> U.rhoE.SetUnits(False)
+        >>> U.rhoE.set_units(False)
         >>> print( U.rhoE(val) ) #gives 3e-20 = 0.5* (6e-10*U.H0**4) / (U.H0*U.MP)**2
         ... 
         ... #since val does not have units, it is assumed to be in the units of rhoE.
@@ -545,11 +545,11 @@ def BGFunc(Qname : str, args : list['Val'], H0 : int, MP : int, Qdtype : np.dtyp
 
         """
 
-        name=Qname
+        name=qname
         u_H0 = H0
         u_MP = MP
-        Args = args
-        dtype = Qdtype
+        args = func_args
+        dtype = qdtype
         def __init__(self, func, sys):
             super().__init__(func, sys)
 
@@ -596,17 +596,17 @@ class Val(Quantity):
     ----------
     value : NDArray
         a 1-dimensional array of values set to the current units of this BGVal-instance.
-        This attribute is used for all arithmetic operations and is converted to physical and numerical units via SetUnits()
+        This attribute is used for all arithmetic operations and is converted to physical and numerical units via set_units()
     massdim : int
         the mass dimension of this Val-instance
     
     Methods
     -------
-    GetUnits()
+    get_units()
         A boolean corresponding to the current units of the Val instance.
-    SetUnits()
+    set_units()
         Convert the Val instnace betweem numerical and physical units.
-    GetConversion()
+    get_conversion()
         Get the conversion factor between numerical and physical units for this Val instance.
     """
 
@@ -614,9 +614,9 @@ class Val(Quantity):
         self.__DefineMassdim__()
 
         self.value = np.asarray(value, dtype=self.dtype)
-        self.__units = sys.GetUnits()
+        self.__units = sys.get_units()
         
-        self.__Conversion = (sys.H0**self.u_H0*sys.MP**self.u_MP)
+        self._conversion = (sys.H0**self.u_H0*sys.MP**self.u_MP)
 
     @classmethod
     def __DefineMassdim__(cls):
@@ -637,12 +637,12 @@ class Val(Quantity):
             the string representation.
         """
 
-        if self.__units==False:
+        if not(self.__units):
             return f"{self.name} (numerical): {self.value}"
-        elif self.__units==True:
+        elif self.__units:
             return f"{self.name} (physical): {self.value}"
         
-    def GetUnits(self):
+    def get_units(self):
         """
         A boolean corresponding to the current units of the Val instance.
 
@@ -654,7 +654,7 @@ class Val(Quantity):
 
         return self.__units
     
-    def SetUnits(self, units : bool):
+    def set_units(self, units : bool):
         """
         Convert the Val instnace betweem numerical and physical units.
 
@@ -668,13 +668,13 @@ class Val(Quantity):
             self.__units=units
             return
         if units and not(self.__units):
-            self.value *= self.__Conversion
+            self.value *= self._conversion
         elif not(units) and self.__units:
-            self.value /= self.__Conversion
+            self.value /= self._conversion
         self.__units=units
         return
     
-    def SetValue(self, value : NDArray):
+    def set_value(self, value : NDArray):
         """
         Overwrite the 'value' attribute.
 
@@ -687,7 +687,7 @@ class Val(Quantity):
         self.value = np.asarray(value)
         return
     
-    def GetConversion(self) -> float:
+    def get_conversion(self) -> float:
         """
         Get the conversion factor between numerical and physical units for this Val instance.
 
@@ -697,7 +697,7 @@ class Val(Quantity):
             the conversion factor
         """
 
-        return self.__Conversion
+        return self._conversion
     
     #The following methods ensure that a 'Val' instance can be used as an array concerning mathematical operations and indexing.
     
@@ -783,7 +783,7 @@ class Func(Quantity):
     The parent class for BGFunc. Determines the __call__ method of a BGFunc and how
     conversions between physical units and numerical units are handled.
     An instance of this object can be used like a Callable of BGVals or arithmetic-type objects using the 
-    call signature indicated by "Args".
+    call signature indicated by "args".
 
     A call to a Func returns the result of the underlying basefunction f(*args) according to f( *args (in physical units) ).
     The result of this operation are returned in numerical / physical units depending on the units of the current Func-instance.
@@ -792,37 +792,37 @@ class Func(Quantity):
     
     Methods
     -------
-    GetBaseFunc()
+    get_basefunc()
         Get the underlying function defining the __call__ method.
-    GetUnits()
+    get_units()
         A boolean corresponding to the current units of the Func instance.
-    SetUnits()
+    set_units()
         Convert the Func betweem numerical and physical units.
-    GetConversion()
+    get_conversion()
         Get the conversion factor between numerical and physical units for this Func instance.
 
     """
-    Args = []
+    args = []
     def __init__(self, func, sys):
         super().__init__()
         func = np.vectorize(func, otypes=[self.dtype])
         
         try:
-            testargs = [1.0 for arg in self.Args]
+            testargs = [1.0 for arg in self.args]
             assert func(*testargs).dtype
         except TypeError:
-            raise TypeError("The number of non-default arguments of 'func' needs to match 'len(self.Args)'.")
+            raise TypeError("The number of non-default arguments of 'func' needs to match 'len(self.args)'.")
         except ValueError:
             raise ValueError("'func' must return a single value which can be converted to '{self.dtype}'")
         
-        self.__basefunc = func
+        self._basefunc = func
 
-        self.__units = sys.GetUnits()
-        self.__ArgConversions = [(sys.H0**arg.u_H0*sys.MP**arg.u_MP)
-                                 for arg in self.Args]
-        self.__Conversion = (sys.H0**self.u_H0*sys.MP**self.u_MP)
+        self.__units = sys.get_units()
+        self._arg_conversions = [(sys.H0**arg.u_H0*sys.MP**arg.u_MP)
+                                 for arg in self.args]
+        self._conversion = (sys.H0**self.u_H0*sys.MP**self.u_MP)
         
-    def GetUnits(self) -> bool:
+    def get_units(self) -> bool:
         """
         A boolean corresponding to the current units of the Func instance.
 
@@ -834,7 +834,7 @@ class Func(Quantity):
 
         return self.__units
     
-    def SetUnits(self, units : bool):
+    def set_units(self, units : bool):
         """
         Convert the Func betweem numerical and physical units.
 
@@ -847,7 +847,7 @@ class Func(Quantity):
         self.__units = units
         return
         
-    def GetBaseFunc(self) -> Callable:
+    def get_basefunc(self) -> Callable:
         """
         Get the underlying function defining the __call__ method.
 
@@ -856,9 +856,9 @@ class Func(Quantity):
         Callable:
             the function.
         """
-        return self.__basefunc
+        return self._basefunc
     
-    def GetConversion(self) -> float:
+    def get_conversion(self) -> float:
         """
         Get the conversion factor between numerical and physical units for this Func instance.
 
@@ -868,9 +868,9 @@ class Func(Quantity):
             the conversion factor
         """
 
-        return self.__Conversion
+        return self._conversion
     
-    def GetArgConversions(self) -> list[float]:
+    def get_arg_conversions(self) -> list[float]:
         """
         Get a list of conversion factors between numerical and physical units for each argument.
 
@@ -880,22 +880,22 @@ class Func(Quantity):
             the list of conversion factors
         """
 
-        return self.__ArgConversions
+        return self._arg_conversions
     
     #the dunder method defines the call signature as described in the class documentation
     def __call__(self, *args):
-        units = self.GetUnits()
-        def floathandler(x, i):
-            return x*self.__ArgConversions[i]**(1-units)
+        units = self.get_units()
+        def float_handler(x, i):
+            return x*self._arg_conversions[i]**(1-units)
         
-        def Valhandler(x, i):
-            conv = x.GetConversion()
-            assert self.__ArgConversions[i] == conv
-            pow = (1 - x.GetUnits())
+        def val_handler(x, i):
+            conv = x.get_conversion()
+            assert self._arg_conversions[i] == conv
+            pow = (1 - x.get_units())
             return x*conv**pow
 
-        typedic = {Val : Valhandler}
+        typedic = {Val : val_handler}
 
-        args = [typedic.get(arg.__class__.__bases__[0], floathandler)(arg, i) for i, arg in enumerate(args)]
+        args = [typedic.get(arg.__class__.__bases__[0], float_handler)(arg, i) for i, arg in enumerate(args)]
 
-        return self.__basefunc(*args)/self.__Conversion**(1-units)
+        return self._basefunc(*args)/self._conversion**(1-units)

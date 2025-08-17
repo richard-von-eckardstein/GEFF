@@ -26,7 +26,7 @@ class TestBGVal():
     
     def inst(self, val):
         U = self.sys()
-        U.Initialise("x")(val)
+        U.initialise("x")(val)
         return U.x
     
     def test_Class(self):
@@ -40,8 +40,8 @@ class TestBGVal():
         x = self.inst(v1)
         assert x.massdim==3
         assert np.issubdtype(x.value.dtype, np.floating)
-        assert x.GetUnits() == True
-        assert x.GetConversion() == 0.55**2 * 0.32
+        assert x.get_units()
+        assert x.get_conversion() == 0.55**2 * 0.32
 
     def test_InitFroma1(self, a1):
         x = self.inst(a1)
@@ -49,21 +49,21 @@ class TestBGVal():
 
     def test_Units(self, v1):
         x = self.inst(v1)
-        x.SetUnits(True)
-        assert x.GetUnits()
+        x.set_units(True)
+        assert x.get_units()
         assert x.value == v1
 
-        x.SetUnits(False)
-        assert not(x.GetUnits())
+        x.set_units(False)
+        assert not(x.get_units())
         assert x.value == v1/(0.55**2 * 0.32)
 
     def test_str(self, v1):
         x = self.inst(v1)
-        x.SetUnits(True)
+        x.set_units(True)
         assert x.__str__() == f"{x.name} (physical): {v1}"
 
-        x.SetUnits(False)
-        assert x.__str__() == f"{x.name} (numerical): {v1/(x.GetConversion())}"
+        x.set_units(False)
+        assert x.__str__() == f"{x.name} (numerical): {v1/(x.get_conversion())}"
 
     def test_getitem(self, a1):
         x = self.inst(a1)
@@ -75,7 +75,7 @@ class TestBGVal():
 
         #len of float is not defined
         x = self.inst(v1)
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception):
             len(x)
 
     def test_abs(self, v1):
@@ -134,14 +134,14 @@ class TestBGVal():
         x = self.inst(v1)
         y = self.inst(v2)
         assert x%5 == v1%5
-        with pytest.raises(Exception) as exec_info:
+        with pytest.raises(Exception):
             x%y
 
     def test_pow(self, v1, v2):
         x = self.inst(v1)
         y = self.inst(v2)
         assert x**v2 == v1**v2
-        with pytest.raises(Exception) as exec_info:
+        with pytest.raises(Exception):
             x**y
 
     def test_eq(self, v1, v2):
@@ -220,9 +220,9 @@ class TestBGVal():
         assert not(x>=v1+1)
         assert not(x>=yp)
 
-    def test_SetValue(self, v1, a1):
+    def test_set_value(self, v1, a1):
         x = self.inst(v1)
-        x.SetValue(a1)
+        x.set_value(a1)
 
         assert (x.value == a1).all()
 

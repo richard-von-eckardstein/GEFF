@@ -241,8 +241,8 @@ class GaugeSpec(dict):
             return True, mask
     
     def AddCutOff(self, BG : BGSystem, cutoff="kh"):
-        units = BG.GetUnits()
-        BG.SetUnits(False)
+        units = BG.get_units()
+        BG.set_units(False)
 
         scale = getattr(BG, cutoff)
 
@@ -253,13 +253,13 @@ class GaugeSpec(dict):
         else:
             self["cut"] = CubicSpline(BG.t, scale)(self["t"])
         
-        BG.SetUnits(units)
+        BG.set_units(units)
 
         return self["cut"]
     
     def GetReferenceGaugeFields(self, BG :  BGSystem, references=["E", "B", "G"], cutoff="kh"): 
-        units = BG.GetUnits()
-        BG.SetUnits(False)
+        units = BG.get_units()
+        BG.set_units(False)
 
         scale = getattr(BG, cutoff)
 
@@ -273,7 +273,7 @@ class GaugeSpec(dict):
             else:
                 Fref.append( CubicSpline(BG.t, val_arr)(self["t"]) ) 
 
-        BG.SetUnits(units)
+        BG.set_units(units)
 
         return Fref
     
@@ -418,7 +418,7 @@ class GaugeSpecSlice(dict):
         if len(msk) > 0:
             spl = CubicSpline(x, np.log(abs(integrand)+epsabs/10))
             sgn = CubicSpline(x, np.sign(integrand))
-            def f(x): sgn(x)*np.exp(spl(x) + x)
+            def f(x): return sgn(x)*np.exp(spl(x) + x)
             val, err = quad(f, x[msk][0], 0., epsabs=epsabs, epsrel=epsrel)
         else:
             return 0
@@ -426,7 +426,7 @@ class GaugeSpecSlice(dict):
     
     def OldQuadInt(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
         spl = CubicSpline(x, integrand)
-        def f(x): spl(x)*np.exp(x)
+        def f(x): return spl(x)*np.exp(x)
         val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
         return np.array([val, err])
         
@@ -628,7 +628,7 @@ class BaseModeSolver:
 
     def __init__(self, values : BGSystem):
         #Ensure that all values from the GEF are imported without units
-        values.SetUnits(False)
+        values.set_units(False)
 
         #store the time values of the GEF
         self.__t = values.t.value
@@ -654,7 +654,7 @@ class BaseModeSolver:
             setattr(self, f"__{key}f", func)
         
         self.__af = CubicSpline(self.__t, a)
-        def deta(t, y): 1/self.__af(t)
+        def deta(t, y): return 1/self.__af(t)
         
         soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([-1]), t_eval=self.__t)
 
@@ -702,7 +702,7 @@ class BaseModeSolver:
         ks, tstart = self.InitialKTN(self.WavenumberArray(nvals, t_interval), mode="k")
 
         modes = np.array([self.EvolveFromBD(k, tstart[i], **SolverKwargs)
-                  for i, k in enumerate(ks)])
+                         for i, k in enumerate(ks)])
         
         spec = GaugeSpec({"t":self.__t, "N":self.__N, "k":ks,
                     "Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
@@ -870,7 +870,7 @@ class BaseModeSolver:
     def EvolveMode(self, tini, yini, k : float, teval : NDArray,
                     atol : float|None=None, rtol : float=1e-5):
         #Define ODE
-        def ode(t, y): self.ModeEoM(t, y, k, **self.EoMKwargs)
+        def ode(t, y): return self.ModeEoM(t, y, k, **self.EoMKwargs)
 
         if atol is None:
             atol = self.atol
@@ -931,7 +931,7 @@ class BaseModeSolver:
 
         Returns
         -------
-        K : NDarray
+        ks : NDarray
             an array of comoving wavenumbers satisfying k=10^(5/2)k_h(tstart)
         tstart : NDarray
             an array of physical-time coordinates satisfying k=10^(5/2)k_h(tstart)
@@ -944,7 +944,7 @@ class BaseModeSolver:
 
         if mode=="t":
             tstart = init
-            k = 10**(5/2)*self.__khf(tstart)
+            ks = 10**(5/2)*self.__khf(tstart)
 
         elif mode=="k":
             ks = init
@@ -957,12 +957,12 @@ class BaseModeSolver:
 
         elif mode=="N":
             tstart = CubicSpline(self.__N, self.__t)(init)
-            k = 10**(5/2)*self.__khf(tstart)
+            ks = 10**(5/2)*self.__khf(tstart)
 
         else:
             raise KeyError("'mode' must be 't', 'k' or 'N'")
 
-        return k, tstart
+        return ks, tstart
 
 
 
