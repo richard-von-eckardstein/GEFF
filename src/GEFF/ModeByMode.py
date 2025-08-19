@@ -464,9 +464,9 @@ class GaugeSpecSlice(dict):
         integs = np.zeros((3, 2, len(x)))
         for i, lam in enumerate(helicities):
             sgn = np.sign(0.5-i)
-            integs[0,i,:] = self.ESpec(lam)
-            integs[1,i,:] = self.BSpec(lam)
-            integs[2,i,:] = sgn*self.GSpec(lam)
+            integs[0,i,:] = self._Espec(lam)
+            integs[1,i,:] = self._Bspec(lam)
+            integs[2,i,:] = sgn*self._Gspec(lam)
 
         res = np.zeros((3,2))
         

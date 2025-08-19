@@ -101,7 +101,7 @@ class GEFSolver:
 
                     print(f"Attempting to solve GEF using self-correction starting from t={treinit}, N={Nreinit}.")
 
-                    self.InitialConditions = self.InitialiseFromMbM(sol, ReInitSpec, method, **MbMKwargs)
+                    self.InitialConditions = self.InitialiseFromMbM(sol, ReInitSpec, **MbMKwargs)
             else:
                 spec=None
                 done=True
@@ -205,7 +205,7 @@ class GEFSolver:
         yini = self.__Initialise(vals, self.ntr)
         return t0, yini, vals
     
-    def InitialiseFromMbM(self, sol, ReInitSpec, method, **MbMKwargs):
+    def InitialiseFromMbM(self, sol, ReInitSpec, **MbMKwargs):
         def NewInitialiser():
             ntr = self.ntr
 
@@ -234,7 +234,7 @@ class GEFSolver:
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
                                     [
-                                    ReInitSpec.IntegrateSpecSlice(n=n, method=method,**MbMKwargs)
+                                    ReInitSpec.integrate_slice(n=n, method="simpson",**MbMKwargs) #simpson is more reliable, remove option to chose.
                                     for n in range(1,ntr+1)
                                     ]
                                     )[:,:,0].reshape(3*(ntr))
