@@ -2,9 +2,9 @@ import os
 
 import numpy as np
 import pandas as pd
-from scipy.interpolate import CubicSpline, interp1d
+from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.integrate import solve_ivp
-from scipy.integrate import quad, simps
+from scipy.integrate import quad, simpson
 
 from GEFF.BGTypes import Val, BGSystem
 from GEFF.Models.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
@@ -411,23 +411,16 @@ class GaugeSpecSlice(dict):
     
     def SimpsInt(self, integrand, x):
         integrand = integrand*np.exp(x)
-        return simps(integrand, x)
+        return simpson(integrand, x)
 
     def QuadInt(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
         msk = np.where(abs(integrand) > epsrel*1e-2*abs(integrand))[0]
         if len(msk) > 0:
-            spl = CubicSpline(x, np.log(abs(integrand)+epsabs/10))
-            sgn = CubicSpline(x, np.sign(integrand))
-            f = lambda x: sgn(x)*np.exp(spl(x) + x)
+            spl = PchipInterpolator(x, np.arcsinh(integrand))
+            f = lambda x: np.sinh(spl(x))*np.exp(x)
             val, err = quad(f, x[msk][0], 0., epsabs=epsabs, epsrel=epsrel)
         else:
             return 0
-        return np.array([val, err])
-    
-    def OldQuadInt(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
-        spl = CubicSpline(x, integrand)
-        f = lambda x: spl(x)*np.exp(x)
-        val, err = quad(f, -200, 0., epsabs=epsabs, epsrel=epsrel)
         return np.array([val, err])
         
     def IntegrateSpecSlice(self, n : int=0, epsabs : float=1e-20, epsrel : float=1e-4,
@@ -667,7 +660,7 @@ class ModeByMode:
         self.__af = CubicSpline(self.__t, a)
         deta = lambda t, y: 1/self.__af(t)
         
-        soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([-1]), t_eval=self.__t)
+        soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([0]), t_eval=self.__t)
 
         self.__eta = soleta.y[0,:]
 
