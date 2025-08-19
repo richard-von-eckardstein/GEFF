@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.optimize import fsolve
 from scipy.integrate import solve_ivp, trapezoid
 
@@ -147,9 +147,11 @@ class PowSpecT:
     PTAnalyitcal():
         From a given GEF result, compute the analytical estimate of the tensor power spectrum from axion inflation.
     """
-    def __init__(self, values):
+    def __init__(self, values, specinterp=PchipInterpolator):
         #Set GEF results to Hubble units.
         values.SetUnits(False)
+
+        self.interp = specinterp
         
         a = values.a
         H = values.H
@@ -182,10 +184,10 @@ class PowSpecT:
         self.__HN = CubicSpline(self.__N, self.__H)
         self.__khN = CubicSpline(N, values.kh)
 
-        #Obtain eta as a functio of time
+        #Obtain eta as a function of time
         deta = lambda t, y: 1/self.__af(t)
         
-        soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([-1]), t_eval=self.__t)
+        soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([0]), t_eval=self.__t)
 
         self.__etaf = CubicSpline(self.__t, soleta.y[0,:])
         return
@@ -401,11 +403,11 @@ class PowSpecT:
 
         #Alternatives for interpolating mode functions directly? Could be problematic as they are highly oscillatory
         #It may be better to directly interpolate the integrand...
-        Afuncx = CubicSpline(np.log(kgrid), A1)
-        dAfuncx = CubicSpline(np.log(kgrid), dA1)
+        Afuncx = self.interp(np.log(kgrid), A1)
+        dAfuncx = self.interp(np.log(kgrid), dA1)
         
-        Afuncy = CubicSpline(np.log(kgrid), A2)
-        dAfuncy = CubicSpline(np.log(kgrid), dA2)
+        Afuncy = self.interp(np.log(kgrid), A2)
+        dAfuncy = self.interp(np.log(kgrid), dA2)
 
         IntOuter = []
         for logA in logAs:
