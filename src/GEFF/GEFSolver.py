@@ -54,7 +54,7 @@ class GEFSolver:
         solmeth = Kwargs.get("solmeth", "RK45")
 
         MbMattempts = Kwargs.get("MbMattempts", 5)
-        thinning = Kwargs.get("thinning", 5)
+        binning = Kwargs.get("binning", 5)
         errthr = Kwargs.get("errthr", 0.025)
         resumeMode = Kwargs.get("resumeMode", True)
         method = Kwargs.get("method", "simpson")
@@ -90,7 +90,7 @@ class GEFSolver:
                     treinit = ReInitSpec["t"]
                 except:
                     treinit = 0
-                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, errthr=errthr, thinning=thinning, method=selfcorrmethod, **MbMKwargs)
+                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, errthr=errthr, binning=binning, method=selfcorrmethod, **MbMKwargs)
 
                 if agreement:
                     print(f"The mode-by-mode comparison indicates a convergent GEF run.")
@@ -156,8 +156,8 @@ class GEFSolver:
 
         return sol, vals
     
-    def ModeByModeCrossCheck(self, spec, vals, errthr, thinning, method, **MbMKwargs):
-        errs, terr, _ = spec.CompareToBackgroundSolution(vals, errthr=errthr, steps=thinning, method=method, **MbMKwargs)
+    def ModeByModeCrossCheck(self, spec, vals, errthr, binning, method, **MbMKwargs):
+        errs, terr, _ = spec.CompareToBackgroundSolution(vals, errthr=errthr, binning=binning, method=method, **MbMKwargs)
 
         reinitinds = []
         agreement=True

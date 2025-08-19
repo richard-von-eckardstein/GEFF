@@ -33,26 +33,26 @@ class GaugeSpec(dict):
 
     Class Methods
     -------------
-    ReadSpec
+    read_spec
         Initialise the class from data stored in a file.
 
     Methods
     -------
-    SaveSpec()
+    save_spec()
         Store the spectrum in a file.
-    GetDim()
+    get_dim()
         Retrieve the number of modes and times encoded in the spectrum 
     TSlice()
         Retrieve the spectrum at a moment of time
-    KSlice()
+    kslice()
         Retrieve the spectrums evolution for a fixed wavenumber
 
     Example
     -------
-    >>> spec = GaugeSpec.ReadSpec(somefile)
-    >>> specslice = spec.TSlice(100) #return the spectrum at spec["t"][100]
-    >>> print(f"This is the spectrum of positive-helicity modes at time {specslice['t']}:)
-    >>> print(specslice["Ap"]})
+    >>> spec = GaugeSpec.read_spec(somefile)
+    >>> slice = spec.TSlice(100) #return the spectrum at spec["t"][100]
+    >>> print(f"This is the spectrum of positive-helicity modes at time {slice['t']}:)
+    >>> print(slice["Ap"]})
     """
 
     def __init__(self, modedic):
@@ -66,7 +66,7 @@ class GaugeSpec(dict):
         super().__init__(modedic)
 
     @classmethod
-    def ReadSpec(cls, path : str):
+    def read_spec(cls, path : str):
         """
         Initialise the class from a file.
 
@@ -82,7 +82,7 @@ class GaugeSpec(dict):
         """
         return cls(ReadMode(path))
     
-    def SaveSpec(self, path : str, thinning = 5):
+    def save_spec(self, path : str, thinning = 5):
         """
         Store the spectrum in a file.
 
@@ -97,23 +97,23 @@ class GaugeSpec(dict):
         dic = {"t":t, "N":N}
 
         for j, k in enumerate(self["k"]):
-            specslice = self.KSlice(j)
-            logk = np.log10(specslice["k"])
+            spec_slice = self.kslice(j)
+            logk = np.log10(spec_slice["k"])
             for key in ["Ap", "dAp", "Am", "dAm"]:
                 dictmp = {key + "_" + str(j) :np.array([logk] + 
-                                                       list(specslice[key][-1::-thinning][::-1]))}
+                                                       list(spec_slice[key][-1::-thinning][::-1]))}
                 dic.update(dictmp)
     
-        DirName = os.getcwd()
+        dir_name = os.getcwd()
     
-        path = os.path.join(DirName, path)
+        path = os.path.join(dir_name, path)
     
         output_df = pd.DataFrame(dic)  
         output_df.to_csv(path)
         
         return
 
-    def GetDim(self) -> dict:
+    def get_dim(self) -> dict:
         """
         Retrieve the spectrums evolution for a fixed wavenumber
 
@@ -125,6 +125,7 @@ class GaugeSpec(dict):
         """
         return {"kdim":len(self["k"]), "tdim":len(self["t"])}
     
+    #Rename!
     def TSlice(self, ind : int) -> dict:
         """
         Retrieve the spectrum at a moment of time
@@ -140,17 +141,17 @@ class GaugeSpec(dict):
             a dictionary with keys like self.
         """
 
-        specslice = {}
-        for key, item in self.items():
+        spec_slice = {}
+        for key in self.keys():
             if key in ["N", "t", "cut"]:
-                specslice[key] = self[key][ind]
+                spec_slice[key] = self[key][ind]
             elif key=="k":
-                specslice[key] = self[key]
+                spec_slice[key] = self[key]
             else:
-                specslice[key] = self[key][:,ind]
-        return GaugeSpecSlice(specslice)
+                spec_slice[key] = self[key][:,ind]
+        return GaugeSpecSlice(spec_slice)
     
-    def KSlice(self, ind : int) -> dict:
+    def kslice(self, ind : int) -> dict:
         """
         Retrieve the spectrum for a fixed wavenumber
 
@@ -165,17 +166,17 @@ class GaugeSpec(dict):
             a dictionary with keys like self.     
         """
 
-        specslice = {}
-        for key, item in self.items():
+        spec_slice = {}
+        for key in self.keys():
             if key in ["N", "t", "cut"]:
-                specslice[key] = self[key]
+                spec_slice[key] = self[key]
             elif key=="k":
-                specslice[key] = self[key][ind]
+                spec_slice[key] = self[key][ind]
             else:
-                specslice[key] = self[key][ind,:]
-        return specslice
+                spec_slice[key] = self[key][ind,:]
+        return spec_slice
     
-    def MergeSpectra(self, spec):
+    def merge_spectra(self, spec):
         assert (spec["k"] == self["k"]).all()
 
         ind = np.where(self["t"]<=spec["t"][0])[0][-1]
@@ -191,7 +192,7 @@ class GaugeSpec(dict):
                     self[key] = np.concatenate([self[key][:,:ind], spec[key]], axis=1)
         return
     
-    def AddMomenta(self, spec):
+    def add_momenta(self, spec):
         assert (np.round(spec["t"],1) == np.round(self["t"],1)).all()
 
         newks = []
@@ -224,29 +225,30 @@ class GaugeSpec(dict):
 
         return
     
-    def RemoveMomenta(self, ind):
+    def remove_momenta(self, ind):
         self["k"] = np.delete(self["k"], ind)
         for md in ["Ap", "dAp", "Am", "dAm"]:
             self[md] = np.delete(self[md], ind, axis=0)
         return
     
-    def CheckOverlap(self, t):
+    def _check_overlap(self, t):
         mask = np.isin(t, self["t"], assume_unique=True)
         if len(t[mask]) != len(self["t"]):
+            #this should be a warning
             print("The times in the current GaugeSpec instance are " \
-            "not a subset of the times in the BGSystem.")
-            print("Reverting to interpolation.")
+            "not a subset of the times in the BGSystem. Reverting to interpolation.")
+
             return False, None
         else:
             return True, mask
     
-    def AddCutOff(self, BG : BGSystem, cutoff="kh"):
+    def _add_cutoff(self, BG : BGSystem, cutoff="kh"):
         units = BG.GetUnits()
         BG.SetUnits(False)
 
         scale = getattr(BG, cutoff)
 
-        bl, mask = self.CheckOverlap(BG.t)
+        bl, mask = self._check_overlap(BG.t)
 
         if bl:
             self["cut"] = scale[mask]
@@ -257,13 +259,13 @@ class GaugeSpec(dict):
 
         return self["cut"]
     
-    def GetReferenceGaugeFields(self, BG : BGSystem, references=["E", "B", "G"], cutoff="kh"): 
+    def _get_reference(self, BG : BGSystem, references=["E", "B", "G"], cutoff="kh"): 
         units = BG.GetUnits()
         BG.SetUnits(False)
 
         scale = getattr(BG, cutoff)
 
-        bl, mask = self.CheckOverlap(BG.t)
+        bl, mask = self._check_overlap(BG.t)
 
         Fref = []
         for val in references: 
@@ -277,7 +279,7 @@ class GaugeSpec(dict):
 
         return Fref
     
-    def IntegrateSpec(self, BG : BGSystem, n : int=0, cutoff="kh", **IntegratorKwargs) -> NDArray:
+    def integrate(self, BG : BGSystem, n : int=0, cutoff="kh", **IntegratorKwargs) -> NDArray:
         """
         Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
 
@@ -298,74 +300,77 @@ class GaugeSpec(dict):
             an array of shape (len(spec["t"]), 3) corresponding to (E, rot^n E), (B, rot^n B), (E, rot^n B)
         """
 
-        self.AddCutOff(BG, cutoff)
+        self._add_cutoff(BG, cutoff)
 
-        tdim = self.GetDim()["tdim"]
+        tdim = self.get_dim()["tdim"]
 
         FMbM = np.zeros((tdim, 3,2))
         for i in range(tdim):
-            specslice = self.TSlice(i)
-            FMbM[i,:] = specslice.IntegrateSpecSlice(n=n, **IntegratorKwargs)
+            spec_slice = self.TSlice(i)
+            FMbM[i,:] = spec_slice.integrate_slice(n=n, **IntegratorKwargs)
         
         return FMbM
     
-    def EstimateGEFError(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
+    def _estimate_error(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
                          **IntegratorKwargs):
-        FMbM = self.IntegrateSpec(BG, n=0, cutoff=cutoff, **IntegratorKwargs)
-        Fref = self.GetReferenceGaugeFields(BG, references, cutoff)
+        FMbM = self.integrate(BG, n=0, cutoff=cutoff, **IntegratorKwargs)
+        Fref = self._get_reference(BG, references, cutoff)
 
         errs = []
 
         for i, spl in enumerate(Fref):
-            err =  abs( 1 - FMbM[:,i,0]/ spl )
-            errs.append(np.where(np.isnan(err), 1.0, err))
+            err =  np.minimum(1e3, abs( 1 - FMbM[:,i,0]/ spl ))
+            errs.append(np.where(np.isnan(err), 10.0, err))
 
         return errs
     
-    def ProcessError(self, errs, binning, errthr):
-        teval = self["t"]
-
-        terr = teval[-1::-binning][::-1]
-        tbins = terr[1:] + (terr[1:] - terr[:-1])/2
-        count, _  = np.histogram(teval, bins=tbins)
-
-        bin_errs = []
-        for err in errs:
-            sum, _  = np.histogram(teval, bins=tbins, weights=err)
-            bin_errs.append(sum/count)
-        terr = terr[2:] 
-
+    def _process_error(self, errs, terr, errthr):
         removals = []
-        for err in bin_errs:
+        for err in errs:
             #remove the first few errors where the density of modes is low:
             removals.append(np.where(err < errthr)[0][0])
         #ind = 0
         ind = max(removals)
-        bin_errs = [err[ind:] for err in bin_errs]
+        errs = [err[ind:] for err in errs]
         terr = terr[ind:]
 
-        return bin_errs, terr
+        return errs, terr
+    
+    def _bin_error(self, errs, binning):
+        terr = self["t"]
+
+        bin_terr = terr[::-binning][::-1]
+        tbins = bin_terr[1:] + (bin_terr[1:] - bin_terr[:-1])/2
+        count, _  = np.histogram(terr, bins=tbins)
+
+        bin_errs = []
+        for err in errs:
+            sum, _  = np.histogram(terr, bins=tbins, weights=err)
+            bin_errs.append(sum/count)
+        bin_terr = bin_terr[2:] 
+
+        return bin_errs, bin_terr
     
     @staticmethod
-    def ErrorSummary(errs, terr, references):
+    def _error_summary(bin_errs, bin_terr, references : list[str]=["E", "B", "G"]):
         print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:")
         for i, key in enumerate(references):
-            err = errs[i]
+            err = bin_errs[i]
             errind = np.where(err == max(err))
             rmserr = np.round(100*np.sqrt(np.sum(err**2)/len(err)), 1)
             maxerr = np.round(100*err[errind][0], 1)
-            tmaxerr = terr[errind][0]#np.round(Nerr[errind][0], 1)
+            tmaxerr = bin_terr[errind][0]#np.round(Nerr[errind][0], 1)
             errend = np.round(100*err[-1], 1)
-            terrend = terr[-1]#np.round(Nerr[-1], 1)
-            print(f"-- {key} --")
-            print(f"maximum relative deviation: {maxerr}% at t={tmaxerr}")
-            print(f"final relative deviation: {errend}% at t={terrend}")
-            print(f"RMS relative deviation: {rmserr}% at t={terrend}")
+            terrend = bin_terr[-1]#np.round(Nerr[-1], 1)
+            print(f"\t-- {key} --")
+            print(f"max: {maxerr}% at t={tmaxerr}")
+            print(f"final: {errend}% at t={terrend}")
+            print(f"RMS: {rmserr}%")
         return
 
-
+    #Rename!
     def CompareToBackgroundSolution(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
-                                    errthr=0.025, steps=5, verbose : bool=True,
+                                    errthr=0.025, binning=5, verbose : bool=True,
                                     **IntegratorKwargs) -> Tuple[list, NDArray]:
         """
         Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds.
@@ -387,43 +392,50 @@ class GaugeSpec(dict):
             an array of e-fold-bins to which the errors in errs are associated.
         """
 
-        errs = self.EstimateGEFError(BG, references, cutoff, **IntegratorKwargs)
+        og_errs = self._estimate_error(BG, references, cutoff, **IntegratorKwargs)
+        terr = self["t"]
 
-        bin_errs, bin_terr = self.ProcessError(errs, steps, errthr)
+        if binning is not None:
+            errs, terr = self._bin_error(og_errs, binning)
+        else:
+            errs = og_errs
+        
+        errs, terr = self._process_error(errs, terr, errthr)
 
         if verbose:
-            self.ErrorSummary(bin_errs, bin_terr, references)
+            self._error_summary(errs, terr, references)
 
-        return bin_errs, bin_terr, errs
+        return errs, terr, og_errs
     
 class GaugeSpecSlice(dict):
     def __init__(self, modedic):
         super().__init__(modedic)
 
-    def ESpec(self, lam):
+    def _Espec(self, lam):
         return abs(self["dA"+lam])**2
     
-    def BSpec(self, lam):
+    def _Bspec(self, lam):
         return abs(self["A"+lam])**2
     
-    def GSpec(self, lam):
+    def _Gspec(self, lam):
         return (self["A"+lam].conjugate()*self["dA"+lam]).real
     
-    def SimpsInt(self, integrand, x):
+    def _simpson_integrate(self, integrand, x):
         integrand = integrand*np.exp(x)
         return simpson(integrand, x)
 
-    def QuadInt(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
-        msk = np.where(abs(integrand) > epsrel*1e-2*abs(integrand))[0]
+    def _quad_integrate(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4, interp=PchipInterpolator):
+        msk = np.where(abs(integrand) > 1e-1*max(epsrel*max(abs(integrand)), epsabs))[0]
         if len(msk) > 0:
-            spl = PchipInterpolator(x, np.arcsinh(integrand))
+            spl = interp(x, np.arcsinh(integrand))
             f = lambda x: np.sinh(spl(x))*np.exp(x)
             val, err = quad(f, x[msk][0], 0., epsabs=epsabs, epsrel=epsrel)
+            return np.array([val, err])
         else:
-            return 0
-        return np.array([val, err])
+            return np.nan*np.ones((2))
         
-    def IntegrateSpecSlice(self, n : int=0, epsabs : float=1e-20, epsrel : float=1e-4,
+        
+    def integrate_slice(self, n : int=0, epsabs : float=1e-20, epsrel : float=1e-4, interp=PchipInterpolator,
                             method="simpson", modethr=100) -> Tuple[NDArray, NDArray]:
         """
         Integrate an input spectrum at a fixed time t to obtain (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
@@ -464,24 +476,21 @@ class GaugeSpecSlice(dict):
                 if len(msk) < modethr: #cannot trust simpsons integration for too few modes.
                     return res
                 x = x[msk]
-                res[i,0] = (self.SimpsInt( integs[i,0,msk] ,x) 
-                                         + (-1)**n*self.SimpsInt(integs[i,1,msk], x) )
+                res[i,0] = (self._simpson_integrate( integs[i,0,msk] ,x) 
+                                         + (-1)**n*self._simpson_integrate(integs[i,1,msk], x) )
                 res[i,1] = 1e-6*res[i,0]
 
             elif method=="quad":
-                resp = self.QuadInt( integs[i,0,:], x, epsabs, epsrel)
-                resm = self.QuadInt(  (-1)**n*integs[i,1,:], x, epsabs, epsrel)
+                resp = self._quad_integrate( integs[i,0,:], x, epsabs, epsrel, interp)
+                resm = self._quad_integrate( (-1)**n*integs[i,1,:], x, epsabs, epsrel, interp)
                 res[i,:] = resp +resm
-
-            elif method=="old":
-                res[i,:] = self.OldQuadInt( integs[i,0,:] + (-1)**n*integs[i,1,:], x, epsabs, epsrel)
             
-
         res = 1/(2*np.pi)**2*res/(n+4)
 
         res[:,1] = abs(res[:,1]/res[:,0])
         return res
-    
+
+#Rename!
 def ReadMode(path : str) -> GaugeSpec:   
     """
     Load a gauge-field spectrum from a file.
@@ -574,7 +583,7 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
         -------
         ComputeModeSpectrum()
             Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
-        IntegrateSpec()
+        integrate()
             Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
         CompareToBackgroundSolution()
             Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds
@@ -610,10 +619,6 @@ class ModeByMode:
     -------
     ComputeModeSpectrum()
         Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
-    IntegrateSpec()
-        Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
-    CompareToBackgroundSolution()
-        Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds
 
     Example
     -------
@@ -623,7 +628,7 @@ class ModeByMode:
     >>> errs, Nerr = M.CompareToBackgroundSolution(spec) #asses the agreement between G and spec
     """
 
-    #Class to compute the gauge-field mode time evolution and the E2, B2, EB quantum expectation values from the modes
+    #Rename!
     ModeEoM = staticmethod(ModeEoMClassic)
     EoMKwargs = {"a":None, "H":None, "xi":None}
     BDInit = staticmethod(BDClassic)
@@ -677,6 +682,7 @@ class ModeByMode:
         
         return
     
+    #Rename!
     def ComputeModeSpectrum(self, nvals : int, t_interval=None, **SolverKwargs) -> GaugeSpec:
         """
         Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
@@ -703,9 +709,9 @@ class ModeByMode:
 
         if t_interval==None:
             t_interval = (self.__tmin, max(self.__t))
-        ks, tstart = self.InitialKTN(self.WavenumberArray(nvals, t_interval), mode="k")
+        ks, tstart = self._find_tinit_BD(self._create_k_array(nvals, t_interval), mode="k")
 
-        modes = np.array([self.EvolveFromBD(k, tstart[i], **SolverKwargs)
+        modes = np.array([self._evolve_from_BD(k, tstart[i], **SolverKwargs)
                   for i, k in enumerate(ks)])
         
         spec = GaugeSpec({"t":self.__t, "N":self.__N, "k":ks,
@@ -713,7 +719,7 @@ class ModeByMode:
 
         return spec
     
-    #at the moment, it does not seem feasable to use this.
+    #Rename!
     def UpdateSpectrum(self, spec : GaugeSpec, tstart, **SolverKwargs) -> GaugeSpec:
         
         indstart = np.where(tstart <= self.__t)[0][0]
@@ -730,21 +736,21 @@ class ModeByMode:
         new = np.where(spec["k"] > 10*self.__khf(tstart))[0]
 
         #Remove modes which need to be renewed from old spectrum:
-        spec.RemoveMomenta(new)
+        spec.remove_momenta(new)
 
         #add new modes, adjusting for longer time-span:
         #rethink this! It seems like overkill
         n_newmodes = int(len(new)*max((teval[-1] - teval[0])/(max(spec["t"]) - tstart), 1))
 
         #Update evolution of modes in spec:
-        kold, tvac = self.InitialKTN(spec["k"][old], mode="k")
+        kold, tvac = self._find_tinit_BD(spec["k"][old], mode="k")
 
         updatespec={"t":teval, "N":Neval, "k":kold}
 
         modes = []
         for i, k in enumerate(kold):
             if tvac[i] > teval[0]:
-                modes.append( self.EvolveFromBD(k, tvac[i], **SolverKwargs) )
+                modes.append( self._evolve_from_BD(k, tvac[i], **SolverKwargs) )
             else:
                 yini = np.array(
                             [startspec["Ap"][i].real, startspec["dAp"][i].real,
@@ -753,18 +759,18 @@ class ModeByMode:
                             startspec["Am"][i].imag, startspec["dAm"][i].imag]
                             )
                 
-                modes.append( self.EvolveMode(tstart, yini, k, teval, **SolverKwargs) ) 
+                modes.append( self._evolve_mode(tstart, yini, k, teval, **SolverKwargs) ) 
         
         modes = np.array(modes)
 
         updatespec.update({"Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
 
-        spec.MergeSpectra(GaugeSpec(updatespec))
+        spec.merge_spectra(GaugeSpec(updatespec))
 
         if n_newmodes > 0:
             newspec = self.ComputeModeSpectrum(n_newmodes, t_interval=(tstart, tend))
             #Add new modes
-            spec.AddMomenta(newspec)
+            spec.add_momenta(newspec)
         
         return spec
     
@@ -808,11 +814,12 @@ class ModeByMode:
         for i, key in enumerate(["Am", "dAm"]):
             newspec[key] = sol.y[4+i::8,:] + 1j*sol.y[6+i::8,:]
             
-        spec.MergeSpectra(GaugeSpec(newspec))
+        spec.merge_spectra(GaugeSpec(newspec))
 
         return spec"""
     
-    def EvolveFromBD(self, k : float, tstart : float,
+
+    def _evolve_from_BD(self, k : float, tstart : float,
                     atol : float|None=None, rtol : float=1e-5) -> Tuple[NDArray, NDArray, NDArray, NDArray]:
         """
         Evolve gauge-field modes for a fixed wavenumber in time starting from Bunch-Davies initial conditions.
@@ -851,7 +858,7 @@ class ModeByMode:
 
         istart = np.where(teval>tstart)[0][0]
 
-        yp, dyp, ym, dym = self.EvolveMode(tstart, yini, k, teval[istart:], atol, rtol)
+        yp, dyp, ym, dym = self._evolve_mode(tstart, yini, k, teval[istart:], atol, rtol)
 
         #conformal time needed for relative phases
         eta = self.__eta
@@ -869,7 +876,7 @@ class ModeByMode:
 
         return yp, dyp, ym, dym
     
-    def EvolveMode(self, tini, yini, k : float, teval : NDArray,
+    def _evolve_mode(self, tini, yini, k : float, teval : NDArray,
                     atol : float|None=None, rtol : float=1e-5):
         #Define ODE
         ode = lambda t, y: self.ModeEoM(t, y, k, **self.EoMKwargs)
@@ -888,7 +895,7 @@ class ModeByMode:
         return yp, dyp, ym, dym 
         
 
-    def WavenumberArray(self, nvals : int, t_interval : tuple) -> NDArray:
+    def _create_k_array(self, nvals : int, t_interval : tuple) -> NDArray:
         """
         Create an array of wavenumbers between self.mink and self.maxk. The array is created according to the evolution of the instabiltiy scale
         such that it contains more modes close to the instability scale at late times.
@@ -911,15 +918,15 @@ class ModeByMode:
 
         #fill up the array of ks values with additional elements between gaps, favouring larger k
         while len(logks) < nvals:
-            numnewvals = nvals - len(logks)
-            if numnewvals >= len(logks):
+            num_newk = nvals - len(logks)
+            if num_newk >= len(logks):
                 newvals = (logks[1:] + logks[:-1])/2
             else:
-                newvals = (logks[-numnewvals:] + logks[-numnewvals-1:-1])/2
+                newvals = (logks[-num_newk:] + logks[-num_newk-1:-1])/2
             logks = np.sort(np.concatenate([logks, newvals]))
         return np.exp(logks)
     
-    def InitialKTN(self, init : NDArray, mode : str="k") -> Tuple[NDArray, NDArray]:
+    def _find_tinit_BD(self, init : NDArray, mode : str="k") -> Tuple[NDArray, NDArray]:
         """
         Determines the solution to k = 10^(5/2)*k_h(t).
         Initial data can be given for the comoving wavenumber k, the physical time coordinates t, or e-Folds N.

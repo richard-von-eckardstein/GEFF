@@ -2,13 +2,13 @@ import sys
 import os
 abspath = os.path.dirname(__file__)
 
-from src.GEF import GEF
+from GEFF import GEF
 import numpy as np
-from src.Tools.ModeByMode import ModeByMode, ReadMode
+from GEFF.ModeByMode import ReadMode
 
 basepath = os.path.dirname(__file__)
 
-def Benchmark(model, setting, loadGEF=True, loadspec=True):
+def Benchmark(model, setting, loadGEF=True, loadspec=False):
     beta = 25
     m = 6e-6
     phi = 15.55
