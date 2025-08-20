@@ -1,5 +1,5 @@
 import numpy as np
-from GEFF.BGTypes import Val 
+from GEFF.bgtypes import Val 
 from typing import Tuple
 
 """

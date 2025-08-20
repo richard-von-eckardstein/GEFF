@@ -1,4 +1,4 @@
-from GEFF.BGTypes import BGVal, BGFunc, BGSystem, Val, Func
+from GEFF.bgtypes import BGVal, BGFunc, BGSystem, Val, Func
 import pytest
 
 class TestBGSystem():
@@ -32,7 +32,7 @@ class TestBGSystem():
 
         assert V.H0 == U.H0
         assert V.MP == U.MP
-        assert V.object_names() == U.object_names()
+        assert V.quantity_names() == U.quantity_names()
         assert V.value_list() == U.value_list()
         assert V.function_list() == U.function_list()
 
@@ -41,14 +41,14 @@ class TestBGSystem():
 
         assert V.H0 == U.H0
         assert V.MP == U.MP
-        assert V.object_names() == U.object_names()
+        assert V.quantity_names() == U.quantity_names()
         assert V.value_list() == []
         assert V.function_list() == []
 
-    def test_object_set_and_names(self):
+    def test_quantity_set_and_names(self):
         U = self.init()
         for val in ["x", "f"]:
-            assert val in U.object_names()
+            assert val in U.quantity_names()
 
     def test_initialise_value(self):
         U = self.init()
@@ -94,13 +94,13 @@ class TestBGSystem():
         U.remove("x")
         
         assert not(hasattr(U, "x"))
-        assert "x" not in U.object_names()
+        assert "x" not in U.quantity_names()
 
     def test_add_obj(self):
         U = self.init()
         U.add_BGVal("y", 0, 2)
         U.add_BGFunc("g", [U.objects["y"]], 2, 0)
-        names = U.object_names()
+        names = U.quantity_names()
         assert "y" in names
         assert "g" in names
 
@@ -108,7 +108,7 @@ class TestBGSystem():
         U = self.createSys()
         U.AddValue("y", 3.0, 0, 2)
         U.AddFunction("g", [U._y], lambda x: x, 2, 0)
-        names = U.object_names()
+        names = U.quantity_names()
         assert "y" in names
         assert "g" in names"""
 

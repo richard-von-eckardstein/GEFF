@@ -1,4 +1,4 @@
-from GEFF.BGTypes import BGVal, BGFunc
+from GEFF.bgtypes import BGVal, BGFunc
 
 #Space--time variables:
 t=BGVal("t", -1, 0) #physical time

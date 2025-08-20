@@ -1,6 +1,6 @@
 import numpy as np
 
-from GEFF.BGTypes import BGSystem
+from GEFF.bgtypes import BGSystem
 
 from scipy.integrate import solve_ivp
 

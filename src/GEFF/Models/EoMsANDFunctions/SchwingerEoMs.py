@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.typing import NDArray
 import math
-from GEFF.BGTypes import Val
+from GEFF.bgtypes import Val
 
 """
 Module for the equations of motions used for the model "SEOld", "SE_kh".

@@ -6,7 +6,7 @@ from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.integrate import solve_ivp
 from scipy.integrate import quad, simpson
 
-from GEFF.BGTypes import Val, BGSystem
+from GEFF.bgtypes import Val, BGSystem
 from GEFF.Models.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
 
 from numpy.typing import NDArray

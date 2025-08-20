@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-from GEFF.BGTypes import BGSystem
+from GEFF.bgtypes import BGSystem
 from GEFF.GEFSolver import GEFSolver
 
 import importlib.util as util
@@ -191,7 +191,7 @@ class BaseGEF(BGSystem):
             self.initialise(name)(value)
 
         #initialise the other values with dummy variables.
-        for name in self.object_names():
+        for name in self.quantity_names():
             if name not in (self.value_names() + self.function_names()):
                 self.initialise(name)(0)
 
@@ -341,7 +341,7 @@ class BaseGEF(BGSystem):
         data = dict(zip(input_df.columns[1:],input_df.values[:,1:].T))
 
         #Befor starting to load, check that the file is compatible with the GEF setup.
-        names = self.object_names()
+        names = self.quantity_names()
         for key in data.keys():
             if key not in names:
                 raise AttributeError(f"The data table you tried to load contains an unkown quantity: '{key}'")

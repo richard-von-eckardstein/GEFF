@@ -1,4 +1,4 @@
-from GEFF.BGTypes import BGVal, BGFunc
+from GEFF.bgtypes import BGVal, BGFunc
 
 class BGCollection:
     name = ""

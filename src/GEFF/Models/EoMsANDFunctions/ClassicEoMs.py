@@ -1,4 +1,4 @@
-from GEFF.BGTypes import Val 
+from GEFF.bgtypes import Val 
 import numpy as np
 from numpy.typing import NDArray
 import math

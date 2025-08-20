@@ -1,4 +1,4 @@
-from GEFF.BGTypes import BGSystem
+from GEFF.bgtypes import BGSystem
 import numpy as np
 
 
