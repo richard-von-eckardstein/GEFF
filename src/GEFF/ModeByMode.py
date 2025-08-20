@@ -15,7 +15,7 @@ from typing import Tuple, Callable
 class GaugeSpec(dict):
     """
     A class representing a spectrum of gauge-field modes as a function of time.
-    This class inherits from 'dict', and necessarily needs the following keys:
+    This class inherits from 'dict', and necessarily requires the following keys:
     't', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'
 
     Attributes
@@ -42,7 +42,7 @@ class GaugeSpec(dict):
         Store the spectrum in a file.
     get_dim()
         Retrieve the number of modes and times encoded in the spectrum 
-    TSlice()
+    tslice()
         Retrieve the spectrum at a moment of time
     kslice()
         Retrieve the spectrums evolution for a fixed wavenumber
@@ -50,7 +50,7 @@ class GaugeSpec(dict):
     Example
     -------
     >>> spec = GaugeSpec.read_spec(somefile)
-    >>> slice = spec.TSlice(100) #return the spectrum at spec["t"][100]
+    >>> slice = spec.tslice(100) #return the spectrum at spec["t"][100]
     >>> print(f"This is the spectrum of positive-helicity modes at time {slice['t']}:)
     >>> print(slice["Ap"]})
     """
@@ -80,7 +80,25 @@ class GaugeSpec(dict):
         GaugeSpec
             the imported spectrum
         """
-        return cls(ReadMode(path))
+        input_df = pd.read_table(path, sep=",")
+        dataAp = input_df.values
+
+        x = np.arange(3,dataAp.shape[1], 4)
+        
+        t = np.asarray(dataAp[1:,1], dtype=float)
+        N = np.asarray(dataAp[1:,2], dtype=float)
+        logk = np.array([(complex(dataAp[0,y])).real for y in x])
+        Ap = np.array([[complex(dataAp[i+1,y]) for i in range(len(N))] for y in x])
+        dAp = np.array([[complex(dataAp[i+1,y+1]) for i in range(len(N))] for y in x])
+        Am = np.array([[complex(dataAp[i+1,y+2]) for i in range(len(N))] for y in x])
+        dAm = np.array([[complex(dataAp[i+1,y+3]) for i in range(len(N))] for y in x])
+
+        k = 10**logk
+
+        spec = cls({"t":t, "N":N, "k":k,
+                        "Ap":Ap, "dAp":dAp, "Am":Am, "dAm":dAm})
+        
+        return spec
     
     def save_spec(self, path : str, thinning = 5):
         """
@@ -125,8 +143,7 @@ class GaugeSpec(dict):
         """
         return {"kdim":len(self["k"]), "tdim":len(self["t"])}
     
-    #Rename!
-    def TSlice(self, ind : int) -> dict:
+    def tslice(self, ind : int) -> dict:
         """
         Retrieve the spectrum at a moment of time
 
@@ -306,7 +323,7 @@ class GaugeSpec(dict):
 
         FMbM = np.zeros((tdim, 3,2))
         for i in range(tdim):
-            spec_slice = self.TSlice(i)
+            spec_slice = self.tslice(i)
             FMbM[i,:] = spec_slice.integrate_slice(n=n, **IntegratorKwargs)
         
         return FMbM
@@ -368,8 +385,7 @@ class GaugeSpec(dict):
             print(f"RMS: {rmserr}%")
         return
 
-    #Rename!
-    def CompareToBackgroundSolution(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
+    def estimate_GEF_error(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
                                     errthr=0.025, binning=5, verbose : bool=True,
                                     **IntegratorKwargs) -> Tuple[list, NDArray]:
         """
@@ -443,7 +459,7 @@ class GaugeSpecSlice(dict):
         Parameters
         ----------
         specAtT : dict
-            the spectrum at time t, obtained by GaugeSpec.TSlice
+            the spectrum at time t, obtained by GaugeSpec.tslice
             n : int
             the power in curls in the expectation value, i.e. E rot^n E etc.
         epsabs : float
@@ -489,41 +505,7 @@ class GaugeSpecSlice(dict):
 
         res[:,1] = abs(res[:,1]/res[:,0])
         return res
-
-#Rename!
-def ReadMode(path : str) -> GaugeSpec:   
-    """
-    Load a gauge-field spectrum from a file.
-
-    Parameters
-    ----------
-    path : str
-        path to the data 
-
-    Returns
-    -------
-    GaugeSpec
-        the imported spectrum
-    """
-    input_df = pd.read_table(path, sep=",")
-    dataAp = input_df.values
-
-    x = np.arange(3,dataAp.shape[1], 4)
     
-    t = np.asarray(dataAp[1:,1], dtype=float)
-    N = np.asarray(dataAp[1:,2], dtype=float)
-    logk = np.array([(complex(dataAp[0,y])).real for y in x])
-    Ap = np.array([[complex(dataAp[i+1,y]) for i in range(len(N))] for y in x])
-    dAp = np.array([[complex(dataAp[i+1,y+1]) for i in range(len(N))] for y in x])
-    Am = np.array([[complex(dataAp[i+1,y+2]) for i in range(len(N))] for y in x])
-    dAm = np.array([[complex(dataAp[i+1,y+3]) for i in range(len(N))] for y in x])
-
-    k = 10**logk
-
-    spec = GaugeSpec({"t":t, "N":N, "k":k,
-                    "Ap":Ap, "dAp":dAp, "Am":Am, "dAm":dAm})
-    
-    return spec
     
 def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : list, default_atol : float=1e-3):
     """
@@ -577,22 +559,22 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
             - BDInit
             - InitKwargs
             - default-atol
-        This entails that 'ComputeModeSpectrum' will now evolve modes according to BDInit and ModeEom.
+        This entails that 'compute_spectrum' will now evolve modes according to BDInit and ModeEom.
 
         Methods
         -------
-        ComputeModeSpectrum()
+        compute_spectrum()
             Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
         integrate()
             Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
-        CompareToBackgroundSolution()
+        estimate_GEF_error()
             Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds
 
         Example
         -------
         >>> M = ModeSolver(G) #initialise the class by a BGSystem or GEF instance
         ... 
-        >>> spec = M.ComputeModeSpectrum(500) #compute a gauge-field spectrum of 500 modes from G
+        >>> spec = M.compute_spectrum(500) #compute a gauge-field spectrum of 500 modes from G
         """
         
         #Overwrite class attibutes of ModeByMode with new mode equations, boundary conditions and default tolerances.
@@ -613,15 +595,15 @@ class BaseModeSolver:
 
     Methods
     -------
-    ComputeModeSpectrum()
+    compute_spectrum()
         Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
 
     Example
     -------
     >>> M = ModeByMode(G) #initialise the class by a BGSystem or GEF instance
     ... 
-    >>> spec = M.ComputeModeSpectrum(500) #compute a gauge-field spectrum of 500 modes from G
-    >>> errs, Nerr = M.CompareToBackgroundSolution(spec) #asses the agreement between G and spec
+    >>> spec = M.compute_spectrum(500) #compute a gauge-field spectrum of 500 modes from G
+    >>> errs, Nerr = M.estimate_GEF_error(spec) #asses the agreement between G and spec
     """
 
     #Rename!
@@ -678,8 +660,7 @@ class BaseModeSolver:
         
         return
     
-    #Rename!
-    def ComputeModeSpectrum(self, nvals : int, t_interval=None, **SolverKwargs) -> GaugeSpec:
+    def compute_spectrum(self, nvals : int, t_interval=None, **SolverKwargs) -> GaugeSpec:
         """
         Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
 
@@ -715,8 +696,7 @@ class BaseModeSolver:
 
         return spec
     
-    #Rename!
-    def UpdateSpectrum(self, spec : GaugeSpec, tstart, **SolverKwargs) -> GaugeSpec:
+    def update_spectrum(self, spec : GaugeSpec, tstart, **SolverKwargs) -> GaugeSpec:
         
         indstart = np.where(tstart <= self.__t)[0][0]
         teval = self.__t[indstart:]
@@ -724,7 +704,7 @@ class BaseModeSolver:
         
         tend = teval[-1]
         indstart = np.where(spec["t"]<teval[0])[0][-1]
-        startspec = spec.TSlice(indstart)
+        startspec = spec.tslice(indstart)
         tstart = startspec["t"]
 
         #keep mode-evolution from old spectrum for modes with k < 10*kh(tstart)
@@ -764,7 +744,7 @@ class BaseModeSolver:
         spec.merge_spectra(GaugeSpec(updatespec))
 
         if n_newmodes > 0:
-            newspec = self.ComputeModeSpectrum(n_newmodes, t_interval=(tstart, tend))
+            newspec = self.compute_spectrum(n_newmodes, t_interval=(tstart, tend))
             #Add new modes
             spec.add_momenta(newspec)
         
@@ -776,7 +756,7 @@ class BaseModeSolver:
             teval = CubicSpline(self.__N, self.__t)(Neval)
 
             indstart = np.where(spec["N"]<Nstart)[0][-1]
-            startspec = spec.TSlice(indstart)
+            startspec = spec.tslice(indstart)
 
             klen = len(spec["k"])
 

@@ -141,8 +141,8 @@ class GEFSolver:
         return sol, vals
     
     #move to GEF
-    def MbMcrosscheck(self, spec, vals, errthr, thinning, method, **MbMkwargs):
-        errs, terr, _ = spec.CompareToBackgroundSolution(vals, errthr=errthr, steps=thinning, method=method, **MbMkwargs)
+    def MbMcrosscheck(self, spec, vals, errthr, binning, method, **MbMkwargs):
+        errs, terr, _ = spec.estimate_GEF_error(vals, errthr=errthr, binning=binning, method=method, **MbMkwargs)
 
         reinit_inds = []
         agreement=True
@@ -161,7 +161,7 @@ class GEFSolver:
 
         ind = np.where(spec["t"] <= t0)[0][-1]
 
-        reinit_slice = spec.TSlice(ind)
+        reinit_slice = spec.tslice(ind)
 
         return agreement, reinit_slice
     

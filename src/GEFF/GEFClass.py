@@ -237,7 +237,7 @@ class BaseGEF(BGSystem):
 
         #Configuring ModeSolver
         MbMattempts = kwargs.get("MbMattempts", 5)
-        thinning = kwargs.get("thinning", 5)
+        binning = kwargs.get("binning", 5)
         errthr = kwargs.get("errthr", 0.025)
         resumeMbM = kwargs.get("resumeMbM", True)
         method = kwargs.get("method", "simpson")
@@ -267,12 +267,12 @@ class BaseGEF(BGSystem):
 
                 if resumeMbM and attempt > 1:
                     #How to fix?
-                    spec = MbM.UpdateSpectrum(spec, t_reinit, rtol=rtol)
+                    spec = MbM.update_spectrum(spec, t_reinit, rtol=rtol)
                 else:
-                    spec = MbM.ComputeModeSpectrum(nmodes, rtol=rtol)
+                    spec = MbM.compute_spectrum(nmodes, rtol=rtol)
                 print("Performing mode-by-mode comparison with GEF results.")
 
-                agreement, reinit_spec = self.GEFSolver.MbMcrosscheck(spec, vals, errthr=errthr, thinning=thinning, method=selfcorrmethod, **MbMkwargs)
+                agreement, reinit_spec = self.GEFSolver.MbMcrosscheck(spec, vals, errthr=errthr, binning=binning, method=selfcorrmethod, **MbMkwargs)
 
                 if agreement:
                     print("The mode-by-mode comparison indicates a convergent GEF run.\n")

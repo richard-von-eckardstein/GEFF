@@ -3,7 +3,7 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 from scipy.integrate import solve_ivp, trapezoid
 
-from GEFF.ModeByMode import ReadMode
+from GEFF.ModeByMode import GaugeSpec
 
 from typing import Tuple
 from numpy.typing import ArrayLike
@@ -214,30 +214,30 @@ class PowSpecT:
         if mode=="t":
             tstart = init
             logks = logkH(tstart)
-            k = 10**(pwr)*np.exp(logks)
+            ks = 10**(pwr)*np.exp(logks)
 
         elif mode=="k":
             ks = init
-            x0 = np.log(k[0]) - 5/2*np.log(10)
+            x0 = np.log(ks[0]) - 5/2*np.log(10)
             tstart = []
             for i, k in enumerate(ks):
                 def f(x): return np.log(k) - logkH(x) - pwr*np.log(10)
                 ttmp = fsolve(f, x0)[0]
                 #Update the initial guess based on the previous result
-                if i < len(k)-1:
-                    x0 = ttmp + np.log(k[i+1]/k)
+                if i < len(ks)-1:
+                    x0 = ttmp + np.log(ks[i+1]/k)
                 tstart.append(ttmp)
             tstart = np.array(tstart)
 
         elif mode=="N":
             tstart = CubicSpline(self.__N, t)(init)
-            k = 10**pwr*np.exp(logkH(tstart))
+            ks = 10**pwr*np.exp(logkH(tstart))
 
         else:
             print("not a valid choice")
             raise KeyError
 
-        return k, tstart
+        return ks, tstart
         
     def _GetHomSol_(self, k : float, tstart : float, teval : ArrayLike|list=[], atol : float=1e-3, rtol : float=1e-4) -> Tuple[ArrayLike, ArrayLike]:
         """
@@ -484,7 +484,7 @@ class PowSpecT:
         k = np.logspace(np.log10(self.mink), np.log10(10*self.maxk), nmodes)
         ks, tstarts = self._InitialKTN_(k, mode="k")
         
-        spec = ReadMode(ModePath)
+        spec = GaugeSpec.read_spec(ModePath)
         Ngrid = spec["N"]
         tgrid = spec["t"]
         kgrid = spec["k"]

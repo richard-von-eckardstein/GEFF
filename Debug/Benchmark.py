@@ -7,7 +7,7 @@ abspath = os.path.dirname(__file__)
 
 basepath = os.path.dirname(__file__)
 
-def Benchmark(model, setting, loadGEF=True) -> BaseGEF:
+def Benchmark(model, setting={}, loadGEF=True) -> BaseGEF:
     beta = 25
     m = 6e-6
     phi = 15.55
