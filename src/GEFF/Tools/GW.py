@@ -8,7 +8,7 @@ import random
 from GEFF.Utility import g_rho, g_rho_freq, g_rho_0, g_s, g_s_freq, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
 
 from scipy.interpolate import CubicSpline
-from scipy.integrate import simps
+from scipy.integrate import simpson
 
 from numpy.typing import ArrayLike
 from typing import Tuple
@@ -113,7 +113,7 @@ basepath = os.path.dirname(os.path.abspath(__file__))
 
 def IntegrateGW(f, h2OmegaGW):
     h2OmegaGW = np.where(np.log(f/1e-12) > 0, h2OmegaGW, 0)
-    val = simps(h2OmegaGW, np.log(f))
+    val = simpson(h2OmegaGW, np.log(f))
     return val
 
 def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25):
@@ -238,7 +238,7 @@ def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
     else:
         f = fSignal[overlap]
         OmegaNoise = np.exp(CubicSpline(np.log(fNoise), np.log(OmegaNoise))(np.log(f)))
-        SNR = (ndet*(tobs*365.2425*3600*24)*simps((OmegaSignal[overlap]/OmegaNoise)**2, f))**(1/2)
+        SNR = (ndet*(tobs*365.2425*3600*24)*simpson((OmegaSignal[overlap]/OmegaNoise)**2, f))**(1/2)
 
     return SNR
 

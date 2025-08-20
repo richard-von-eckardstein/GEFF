@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import CubicSpline
 from scipy.integrate import solve_ivp
-from scipy.integrate import quad, simps
+from scipy.integrate import quad, simpson
 
 from GEFF.BGTypes import Val, BGSystem
 from GEFF.Models.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
@@ -411,7 +411,7 @@ class GaugeSpecSlice(dict):
     
     def SimpsInt(self, integrand, x):
         integrand = integrand*np.exp(x)
-        return simps(integrand, x)
+        return simpson(integrand, x)
 
     def QuadInt(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4):
         msk = np.where(abs(integrand) > epsrel*1e-2*abs(integrand))[0]
