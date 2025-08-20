@@ -27,9 +27,9 @@ class GaugeSpec(dict):
     k : NDarray
         an array of wavenumbers k for which the spectrum is known
     Ap, Am : NDarray
-        arrays of shape (len(k), len(t)) containing the mode functions sqrt(2*k)*A_\pm(k, t)
+        arrays of shape (len(k), len(t)) containing the mode functions sqrt(2*k)*A_\\pm(k, t)
     dAp, dAm : NDarray
-        arrays of shape (len(k), len(t)) containing the mode-function derivatives  sqrt(2/k)*e^N*dA_\pm(k, t)/dt
+        arrays of shape (len(k), len(t)) containing the mode-function derivatives  sqrt(2/k)*e^N*dA_\\pm(k, t)/dt
 
     Class Methods
     -------------
@@ -527,7 +527,7 @@ def ReadMode(path : str) -> GaugeSpec:
     
 def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : list, default_atol : float=1e-3):
     """
-    Class-factory creating a custom ModeByMode-class with new mode equations and initial conditions adapted to a modified version of the GEF.
+    Class-factory creating a custom ModeSolver-class with new mode equations and initial conditions adapted to a modified version of the GEF.
 
     Parameters
     ----------
@@ -568,10 +568,10 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
     >>> solver = CustomModeSolver(values)
     """
     
-    class ModeSolver(ModeByMode):
+    class ModeSolver(BaseModeSolver):
         """
-        A custom ModeByMode-class with new mode equations and initial conditions adapted to a modified version of the GEF
-        It Inherits all methods from ModeByMode but overwrites the following class attributes
+        A custom ModeSolver class with new mode equations and initial conditions adapted to a modified version of the GEF
+        It Inherits all methods from 'BaseModeSolver' but changes the following class attributes
             - ModeEoM
             - EoMKwargs
             - BDInit
@@ -593,7 +593,6 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
         >>> M = ModeSolver(G) #initialise the class by a BGSystem or GEF instance
         ... 
         >>> spec = M.ComputeModeSpectrum(500) #compute a gauge-field spectrum of 500 modes from G
-        >>> errs, Nerr = M.CompareToBackgroundSolution(spec) #asses the agreement between G and spec
         """
         
         #Overwrite class attibutes of ModeByMode with new mode equations, boundary conditions and default tolerances.
@@ -604,14 +603,11 @@ def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : li
         InitKwargs = dict(zip(Initkeys, [None for x in Initkeys]))
 
         atol=default_atol
-        
-        def __init__(self, values):
-            super().__init__(values)
     
     return ModeSolver
 
 
-class ModeByMode:
+class BaseModeSolver:
     """
     A class used to solve the gauge-field mode equations for standard axion inflation based on a solution to the GEF equations.
 
@@ -663,7 +659,7 @@ class ModeByMode:
             setattr(self, f"__{key}f", func)
         
         self.__af = CubicSpline(self.__t, a)
-        deta = lambda t, y: 1/self.__af(t)
+        def deta(t, y): 1/self.__af(t)
         
         soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([0]), t_eval=self.__t)
 
@@ -707,7 +703,7 @@ class ModeByMode:
             the gauge-field spectrum
         """
 
-        if t_interval==None:
+        if t_interval is None:
             t_interval = (self.__tmin, max(self.__t))
         ks, tstart = self._find_tinit_BD(self._create_k_array(nvals, t_interval), mode="k")
 
@@ -774,49 +770,33 @@ class ModeByMode:
         
         return spec
     
-    """def EvolveSpectrum(self, spec : GaugeSpec, Nstart, Nstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
-        Neval = np.arange(Nstart, max(self.__N), Nstep)
-        teval = CubicSpline(self.__N, self.__t)(Neval)
+        """
+        def EvolveSpectrum(self, spec : GaugeSpec, Nstart, Nstep : float=0.1, atol : float|None=None, rtol : float=1e-5) -> GaugeSpec:
+            Neval = np.arange(Nstart, max(self.__N), Nstep)
+            teval = CubicSpline(self.__N, self.__t)(Neval)
 
-        indstart = np.where(spec["N"]<Nstart)[0][-1]
-        startspec = spec.TSlice(indstart)
+            indstart = np.where(spec["N"]<Nstart)[0][-1]
+            startspec = spec.TSlice(indstart)
 
-        klen = len(spec["k"])
+            klen = len(spec["k"])
 
-        vecode = np.vectorize(lambda t, y, k: self.ModeEoM(t, y, k, **self.EoMKwargs),
-                                excluded={0, "t"},
-                               signature="(8,n),(n)->(8,n)",
-                               )
-        def ode(t, y):
-            #(k,8) to reshape correctly
-            #transposing to match signature of vecode
-            y = y.reshape(klen,8).T
-            #transposing result s.t. dydt.shape=(k,8)
-            dydt  = vecode(t, y, spec["k"]).T
-            #reshape is correct again
-            return dydt.reshape(8*klen)
-        
-        if atol==None:
-            atol = self.atol
-        
-        yini = np.dstack( (startspec["Ap"].real, startspec["dAp"].real,
-                            startspec["Ap"].imag, startspec["dAp"].imag,
-                            startspec["Am"].real, startspec["dAm"].real,
-                            startspec["Am"].imag, startspec["dAm"].imag))[0].reshape(8*klen)
-        
-        #Solve differential equation from tstart to tmax
-        sol = solve_ivp(ode, [startspec["t"], max(teval)],
-                         yini, t_eval=teval, method="RK45", atol=atol, rtol=rtol)
-
-        newspec = {"t":teval, "N":Neval, "k":spec["k"]}
-        for i, key in enumerate(["Ap", "dAp"]):
-            newspec[key] = sol.y[i::8,:] + 1j*sol.y[2+i::8,:]
-        for i, key in enumerate(["Am", "dAm"]):
-            newspec[key] = sol.y[4+i::8,:] + 1j*sol.y[6+i::8,:]
+            vecode = np.vectorize(lambda t, y, k: self.ModeEoM(t, y, k, **self.EoMKwargs),
+                                    excluded={0, "t"},
+                                signature="(8,n),(n)->(8,n)",
+                                )
+            def ode(t, y):
+                #(k,8) to reshape correctly
+                #transposing to match signature of vecode
+                y = y.reshape(klen,8).T
+                #transposing result s.t. dydt.shape=(k,8)
+                dydt  = vecode(t, y, spec["k"]).T
+                #reshape is correct again
+                return dydt.reshape(8*klen)
             
         spec.merge_spectra(GaugeSpec(newspec))
 
-        return spec"""
+            return spec
+        """
     
 
     def _evolve_from_BD(self, k : float, tstart : float,
@@ -879,9 +859,9 @@ class ModeByMode:
     def _evolve_mode(self, tini, yini, k : float, teval : NDArray,
                     atol : float|None=None, rtol : float=1e-5):
         #Define ODE
-        ode = lambda t, y: self.ModeEoM(t, y, k, **self.EoMKwargs)
+        def ode(t, y): self.ModeEoM(t, y, k, **self.EoMKwargs)
 
-        if atol==None:
+        if atol is None:
             atol = self.atol
         
         #Solve differential equation from tstart to tmax
@@ -956,11 +936,11 @@ class ModeByMode:
             k = 10**(5/2)*self.__khf(tstart)
 
         elif mode=="k":
-            k = init
+            ks = init
             
             tstart = []
-            for i, l in enumerate(k):
-                ttmp  = self.__t[np.where(l >= 10**(5/2)*self.__khf(self.__t))[0][-1]]
+            for k in ks:
+                ttmp  = self.__t[np.where(k >= 10**(5/2)*self.__khf(self.__t))[0][-1]]
                 tstart.append(ttmp)
             tstart = np.array(tstart)
 

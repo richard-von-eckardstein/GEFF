@@ -3,7 +3,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
-from src.Tools.timer import Timer
+from GEFF.Tools.timer import Timer
 import math
 from mpmath import whitw, mp
 

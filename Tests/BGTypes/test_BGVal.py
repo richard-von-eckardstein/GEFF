@@ -1,4 +1,4 @@
-from GEFF.BGTypes import BGVal, BGFunc, BGSystem, Val, Func
+from GEFF.BGTypes import BGVal, BGSystem
 import pytest
 import numpy as np
 
@@ -21,7 +21,7 @@ class TestBGVal():
 
     def sys(self):
         x = BGVal("x", 2, 1)
-        U = BGSystem([x], 0.55, 0.32)
+        U = BGSystem({x}, 0.55, 0.32)
         return U
     
     def inst(self, val):

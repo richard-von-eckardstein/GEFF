@@ -54,11 +54,11 @@ class OmegaGW:
             the red-shifted frequencies in Hz
         """
         #Assumes the end of inflation is reached by the end of the run.
-        if Nend==None:
+        if Nend is None:
             Nend = self.maxN
 
         Hend = self.__HN(Nend)
-        if Trh==None:
+        if Trh is None:
             Trh = np.sqrt(3*Hend*self.__omega/np.pi)*(10/106.75)**(1/4)*M_pl
             Trh = Trh*(106.75/g_rho(Trh))**(1/4)
             Nrh = 0
@@ -93,10 +93,10 @@ class OmegaGW:
         """
         
         f = self.ktofreq(k, Nend, Trh)
-        if Trh==None:
+        if Trh is None:
             TransferRH=1
         else:
-            if Nend==None:
+            if Nend is None:
                 Nend = self.maxN
             
             frh = 1/(2*np.pi) * (g_s_0/g_s(Trh))**(1/3) * (np.pi**2*g_rho(Trh)/90)**(1/2) * (Trh/M_pl) * T_0*gev_to_hz

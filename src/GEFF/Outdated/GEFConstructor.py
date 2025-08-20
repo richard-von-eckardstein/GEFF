@@ -1,6 +1,6 @@
 import os
-from GEFF.Models.Outdated.GEFClassic import GEF as GEFClassic
-from GEFF.Models.Outdated.GEFSchwinger import GEF as GEFSchwinger
+from GEFF.Outdated.GEFClassic import GEF as GEFClassic
+from GEFF.Outdated.GEFSchwinger import GEF as GEFSchwinger
 import importlib.util as util
 from types import ModuleType
 import warnings
