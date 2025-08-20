@@ -42,18 +42,9 @@ class ErrorEvent(Event):
     def __init__(self, name, func, direction):
         super().__init__(name, "error", func, True, direction)
 
-<<<<<<< HEAD
-        MbMattempts = Kwargs.get("MbMattempts", 5)
-        binning = Kwargs.get("binning", 5)
-        errthr = Kwargs.get("errthr", 0.025)
-        resumeMode = Kwargs.get("resumeMode", True)
-        method = Kwargs.get("method", "simpson")
-        selfcorrmethod = Kwargs.get("selfcorrmethod", "simpson")
-=======
 class ObserverEvent(Event):
     def __init__(self, name, func, direction):
         super().__init__(name, "observer", func, False, direction)
->>>>>>> efeb226a79d84deb12de8c9f20c876654614f2ca
 
 
 class GEFSolver:
@@ -64,16 +55,7 @@ class GEFSolver:
         self._update_vals = update_vals
         self.compute_timestep = timestep
 
-<<<<<<< HEAD
-                print("Performing mode-by-mode comparison with GEF results.")
-                try:
-                    treinit = ReInitSpec["t"]
-                except:
-                    treinit = 0
-                agreement, ReInitSpec = self.ModeByModeCrossCheck(spec, vals, errthr=errthr, binning=binning, method=selfcorrmethod, **MbMKwargs)
-=======
         self.solver_events = {event.name: event for event in events}
->>>>>>> efeb226a79d84deb12de8c9f20c876654614f2ca
 
         #self.variable_classification = variable_dict
 
@@ -81,19 +63,12 @@ class GEFSolver:
         self.ntr = 100
         self.tend = 120
 
-<<<<<<< HEAD
-                    self.InitialConditions = self.InitialiseFromMbM(sol, ReInitSpec, **MbMKwargs)
-            else:
-                spec=None
-                done=True
-=======
     def set_init_vals(self, initsys):
         self.init_vals = BGSystem.FromSystem(initsys, copy=True)
         return
     
     def update_settings(self, **new_settings):
         unknown_settings = []
->>>>>>> efeb226a79d84deb12de8c9f20c876654614f2ca
         
         for setting, value in new_settings.items():
             if setting not in self.settings.keys():
@@ -165,14 +140,9 @@ class GEFSolver:
 
         return sol, vals
     
-<<<<<<< HEAD
-    def ModeByModeCrossCheck(self, spec, vals, errthr, binning, method, **MbMKwargs):
-        errs, terr, _ = spec.CompareToBackgroundSolution(vals, errthr=errthr, binning=binning, method=method, **MbMKwargs)
-=======
     #move to GEF
     def MbMcrosscheck(self, spec, vals, errthr, thinning, method, **MbMkwargs):
         errs, terr, _ = spec.CompareToBackgroundSolution(vals, errthr=errthr, steps=thinning, method=method, **MbMkwargs)
->>>>>>> efeb226a79d84deb12de8c9f20c876654614f2ca
 
         reinit_inds = []
         agreement=True
@@ -226,14 +196,9 @@ class GEFSolver:
         yini = self._base_initialise(vals, self.ntr)
         return t0, yini, vals
     
-<<<<<<< HEAD
-    def InitialiseFromMbM(self, sol, ReInitSpec, **MbMKwargs):
-        def NewInitialiser():
-=======
     #stays in solver
     def initialise_from_MbM(self, sol, reinit_spec, method, **MbMkwargs):
         def new_initialiser():
->>>>>>> efeb226a79d84deb12de8c9f20c876654614f2ca
             ntr = self.ntr
 
             t_reinit = reinit_spec["t"]
@@ -261,11 +226,7 @@ class GEFSolver:
             # compute En, Bn, Gn, for n>1 from Modes
             yini[gaugeinds[3:]] = np.array(
                                     [
-<<<<<<< HEAD
-                                    ReInitSpec.integrate_slice(n=n, method="simpson",**MbMKwargs) #simpson is more reliable, remove option to chose.
-=======
                                     reinit_spec.IntegrateSpecSlice(n=n, method=method,**MbMkwargs)
->>>>>>> efeb226a79d84deb12de8c9f20c876654614f2ca
                                     for n in range(1,ntr+1)
                                     ]
                                     )[:,:,0].reshape(3*(ntr))
