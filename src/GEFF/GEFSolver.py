@@ -64,7 +64,7 @@ class GEFSolver:
         self.tend = 120
 
     def set_init_vals(self, initsys):
-        self.init_vals = BGSystem.FromSystem(initsys, copy=True)
+        self.init_vals = BGSystem.from_system(initsys, copy=True)
         return
     
     def update_settings(self, **new_settings):
@@ -192,7 +192,7 @@ class GEFSolver:
     def initialise_from_slowroll(self):
         t0 = 0
         vals = deepcopy(self.init_vals)
-        vals.SetUnits(False)
+        vals.set_units(False)
         yini = self._base_initialise(vals, self.ntr)
         return t0, yini, vals
     
@@ -206,7 +206,7 @@ class GEFSolver:
             reinitInd = np.where(sol.t == t_reinit)[0]
 
             #Create unit system:
-            temp = deepcopy(self.init_vals)
+            temp = BGSystem.from_system(self.init_vals, copy=True)
 
             #Construct yini from interpolation:
             ytmp = sol.y[:,reinitInd]
@@ -240,7 +240,7 @@ class GEFSolver:
     def parse_arr_to_sys(self, t, y, vals):
         ts = deepcopy(t)
         ys = deepcopy(y)
-        vals.SetUnits(False)
+        vals.set_units(False)
         self._update_vals(ts, ys, vals)
         return
     

@@ -1,6 +1,5 @@
 from GEFF.BGTypes import BGVal, BGFunc, BGSystem, Val, Func
 import pytest
-import random
 
 class TestBGSystem():
     @pytest.fixture
@@ -26,83 +25,82 @@ class TestBGSystem():
 
     def test_initFromU(self):
         U = self.init()
-        U.Initialise("x")(10)
+        U.initialise("x")(10)
 
         #check full copy
-        V = BGSystem.FromSystem(U, copy=True)
+        V = BGSystem.from_system(U, copy=True)
 
         assert V.H0 == U.H0
         assert V.MP == U.MP
-        assert V.ObjectNames() == U.ObjectNames()
-        assert V.ValueList() == U.ValueList()
-        assert V.FunctionList() == U.FunctionList()
+        assert V.object_names() == U.object_names()
+        assert V.value_list() == U.value_list()
+        assert V.function_list() == U.function_list()
 
         #check empty copy
-        V = BGSystem.FromSystem(U, copy=False)
+        V = BGSystem.from_system(U, copy=False)
 
         assert V.H0 == U.H0
         assert V.MP == U.MP
-        assert V.ObjectNames() == U.ObjectNames()
-        assert V.ValueList() == []
-        assert V.FunctionList() == []
+        assert V.object_names() == U.object_names()
+        assert V.value_list() == []
+        assert V.function_list() == []
 
-    def test_Object_SetAndNames(self, sample_bgfunc, sample_bgval):
+    def test_object_set_and_names(self):
         U = self.init()
         for val in ["x", "f"]:
-            assert val in U.ObjectNames()
+            assert val in U.object_names()
 
-    def test_InitialiseValue(self):
+    def test_initialise_value(self):
         U = self.init()
-        U.Initialise("x")(10)
+        U.initialise("x")(10)
         assert isinstance(U.x, Val)
         assert U.x.value == 10
-        assert U.x.GetConversion() == 0.55**2 * 0.32
+        assert U.x.get_conversion() == 0.55**2 * 0.32
 
-    def test_InitialiseFunc(self):
+    def test_initialise_func(self):
         U = self.init()
-        func = lambda x: 5
-        U.Initialise("f")(func)
+        def func(x): return 5
+        U.initialise("f")(func)
         assert isinstance(U.f, Func)
         assert callable(U.f)
-        randval = random.random()
-        assert U.f.GetBaseFunc()(randval) == func(randval) 
-        assert U.f.GetConversion() == 0.55**2 * 0.32
+        assert U.f.get_basefunc()(0.3421) == func(0.342) 
+        assert U.f.get_conversion() == 0.55**2 * 0.32
     
-    def test_InitialiseUnknown(self):
+    def test_initialise_unknown(self):
         U = self.init()
-        with pytest.raises(Exception) as exc_info:
-            U.Initialise("a")(10)
+        with pytest.raises(Exception):
+            U.initialise("a")(10)
 
     
-    def test_Value_ListAndNames(self):
+    def test_value_list_and_names(self):
         U = self.init()
-        assert U.ValueList() == []
-        U.Initialise("x")(10)
-        assert "x" in U.ValueNames()
-        U.Initialise("f")(lambda x: 5)
-        assert "f" not in U.ValueNames()
+        assert U.value_list() == []
+        U.initialise("x")(10)
+        assert "x" in U.value_names()
+        U.initialise("f")(lambda x: 5)
+        assert "f" not in U.value_names()
 
-    def test_Function_ListandNames(self):
+    def test_function_list_and_names(self):
         U = self.init()
-        assert U.FunctionList() == []
-        U.Initialise("x")(10)
-        assert "x" not in U.FunctionNames()
-        U.Initialise("f")(lambda x: 5)
-        assert "f" in U.FunctionNames()
+        assert U.function_list() == []
+        U.initialise("x")(10)
+        assert "x" not in U.function_names()
+        U.initialise("f")(lambda x: 5)
+        assert "f" in U.function_names()
 
-    def test_Remove(self):
+    def test_remove(self):
         U = self.init()
-        U.Initialise("x")(10)
-        U.Remove("x")
+        U.initialise("x")(10)
+        U.remove("x")
         
         assert not(hasattr(U, "x"))
-        assert "x" not in U.ObjectNames()
+        assert "x" not in U.object_names()
 
-    def test_AddObj(self):
+    def test_add_obj(self):
         U = self.init()
-        U.AddBGVal("y", 0, 2)
-        U.AddBGFunc("g", [U.Objects["y"]], 2, 0)
-        names = U.ObjectNames()
+        U.add_BGVal("y", 0, 2)
+        U.add_BGFunc("g", [U.objects["y"]], 2, 0)
+        names = U.object_names()
         assert "y" in names
         assert "g" in names
 
@@ -110,31 +108,31 @@ class TestBGSystem():
         U = self.createSys()
         U.AddValue("y", 3.0, 0, 2)
         U.AddFunction("g", [U._y], lambda x: x, 2, 0)
-        names = U.ObjectNames()
+        names = U.object_names()
         assert "y" in names
         assert "g" in names"""
 
 
-    def test_SetUnitsFalse(self):
+    def test_set_units_false(self):
         U = self.init()
-        U.Initialise("x")(10)
-        U.Initialise("f")(lambda x: 5)
+        U.initialise("x")(10)
+        U.initialise("f")(lambda x: 5)
 
-        U.SetUnits(False)
+        U.set_units(False)
 
-        assert U.x.GetUnits() == False
-        assert U.f.GetUnits() == False
+        assert not(U.x.get_units())
+        assert not(U.f.get_units())
     
-    def test_SetUnitsTrue(self):
+    def test_set_unitsTrue(self):
         U = self.init()
 
-        U.Initialise("x")(10)
-        U.Initialise("f")(lambda x: 5)
+        U.initialise("x")(10)
+        U.initialise("f")(lambda x: 5)
 
-        U.SetUnits(True)
+        U.set_units(True)
 
-        assert U.x.GetUnits() == True
-        assert U.f.GetUnits() == True
+        assert U.x.get_units()
+        assert U.f.get_units()
     
 
         

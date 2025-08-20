@@ -1,4 +1,4 @@
-from GEFF.BGTypes import Quantity, BGSystem
+from GEFF.BGTypes import BGSystem
 import numpy as np
 
 
@@ -25,12 +25,12 @@ def Evolver(sys, dynamical_variables, gaugefield_variables):
     class Evolver(BGSystem):
         varnames = {"dynamical":dynamical_variables, "GF": gaugefield_variables}
         def __init__(self, initialdata):
-            super().FromBGSystem(sys)
+            super().from_system(sys)
             pass
 
-class Evolver(BGSystem):
+class BaseEvolver(BGSystem):
     def __init__(self, dynamical_variables, gaugefields, InitialData, settings):
-        super().FromBGSystem(InitialData)
+        super().from_system(InitialData)
         self.Translator = NameIndexTranslator(dynamical_variables, gaugefields)
 
         var_to_ind = {}

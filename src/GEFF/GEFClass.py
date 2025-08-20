@@ -122,9 +122,9 @@ class BaseGEF(BGSystem):
         Load data and store its results in the current GEF instance.
     save_GEFdata()
         Save the data in the current GEF instance in an ouput file.
-    SetUnits()
+    set_units()
         Switch the GEF instance between numerical units and physical units
-    GetUnits()
+    get_units()
         Return a boolean indicating if the GEF is set to physical units
 
     Example 1 (Initialisation)
@@ -162,7 +162,7 @@ class BaseGEF(BGSystem):
     >>> G.load_GEFdata("Path/To/Some/Input/File.dat") #Load data stored under "Path/To/Some/Input/File.dat" 
     ...
     #Retrieve a list of all values stored in the current GEF instance
-    >>> print(G.ValueNames())
+    >>> print(G.value_names())
     ...
     >>> plt.plot(G.N, G.E) #plot the evolution of the electric field expectation value E^2
     >>> plt.show()
@@ -184,16 +184,16 @@ class BaseGEF(BGSystem):
 
         #Add initial data to BGSystem
         for name, constant in user_input["constants"].items():
-            self.Initialise(name)(constant)
+            self.initialise(name)(constant)
         for name, function in user_input["functions"].items():
-            self.Initialise(name)(function)
+            self.initialise(name)(function)
         for name, value in user_input["initial data"].items():
-            self.Initialise(name)(value)
+            self.initialise(name)(value)
 
-        #Initialise the other values with dummy variables.
-        for name in self.ObjectNames():
-            if name not in (self.ValueNames() + self.FunctionNames()):
-                self.Initialise(name)(0)
+        #initialise the other values with dummy variables.
+        for name in self.object_names():
+            if name not in (self.value_names() + self.function_names()):
+                self.initialise(name)(0)
 
         self.GEFSolver.set_init_vals(self)
 
@@ -341,20 +341,20 @@ class BaseGEF(BGSystem):
         data = dict(zip(input_df.columns[1:],input_df.values[:,1:].T))
 
         #Befor starting to load, check that the file is compatible with the GEF setup.
-        names = self.ObjectNames()
+        names = self.object_names()
         for key in data.keys():
             if key not in names:
                 raise AttributeError(f"The data table you tried to load contains an unkown quantity: '{key}'")
         
         #Store current units to switch back to later
-        units=self.GetUnits()
+        units=self.get_units()
 
         #GEF data is always stored untiless, thus it is assumed to be untiless when loaded.
-        self.SetUnits(False)
+        self.set_units(False)
         #Load data into background-value attributes
         for key, values in data.items():
-            self.Initialise(key)(values)
-        self.SetUnits(units)
+            self.initialise(key)(values)
+        self.set_units(units)
         self.completed=True
 
         return
@@ -389,7 +389,7 @@ class BaseGEF(BGSystem):
                                      self._object_classification["static"]
                                     )           
             #Check that all dynamic and derived quantities are initialised in this GEF instance
-            if not( storeables.issubset(set( self.ValueNames() )) ):
+            if not( storeables.issubset(set( self.value_names() )) ):
                 print("No data to store.")
                 return
             else:
@@ -399,10 +399,10 @@ class BaseGEF(BGSystem):
                 dic = {}
 
                 #remember the original units of the GEF
-                units=self.GetUnits()
+                units=self.get_units()
 
                 #Data is always stored unitless
-                self.SetUnits(False)
+                self.set_units(False)
 
                 for key in storeables:
                     dic[key] = getattr(self, key).value
@@ -412,7 +412,7 @@ class BaseGEF(BGSystem):
                 output_df.to_csv(path)
 
                 #after storing data, restore original units
-                self.SetUnits(units)
+                self.set_units(units)
         return
 
 

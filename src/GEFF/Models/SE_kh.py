@@ -88,7 +88,7 @@ def initial_conditions(vals, ntr):
     yini[1] = vals.phi.value
     yini[2] = vals.dphi.value
 
-    vals.Initialise("kh")( abs(vals.dphi)*vals.beta )
+    vals.initialise("kh")( abs(vals.dphi)*vals.beta )
     yini[3] = np.log(vals.kh.value)
 
     #initialise delta and rhoChi
@@ -98,23 +98,23 @@ def initial_conditions(vals, ntr):
     return yini
 
 def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
-    vals.t.SetValue(t)
-    vals.N.SetValue(y[0])
-    vals.a.SetValue(np.exp(y[0]))
+    vals.t.set_value(t)
+    vals.N.set_value(y[0])
+    vals.a.set_value(np.exp(y[0]))
 
-    vals.phi.SetValue(y[1])
-    vals.dphi.SetValue(y[2])
+    vals.phi.set_value(y[1])
+    vals.dphi.set_value(y[2])
 
-    vals.kh.SetValue(np.exp(y[3]))
-    vals.kS.SetValue(vals.kh.value)
+    vals.kh.set_value(np.exp(y[3]))
+    vals.kS.set_value(vals.kh.value)
 
-    vals.rhoChi.SetValue(y[4])
+    vals.rhoChi.set_value(y[4])
 
-    vals.E.SetValue( y[5]*np.exp(4*(y[3]-y[0])))
-    vals.B.SetValue( y[6]*np.exp(4*(y[3]-y[0])))
-    vals.G.SetValue( y[7]*np.exp(4*(y[3]-y[0])))
+    vals.E.set_value( y[5]*np.exp(4*(y[3]-y[0])))
+    vals.B.set_value( y[6]*np.exp(4*(y[3]-y[0])))
+    vals.G.set_value( y[7]*np.exp(4*(y[3]-y[0])))
 
-    vals.H.SetValue( Friedmann(vals.dphi, vals.V(vals.phi),
+    vals.H.set_value( Friedmann(vals.dphi, vals.V(vals.phi),
                                  vals.E, vals.B, vals.rhoChi, vals.H0) )
 
     sigmaE, sigmaB, ks = conductivity(
@@ -124,13 +124,13 @@ def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
 
     eps = np.vectorize(max)(abs(y[0])*rtol, atol)
     GlobalFerm = Heaviside(np.log(ks/(vals.a*vals.H)), eps)
-    vals.sigmaE.SetValue(GlobalFerm*sigmaE)
-    vals.sigmaB.SetValue(GlobalFerm*sigmaB)
+    vals.sigmaE.set_value(GlobalFerm*sigmaE)
+    vals.sigmaB.set_value(GlobalFerm*sigmaB)
 
-    vals.xi.SetValue( vals.beta*(vals.dphi/(2*vals.H)))
-    vals.xieff.SetValue(vals.xi + vals.sigmaB/(2*vals.H))
+    vals.xi.set_value( vals.beta*(vals.dphi/(2*vals.H)))
+    vals.xieff.set_value(vals.xi + vals.sigmaB/(2*vals.H))
 
-    vals.ddphi.SetValue( EoMphi(vals.dphi, vals.dV(vals.phi),
+    vals.ddphi.set_value( EoMphi(vals.dphi, vals.dV(vals.phi),
                                 vals.beta, vals.G, vals.H, vals.H0) )
     return
 
@@ -168,7 +168,7 @@ def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
 def condition_EndOfInflation(t, y, vals):
     ratio = vals.H0/vals.MP
     dphi = y[2]
-    V = vals.V.GetBaseFunc()(vals.MP*y[1])/vals.V.GetConversion()
+    V = vals.V(y[1])
     rhoEB = 0.5*(y[5]+y[6])*ratio**2*np.exp(4*(y[3]-y[0]))
     rhoChi = y[4]*ratio**2
     val = np.log(abs((dphi**2 + rhoEB + rhoChi)/V))

@@ -1,6 +1,5 @@
-from GEFF.BGTypes import BGVal, BGFunc, BGSystem, Val, Func
+from GEFF.BGTypes import BGVal, BGFunc, BGSystem
 import pytest
-import random
 import numpy as np
 
 class TestBGFunc():
@@ -30,12 +29,12 @@ class TestBGFunc():
     
     def inst(self, func, nargs):
         U = self.sys()
-        U.Initialise(f"f{nargs}")(func)
+        U.initialise(f"f{nargs}")(func)
         return getattr(U, f"f{nargs}")
     
     def instarg(self, arg, val):
         U = self.sys()
-        U.Initialise(arg)(val)
+        U.initialise(arg)(val)
         return getattr(U, arg)
     
     #test single-variable function
@@ -48,7 +47,7 @@ class TestBGFunc():
         assert f.dtype == np.float64
         assert f.u_H0 == 2
         assert f.u_MP == 2
-        for arg in f.Args:
+        for arg in f.args:
             assert arg in [x]
 
         #multivariate function
@@ -59,51 +58,51 @@ class TestBGFunc():
         assert f.dtype == np.float64
         assert f.u_H0 == 3
         assert f.u_MP == 1
-        for arg in f.Args:
+        for arg in f.args:
             assert arg in [x, y]
     
     def test_init(self, func1, func2, v1, v2):
         #Initialise single-variable function
         f = self.inst(func1, 1)
-        assert f.GetBaseFunc()(v1) == func1(v1) 
-        assert f.GetUnits() == True
-        assert f.GetConversion() == 0.55**3 * 0.32**1
-        assert len(f.GetArgConversions()) == 1
-        for argconversion in f.GetArgConversions():
+        assert f.get_basefunc()(v1) == func1(v1) 
+        assert f.get_units()
+        assert f.get_conversion() == 0.55**3 * 0.32**1
+        assert len(f.get_arg_conversions()) == 1
+        for argconversion in f.get_arg_conversions():
             assert argconversion == 0.55**1 * 0.32**1
 
         #Initialise multivariate function
         f = self.inst(func2, 2)
-        assert f.GetBaseFunc()(v1, v2) == func2(v1, v2) 
-        assert f.GetUnits() == True
-        assert f.GetConversion() == 0.55**1 * 0.32**3
-        assert len(f.GetArgConversions()) == 2
+        assert f.get_basefunc()(v1, v2) == func2(v1, v2) 
+        assert f.get_units()
+        assert f.get_conversion() == 0.55**1 * 0.32**3
+        assert len(f.get_arg_conversions()) == 2
         expectargconversion = [0.55**1 * 0.32**1, 0.55**1 * 0.32**0]
-        for i, argconversion in enumerate(f.GetArgConversions()):
+        for i, argconversion in enumerate(f.get_arg_conversions()):
             assert argconversion == expectargconversion[i]
 
         #Check that instantiating func with wrong variable count raises error
-        with pytest.raises(TypeError) as exc_info:
+        with pytest.raises(TypeError) :
             f = self.inst(func2, 1)
-        with pytest.raises(TypeError) as exc_info:
+        with pytest.raises(TypeError) :
             f = self.inst(func1, 2)
-        with pytest.raises(TypeError) as exc_info:
+        with pytest.raises(TypeError) :
             f = self.inst(lambda x, y, z: 1.0, 1)
-        with pytest.raises(TypeError) as exc_info:
+        with pytest.raises(TypeError) :
             f = self.inst(lambda x, y, z: 1.0, 2)
 
         #Checkt that instantiating func which does not return an np.floating type raises error
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError) :
             f = self.inst(lambda x: "hi", 1)
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError):
             f = self.inst(lambda x, y: "hi", 2)
 
     def test_Units(self, func1):
         f = self.inst(func1, 1)
-        f.SetUnits(True)
-        assert f.GetUnits() == True
-        f.SetUnits(False)
-        assert f.GetUnits() == False
+        f.set_units(True)
+        assert f.get_units()
+        f.set_units(False)
+        assert not(f.get_units())
 
     #evaluate function
     def test_Call_single(self, func1, v1):
@@ -111,29 +110,29 @@ class TestBGFunc():
         x = self.instarg("x", v1)
 
         #With Units:
-        f.SetUnits(True)
+        f.set_units(True)
         assert f(v1) == func1(v1)
-        x.SetUnits(True)
+        x.set_units(True)
         assert f(x) == func1(v1)
-        x.SetUnits(False)
+        x.set_units(False)
         assert f(x) == func1(v1)
 
         #Without Units:
-        f.SetUnits(False)
-        assert f(v1) == func1(v1*f.GetArgConversions()[0])/f.GetConversion()
-        x.SetUnits(True)
-        assert f(x) == func1(v1)/f.GetConversion()
-        x.SetUnits(False)
-        assert f(x) == func1(v1)/f.GetConversion()
+        f.set_units(False)
+        assert f(v1) == func1(v1*f.get_arg_conversions()[0])/f.get_conversion()
+        x.set_units(True)
+        assert f(x) == func1(v1)/f.get_conversion()
+        x.set_units(False)
+        assert f(x) == func1(v1)/f.get_conversion()
 
         #Check that error occurs when calling with BGVal and incorrect signature:
         y = self.instarg("y", v1)
-        with pytest.raises(AssertionError) as exc_info:
-            f.SetUnits(True)
+        with pytest.raises(AssertionError) :
+            f.set_units(True)
             f(y)
 
         #Check call with multiple args:
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception) :
             f(1.0, 1.0)
 
     def test_Call_multi(self, func2, v1, v2):
@@ -142,48 +141,48 @@ class TestBGFunc():
         y = self.instarg("y", v2)
 
         #With Units:
-        f.SetUnits(True)
+        f.set_units(True)
         assert f(v1, v2) == func2(v1, v2)
         #All permutations of units
         bools = [True, False]
         for boolx in bools:
             for booly in bools:
-                x.SetUnits(boolx)
-                y.SetUnits(booly)      
+                x.set_units(boolx)
+                y.set_units(booly)      
                 assert f(v1, y) == func2(v1, v2)
                 assert f(x, v2) == func2(v1, v2)
                 assert f(x, y) == func2(v1, v2)
 
         #Without Units:
-        f.SetUnits(False)
+        f.set_units(False)
         #All permutations of units
-        assert f(v1, v2) == func2(v1*f.GetArgConversions()[0],
-                                   v2*f.GetArgConversions()[1])/f.GetConversion()
+        assert f(v1, v2) == func2(v1*f.get_arg_conversions()[0],
+                                   v2*f.get_arg_conversions()[1])/f.get_conversion()
         #All permutations of units
         bools = [True, False]
         for boolx in bools:
             for booly in bools:
-                x.SetUnits(boolx)
-                y.SetUnits(booly)      
-                assert f(v1, y) == func2(v1*f.GetArgConversions()[0],
-                                   v2)/f.GetConversion()
+                x.set_units(boolx)
+                y.set_units(booly)      
+                assert f(v1, y) == func2(v1*f.get_arg_conversions()[0],
+                                   v2)/f.get_conversion()
                 assert f(x, v2) == func2(v1,
-                                   v2*f.GetArgConversions()[1])/f.GetConversion()
-                assert f(x, y) == func2(v1, v2)/f.GetConversion()
+                                   v2*f.get_arg_conversions()[1])/f.get_conversion()
+                assert f(x, y) == func2(v1, v2)/f.get_conversion()
 
-        f.SetUnits(True)
+        f.set_units(True)
         #Check that inverting order of args yields Error
-        with pytest.raises(AssertionError) as exc_info:
+        with pytest.raises(AssertionError) :
             assert f(1/137, 2.0) == f(2.0, 1/137)
 
         #Check that error occurs when calling with BGVal and incorrect signature:
-        with pytest.raises(AssertionError) as exc_info:
+        with pytest.raises(AssertionError) :
             f(y, x)
 
         #Check call with multiple args:
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception) :
             f(1.0, 1.0, 2.0)
         
         #Check call with single args:
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception) :
             f(1.0)

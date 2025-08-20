@@ -91,7 +91,7 @@ def initial_conditions(vals, ntr):
     yini[1] = vals.phi.value
     yini[2] = vals.dphi.value
 
-    vals.Initialise("kh")( abs(vals.dphi)*vals.beta )
+    vals.initialise("kh")( abs(vals.dphi)*vals.beta )
     yini[3] = np.log(vals.kh.value)
 
     #initialise delta and rhoChi
@@ -102,23 +102,23 @@ def initial_conditions(vals, ntr):
     return yini
 
 def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
-    vals.t.SetValue(t)
-    vals.N.SetValue(y[0])
-    vals.a.SetValue(np.exp(y[0]))
+    vals.t.set_value(t)
+    vals.N.set_value(y[0])
+    vals.a.set_value(np.exp(y[0]))
 
-    vals.phi.SetValue(y[1])
-    vals.dphi.SetValue(y[2])
+    vals.phi.set_value(y[1])
+    vals.dphi.set_value(y[2])
 
-    vals.kh.SetValue(np.exp(y[3]))
+    vals.kh.set_value(np.exp(y[3]))
 
-    vals.delta.SetValue(y[4])
-    vals.rhoChi.SetValue(y[5])
+    vals.delta.set_value(y[4])
+    vals.rhoChi.set_value(y[5])
 
-    vals.E.SetValue( y[6]*np.exp(4*(y[3]-y[0])))
-    vals.B.SetValue( y[7]*np.exp(4*(y[3]-y[0])))
-    vals.G.SetValue( y[8]*np.exp(4*(y[3]-y[0])))
+    vals.E.set_value( y[6]*np.exp(4*(y[3]-y[0])))
+    vals.B.set_value( y[7]*np.exp(4*(y[3]-y[0])))
+    vals.G.set_value( y[8]*np.exp(4*(y[3]-y[0])))
 
-    vals.H.SetValue( Friedmann(vals.dphi, vals.V(vals.phi),
+    vals.H.set_value( Friedmann(vals.dphi, vals.V(vals.phi),
                                  vals.E, vals.B, vals.rhoChi, vals.H0) )
 
     sigmaE, sigmaB, ks = conductivity(
@@ -128,14 +128,14 @@ def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
 
     eps = np.maximum(abs(y[0])*rtol, atol)
     GlobalFerm = Heaviside(np.log(ks/(vals.a*vals.H)), eps)
-    vals.sigmaE.SetValue(GlobalFerm*sigmaE)
-    vals.sigmaB.SetValue(GlobalFerm*sigmaB)
+    vals.sigmaE.set_value(GlobalFerm*sigmaE)
+    vals.sigmaB.set_value(GlobalFerm*sigmaB)
 
-    vals.s.SetValue(vals.sigmaE/(2*vals.H))
-    vals.xi.SetValue( vals.beta*(vals.dphi/(2*vals.H)) )
-    vals.xieff.SetValue(vals.xi + vals.sigmaB/(2*vals.H))
+    vals.s.set_value(vals.sigmaE/(2*vals.H))
+    vals.xi.set_value( vals.beta*(vals.dphi/(2*vals.H)) )
+    vals.xieff.set_value(vals.xi + vals.sigmaB/(2*vals.H))
 
-    vals.ddphi.SetValue( EoMphi(vals.dphi, vals.dV(vals.phi), vals.beta, vals.G, vals.H, vals.H0) ) 
+    vals.ddphi.set_value( EoMphi(vals.dphi, vals.dV(vals.phi), vals.beta, vals.G, vals.H, vals.H0) ) 
     return
 
 def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
