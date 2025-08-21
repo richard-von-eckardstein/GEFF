@@ -11,58 +11,76 @@ from GEFF.Models.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
 
 from numpy.typing import NDArray
 from typing import Tuple, Callable
+from types import NoneType
 
 class GaugeSpec(dict):
-    """
+    r"""
     A class representing a spectrum of gauge-field modes as a function of time.
-    This class inherits from 'dict', and necessarily requires the following keys:
+
+    This class inherits from `dict` and needs the following keys:  
     't', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'
+
+    The spectrum can be evaluated at certain times or for certain wavenumbers by using `tslice` and `kslice`
+    Furthermore, the spectrum contained in the object can be integrated to compute gauge-field expectation values.
+     The resulting values can be used to estimate the error of a GEF run.
 
     Attributes
     ----------
     t : NDArray
-        an array of physical times at which the spectrum is known
+        the cosmic time coordinates $t$ of the spectrum
     N : NDArray
-        an array of e-folds associated to t
+        the $e$-folds as a function of cosmic time $N(t)$
     k : NDarray
-        an array of wavenumbers k for which the spectrum is known
+        the wavenumbers $k$ at which the spectrum is known
     Ap, Am : NDarray
-        arrays of shape (len(k), len(t)) containing the mode functions sqrt(2*k)*A_\\pm(k, t)
+        the mode functions $\sqrt{2 k} A_\pm(k, t)$
     dAp, dAm : NDarray
-        arrays of shape (len(k), len(t)) containing the mode-function derivatives  sqrt(2/k)*e^N*dA_\\pm(k, t)/dt
-
-    Class Methods
-    -------------
-    read_spec
-        Initialise the class from data stored in a file.
-
-    Methods
-    -------
-    save_spec()
-        Store the spectrum in a file.
-    get_dim()
-        Retrieve the number of modes and times encoded in the spectrum 
-    tslice()
-        Retrieve the spectrum at a moment of time
-    kslice()
-        Retrieve the spectrums evolution for a fixed wavenumber
+        the mode-function derivatives $\sqrt{\frac{2}{k}} \, e^{N(t)}\frac{\partial A_\pm(k, t)}{\partial t}$
 
     Example
     -------
-    >>> spec = GaugeSpec.read_spec(somefile)
-    >>> slice = spec.tslice(100) #return the spectrum at spec["t"][100]
-    >>> print(f"This is the spectrum of positive-helicity modes at time {slice['t']}:)
-    >>> print(slice["Ap"]})
+    ```python
+    from mode_by_mode import GaugeSpec
+
+    #create the GaugeSpec instance from a data table
+    pathtofile = "/path/to/some/spectrum/file.dat"
+    spec = GaugeSpec.read_spec(pathtofile)
+
+    # to obtain the spectrum at spec["t"][100], use tslice:
+    slice = spec.tslice(100) #return the spectrum at spec["t"][100]
+    print(f"This is the spectrum of positive modes at time {slice['t']}:)
+    print(slice["Ap"]})
+    ```
     """
 
-    def __init__(self, modedic):
-        #initialise spectrum as a dictionary
-        for key in modedic.keys():
-            assert key in ["t", "N", "k", "Ap", "dAp", "Am", "dAm"]
+    def __init__(self, modedic : dict):
+        """
+        Initialise the spectrum from a dictionary.
 
-        assert len(modedic["t"]) == len(modedic["N"])
+        Parameters
+        ----------
+        modedic : dict
+            A `dict` with keys 't', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'
+
+        Raises
+        ------
+        KeyError
+            if a necessary key is missing
+        ValueError
+            if the lengths of 't' and 'N' are not the same OR the shape of 'Ap', 'dAp', 'Am', 'dAm' are not `(len(k), len(t))`
+        """
+        for key in ["t", "N", "k", "Ap", "dAp", "Am", "dAm"]:
+            if key not in modedic.keys():
+                raise KeyError(f"Missing key: {key}")
+            
+        if not(len(modedic["t"]) == len(modedic["N"])):
+            raise ValueError("The length of 't' needs to match the length of 'N'")
+        
+        shape = (len(modedic["k"]), len(modedic["t"]))
         for key in ["Ap", "dAp", "Am", "dAm"]:
-            assert modedic[key].shape == (len(modedic["k"]), len(modedic["t"]))
+            if not( modedic[key].shape == shape):
+                raise ValueError(f"The shape of {key} needs to be {shape}") 
+        
         super().__init__(modedic)
 
     @classmethod
@@ -77,7 +95,7 @@ class GaugeSpec(dict):
 
         Returns
         -------
-        GaugeSpec
+        spec : GaugeSpec
             the imported spectrum
         """
         input_df = pd.read_table(path, sep=",")
@@ -133,7 +151,7 @@ class GaugeSpec(dict):
 
     def get_dim(self) -> dict:
         """
-        Retrieve the spectrums evolution for a fixed wavenumber
+        Get the number of times and wavenumbers stored in the spectrum
 
         Returns
         -------
@@ -145,17 +163,17 @@ class GaugeSpec(dict):
     
     def tslice(self, ind : int) -> dict:
         """
-        Retrieve the spectrum at a moment of time
+        Evaluate the spectrum at time `self['t'][ind]`
 
         Parameters
         ----------
         ind : int
-            the index corresponding to the time at which to retrieve the spectrum
+            the temporal index
 
         Returns
         -------
-        dict
-            a dictionary with keys like self.
+        specslice : GaugeSpecSlice
+            The spectrum at time `self['t'][ind]`
         """
 
         spec_slice = {}
@@ -170,17 +188,17 @@ class GaugeSpec(dict):
     
     def kslice(self, ind : int) -> dict:
         """
-        Retrieve the spectrum for a fixed wavenumber
+        Obtain the time evolution for the wavenumber `self['k'][ind]`
 
         Parameters
         ----------
         ind : Int
-            the index corresponding to the wavenumber at which to retrieve the spectrum
+            the wavenumber index.
 
         Returns
         -------
         dict
-            a dictionary with keys like self.     
+            a dictionary with keys like `self`  
         """
 
         spec_slice = {}
@@ -193,7 +211,114 @@ class GaugeSpec(dict):
                 spec_slice[key] = self[key][ind,:]
         return spec_slice
     
+    def integrate(self, BG : BGSystem, n : int=0, cutoff="kh", **IntegratorKwargs) -> NDArray:
+        r"""
+        Compute the three integrals
+
+        $$ \mathcal{F}_\mathcal{E}^{(n)}(t) = \int\limits_{0}^{k_{\mathrm{h}}(t)}\frac{\mathrm{d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{\mathrm{h}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2,$$
+        $$ \mathcal{F}_\mathcal{G}^{(n)}(t) = \int\limits_{0}^{k_{\mathrm{h}}(t)}\frac{a k^{n+4}}{2 \pi^2 k_{\mathrm{h}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)]$$
+        $$ \mathcal{F}_\mathcal{B}^{(n)}(t) = \int\limits_{0}^{k_{\mathrm{h}}(t)}\frac{\mathrm{d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{\mathrm{h}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2$$
+
+        at each time coordinate in the spectrum.
+
+        Parameters
+        ----------
+        BG : BGSystem
+            a system encoding the UV cut-off, $k_{\rm h}$
+        n : int
+            the integer $n$ in $\mathcal{F}_\mathcal{X}^{(n)}(t)$ for $\mathcal{X} = \mathcal{E}, \mathcal{B},\mathcal{G}$
+        cutoff : str
+            the name under which the UV-cutoff is stored in `BG`
+        **IntegratorKwargs :  kwargs
+            settings used by `GaugeSpecSlice.integrate_slice`
+        
+
+        Returns
+        -------
+        NDArray
+            encodes $\mathcal{F}_\mathcal{E}^{(n)}(t)$, $\mathcal{F}_\mathcal{G}^{(n)}(t)$ and $\mathcal{F}_\mathcal{B}^{(n)}(t)$ with shape `(len(self["t"]), 3)`
+        """
+
+        self._add_cutoff(BG, cutoff)
+
+        tdim = self.get_dim()["tdim"]
+
+        FMbM = np.zeros((tdim, 3,2))
+        for i in range(tdim):
+            spec_slice = self.tslice(i)
+            FMbM[i,:] = spec_slice.integrate_slice(n=n, **IntegratorKwargs)
+        
+        return FMbM
+    
+    def estimate_GEF_error(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
+                                    errthr : float=0.025, binning : int|NoneType=5, verbose : bool=True,
+                                    **IntegratorKwargs) -> Tuple[list, NDArray, list]:
+        r"""
+        Estimate the relative deviation between a GEF solution and the mode spectrum by comparing
+
+        $$ \mathcal{F}_\mathcal{E}^{(0)}(t) = \int\limits_{0}^{k_{\mathrm{h}}(t)}\frac{\mathrm{d} k}{k} \frac{a^2 k^{3}}{2 \pi^2 k_{\mathrm{h}}^{4}}  \sum_{\lambda}|\dot{A}_\lambda(t,k)|^2,$$
+        $$ \mathcal{F}_\mathcal{G}^{(0)}(t) = \int\limits_{0}^{k_{\mathrm{h}}(t)}\frac{a k^{4}}{2 \pi^2 k_{\mathrm{h}}^{4}}\sum_{\lambda}\lambda \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)]$$
+        $$ \mathcal{F}_\mathcal{B}^{(0)}(t) = \int\limits_{0}^{k_{\mathrm{h}}(t)}\frac{\mathrm{d} k}{k} \frac{k^{5}}{2 \pi^{2}k_{\mathrm{h}}^{4}} \sum_{\lambda}|A_\lambda(t,k)|^2$$
+
+        The function internally calls `integrate` to compute these integrals. 
+
+        Parameters
+        ----------
+        BG : BGSystem
+            the system for which to compare $\mathcal{F}_\mathcal{E}^{(0)}$, $\mathcal{F}_\mathcal{G}^{(0)}$ and $\mathcal{F}_\mathcal{B}^{(0)}$
+        references : list of str
+            the names under which $\mathcal{F}_\mathcal{E}^{(0)}$, $\mathcal{F}_\mathcal{G}^{(0)}$ and $\mathcal{F}_\mathcal{B}^{(0)}$ are found in `BG`
+        cutoff : str
+            the name under which the UV-cutoff, $k_{\rm h}$, is stored in `BG`
+        errthr : float
+            errors at early times are discarded if the error is below `errthr` as there are too few modes $k < k_{\rm h}$ to trust the integration.
+        binning : int or None
+            to mitigate the impact of numerical fluctuations, bin the errors in bins $(t_{i}, t_{i+m})$ with $m$ set by`binning`. If `binning` is `None`, the errors are not binned.
+        verbose : bool
+            if `True`, print a summary of the errors
+        **IntegratorKwargs :  kwargs
+            settings used by `GaugeSpecSlice.integrate_slice`
+
+        Returns
+        -------
+        errs : list
+            a list of binned errors. The list entries correspond to $\mathcal{F}_\mathcal{E}^{(0)}$, $\mathcal{F}_\mathcal{B}^{(0)}$ and $\mathcal{F}_\mathcal{G}^{(0)}$
+        terr : NDArray
+            the time coordinates for the errors in `errs` given by $\frac{t_{i} + t_{i+m}}{2}$ if the error is binned. Otherwise, it is the same as `self['t']`.
+        og_errs : list
+            the same as `errs` but without binning.
+        """
+
+        og_errs = self._estimate_error(BG, references, cutoff, **IntegratorKwargs)
+        terr = self["t"]
+
+        if binning is not None:
+            errs, terr = self._bin_error(og_errs, binning)
+        else:
+            errs = og_errs
+        
+        errs, terr = self._process_error(errs, terr, errthr)
+
+        if verbose:
+            self._error_summary(errs, terr, references)
+
+        return errs, terr, og_errs
+    
     def merge_spectra(self, spec):
+        """
+        Combine two spectra with the same wavenumbers $k$ but unequal times $t$
+
+        Parameters
+        ----------
+        spec : GaugeSpec
+            the second spectrum
+
+        Raises
+        ------
+        AssertionError
+            if the wavenumbers $k$ do not match up.
+        
+        """
         assert (spec["k"] == self["k"]).all()
 
         ind = np.where(self["t"]<=spec["t"][0])[0][-1]
@@ -210,6 +335,21 @@ class GaugeSpec(dict):
         return
     
     def add_momenta(self, spec):
+        """
+        Combine two spectra with the same times $t$ but unequal wavenumbers $k$
+
+        Parameters
+        ----------
+        spec : GaugeSpec
+            the second spectrum
+
+        Raises
+        ------
+        AssertionError
+            if the times $t$ do not match up.
+        
+        """
+
         assert (np.round(spec["t"],1) == np.round(self["t"],1)).all()
 
         newks = []
@@ -243,6 +383,14 @@ class GaugeSpec(dict):
         return
     
     def remove_momenta(self, ind):
+        """
+        Remove the spectrum at wavenumber `self["k"][ind]`
+
+        Parameters
+        ----------
+        ind : int
+            the index at which to remove the spectrum entries
+        """
         self["k"] = np.delete(self["k"], ind)
         for md in ["Ap", "dAp", "Am", "dAm"]:
             self[md] = np.delete(self[md], ind, axis=0)
@@ -296,37 +444,6 @@ class GaugeSpec(dict):
 
         return Fref
     
-    def integrate(self, BG : BGSystem, n : int=0, cutoff="kh", **IntegratorKwargs) -> NDArray:
-        """
-        Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
-
-        Parameters
-        ----------
-        spec : GaugeSpec
-            the spectrum to be integrated
-        n : int
-            the power in curls in the expectation value, i.e. (E rot^n E).
-        epsabs : float
-            absolute tolerance used by scipy.integrate.quad
-        epsrel : float
-            relative tolerance used by scipy.integrate.quad 
-
-        Returns
-        -------
-        NDArray
-            an array of shape (len(spec["t"]), 3) corresponding to (E, rot^n E), (B, rot^n B), (E, rot^n B)
-        """
-
-        self._add_cutoff(BG, cutoff)
-
-        tdim = self.get_dim()["tdim"]
-
-        FMbM = np.zeros((tdim, 3,2))
-        for i in range(tdim):
-            spec_slice = self.tslice(i)
-            FMbM[i,:] = spec_slice.integrate_slice(n=n, **IntegratorKwargs)
-        
-        return FMbM
     
     def _estimate_error(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
                          **IntegratorKwargs):
@@ -385,44 +502,8 @@ class GaugeSpec(dict):
             print(f"RMS: {rmserr}%")
         return
 
-    def estimate_GEF_error(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
-                                    errthr=0.025, binning=5, verbose : bool=True,
-                                    **IntegratorKwargs) -> Tuple[list, NDArray]:
-        """
-        Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds.
-
-        Parameters
-        ----------
-        spec : GaugeSpec
-            the spectrum against which to compare the GEF results.
-        epsabs : float
-            absolute tolerance used by scipy.integrate.quad
-        epsrel : float
-            relative tolerance used by scipy.integrate.quad 
-
-        Returns
-        -------
-        errs : list
-            a list of estimated errors, each index corresponding to E^2, B^2, E.B respectively
-        Nerr : NDArray
-            an array of e-fold-bins to which the errors in errs are associated.
-        """
-
-        og_errs = self._estimate_error(BG, references, cutoff, **IntegratorKwargs)
-        terr = self["t"]
-
-        if binning is not None:
-            errs, terr = self._bin_error(og_errs, binning)
-        else:
-            errs = og_errs
-        
-        errs, terr = self._process_error(errs, terr, errthr)
-
-        if verbose:
-            self._error_summary(errs, terr, references)
-
-        return errs, terr, og_errs
-    
+   
+# continue from here next time
 class GaugeSpecSlice(dict):
     def __init__(self, modedic):
         super().__init__(modedic)
@@ -444,7 +525,7 @@ class GaugeSpecSlice(dict):
         msk = np.where(abs(integrand) > 1e-1*max(epsrel*max(abs(integrand)), epsabs))[0]
         if len(msk) > 0:
             spl = interp(x, np.arcsinh(integrand))
-            f = lambda x: np.sinh(spl(x))*np.exp(x)
+            def f(x): return np.sinh(spl(x))*np.exp(x)
             val, err = quad(f, x[msk][0], 0., epsabs=epsabs, epsrel=epsrel)
             return np.array([val, err])
         else:

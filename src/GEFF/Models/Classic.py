@@ -2,7 +2,7 @@ import numpy as np
 
 from GEFF.DefaultQuantities import *
 from GEFF.GEFSolver import TerminalEvent, ErrorEvent
-from GEFF.ModeByMode import ModeSolver
+from GEFF.mode_by_mode import ModeSolver
 
 from GEFF.Models.EoMsANDFunctions.ClassicEoMs import *
 from GEFF.Models.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox

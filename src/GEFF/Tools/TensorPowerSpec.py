@@ -3,7 +3,7 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
 from scipy.integrate import solve_ivp, trapezoid
 
-from GEFF.ModeByMode import GaugeSpec
+from GEFF.mode_by_mode import GaugeSpec
 
 from typing import Tuple
 from numpy.typing import ArrayLike

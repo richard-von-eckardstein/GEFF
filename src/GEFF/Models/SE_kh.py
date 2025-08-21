@@ -2,7 +2,7 @@ import numpy as np
 
 from GEFF.DefaultQuantities import *
 from GEFF.GEFSolver import TerminalEvent, ErrorEvent
-from GEFF.ModeByMode import ModeSolver
+from GEFF.mode_by_mode import ModeSolver
 from GEFF.bgtypes import BGVal
 
 from GEFF.Models.EoMsANDFunctions.ClassicEoMs import EoMphi, Friedmann, EoMlnkh
