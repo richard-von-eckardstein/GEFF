@@ -403,11 +403,22 @@ class PowSpecT:
 
         #Alternatives for interpolating mode functions directly? Could be problematic as they are highly oscillatory
         #It may be better to directly interpolate the integrand...
-        Afuncx = self.interp(np.log(kgrid), A1)
-        dAfuncx = self.interp(np.log(kgrid), dA1)
         
-        Afuncy = self.interp(np.log(kgrid), A2)
-        dAfuncy = self.interp(np.log(kgrid), dA2)
+        Ax_real = self.interp(np.log(kgrid), A1.real)
+        Ax_imag = self.interp(np.log(kgrid), A1.imag)
+        dAx_real = self.interp(np.log(kgrid), dA1.real)
+        dAx_imag = self.interp(np.log(kgrid), dA1.imag)
+
+        Ay_real = self.interp(np.log(kgrid), A2.real)
+        Ay_imag = self.interp(np.log(kgrid), A2.imag)
+        dAy_real = self.interp(np.log(kgrid), dA2.real)
+        dAy_imag = self.interp(np.log(kgrid), dA2.imag)
+
+        Afuncx = lambda x: Ax_real(x) + 1j*Ax_imag(x)
+        dAfuncx = lambda x: dAx_real(x) + 1j*dAx_imag(x)
+        
+        Afuncy = lambda x: Ay_real(x) + 1j*Ay_imag(x)
+        dAfuncy = lambda x: dAy_real(x) + 1j*dAy_imag(x)
 
         IntOuter = []
         for logA in logAs:
