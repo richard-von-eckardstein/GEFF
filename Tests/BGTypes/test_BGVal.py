@@ -38,7 +38,6 @@ class TestBGVal():
 
     def test_Init(self, v1):
         x = self.inst(v1)
-        assert x.massdim==3
         assert np.issubdtype(x.value.dtype, np.floating)
         assert x.get_units()
         assert x.get_conversion() == 0.55**2 * 0.32

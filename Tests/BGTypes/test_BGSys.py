@@ -99,7 +99,7 @@ class TestBGSystem():
     def test_add_obj(self):
         U = self.init()
         U.add_BGVal("y", 0, 2)
-        U.add_BGFunc("g", [U.objects["y"]], 2, 0)
+        U.add_BGFunc("g", [U.quantities["y"]], 2, 0)
         names = U.quantity_names()
         assert "y" in names
         assert "g" in names
