@@ -7,9 +7,8 @@ from scipy.integrate import solve_ivp
 from scipy.integrate import quad, simpson
 
 from GEFF.bgtypes import Val, BGSystem
-from GEFF.Models.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
+from GEFF.utility.mbm_funcs import mode_equation_classic, bd_classic
 
-from numpy.typing import NDArray
 from typing import Tuple, Callable
 from types import NoneType
 
@@ -20,68 +19,54 @@ class GaugeSpec(dict):
     This class inherits from `dict` and needs the following keys:  
     't', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'
 
-    The spectrum can be evaluated at certain times or for certain wavenumbers by using `tslice` and `kslice`
+    The spectrum can be evaluated at certain times $t$ or for certain momenta $k$ by using `tslice` and `kslice`
     Furthermore, the spectrum contained in the object can be integrated to compute gauge-field expectation values.
-     The resulting values can be used to estimate the error of a GEF run.
+     The result can be used to estimate the error of a GEF run.
 
     Attributes
     ----------
     t : NDArray
         the cosmic time coordinates $t$ of the spectrum
     N : NDArray
-        the $e$-folds as a function of cosmic time $N(t)$
+        the $e$-folds as a function of cosmic time, $N(t)$
     k : NDarray
-        the wavenumbers $k$ at which the spectrum is known
+        the momenta $k$ at which the spectrum is evaluated
     Ap, Am : NDarray
-        the mode functions $\sqrt{2 k} A_\pm(k, t)$
+        the mode functions, $\sqrt{2 k} A_\pm(k, t)$
     dAp, dAm : NDarray
-        the mode-function derivatives $\sqrt{\frac{2}{k}} \, e^{N(t)}\frac{\partial A_\pm(k, t)}{\partial t}$
-
-    Example
-    -------
-    ```python
-    from mode_by_mode import GaugeSpec
-
-    #create the GaugeSpec instance from a data table
-    pathtofile = "/path/to/some/spectrum/file.dat"
-    spec = GaugeSpec.read_spec(pathtofile)
-
-    # to obtain the spectrum at spec["t"][100], use tslice:
-    slice = spec.tslice(100) #return the spectrum at spec["t"][100]
-    print(f"This is the spectrum of positive modes at time {slice['t']}:)
-    print(slice["Ap"]})
-    ```
+        the mode-function derivatives, $\sqrt{2/k} \, e^{N(t)}\dot{A}_\pm(k, t)$
     """
 
-    def __init__(self, modedic : dict):
+    def __init__(self, in_dict : dict):
         """
         Initialise the spectrum from a dictionary.
 
         Parameters
         ----------
-        modedic : dict
-            A `dict` with keys 't', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'
+        in_dict : dict
+            dictionary with keys 't', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'
 
         Raises
         ------
         KeyError
-            if a necessary key is missing
+            if a key in {'t', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'} is missing.
         ValueError
-            if the lengths of 't' and 'N' are not the same OR the shape of 'Ap', 'dAp', 'Am', 'dAm' are not `(len(k), len(t))`
+            if `len(in_dict['t'])` does not match `len(in_dict['N'])` or if
+            `in_dict['X']).shape` does not match `(len(in_dict['k']),len(in_dict['t']))` for 'X' in {'Ap', 'dAp', 'Am', 'dAm'}.
         """
         for key in ["t", "N", "k", "Ap", "dAp", "Am", "dAm"]:
-            if key not in modedic.keys():
+            if key not in in_dict.keys():
                 raise KeyError(f"Missing key: {key}")
             
-        if not(len(modedic["t"]) == len(modedic["N"])):
+        if not(len(in_dict["t"]) == len(in_dict["N"])):
             raise ValueError("The length of 't' needs to match the length of 'N'")
         
-        shape = (len(modedic["k"]), len(modedic["t"]))
+        shape = (len(in_dict["k"]), len(in_dict["t"]))
         for key in ["Ap", "dAp", "Am", "dAm"]:
-            if not( modedic[key].shape == shape):
+            if not( in_dict[key].shape == shape):
                 raise ValueError(f"The shape of {key} needs to be {shape}") 
         
-        super().__init__(modedic)
+        super().__init__(in_dict)
 
     @classmethod
     def read_spec(cls, path : str):
@@ -118,7 +103,7 @@ class GaugeSpec(dict):
         
         return spec
     
-    def save_spec(self, path : str, thinning = 5):
+    def save_spec(self, path : str):
         """
         Store the spectrum in a file.
 
@@ -127,6 +112,7 @@ class GaugeSpec(dict):
         path : str
             path to the data 
         """
+        thinning = 1
         N = np.array([np.nan]+list(self["N"][-1::-thinning][::-1]))
         t = np.array([np.nan]+list(self["t"][-1::-thinning][::-1]))
 
@@ -151,19 +137,18 @@ class GaugeSpec(dict):
 
     def get_dim(self) -> dict:
         """
-        Get the number of times and wavenumbers stored in the spectrum
+        Get the number of time coordinates and momenta stored in the spectrum.
 
         Returns
         -------
         dict
-            a dictionary encoding the number of modes 
-            and the number of times stored in the spectrum
+            a dictionary encoding the spectrum's shape
         """
         return {"kdim":len(self["k"]), "tdim":len(self["t"])}
     
     def tslice(self, ind : int) -> dict:
         """
-        Evaluate the spectrum at time `self['t'][ind]`
+        Evaluate the spectrum at time `self['t'][ind]`.
 
         Parameters
         ----------
@@ -172,8 +157,8 @@ class GaugeSpec(dict):
 
         Returns
         -------
-        specslice : GaugeSpecSlice
-            The spectrum at time `self['t'][ind]`
+        spec_slice : SpecSlice
+            the spectrum at time `self['t'][ind]`
         """
 
         spec_slice = {}
@@ -184,20 +169,20 @@ class GaugeSpec(dict):
                 spec_slice[key] = self[key]
             else:
                 spec_slice[key] = self[key][:,ind]
-        return GaugeSpecSlice(spec_slice)
+        return SpecSlice(spec_slice)
     
     def kslice(self, ind : int) -> dict:
         """
-        Obtain the time evolution for the wavenumber `self['k'][ind]`
+        Obtain the time evolution for the momentum `self['k'][ind]`.
 
         Parameters
         ----------
-        ind : Int
-            the wavenumber index.
+        ind : int
+            the momentum index.
 
         Returns
         -------
-        dict
+        spec_slice : dict
             a dictionary with keys like `self`  
         """
 
@@ -211,32 +196,35 @@ class GaugeSpec(dict):
                 spec_slice[key] = self[key][ind,:]
         return spec_slice
     
-    def integrate(self, BG : BGSystem, n : int=0, cutoff="kh", **IntegratorKwargs) -> NDArray:
+    def integrate(self, BG : BGSystem, n : int=0, cutoff="kh", **IntegratorKwargs) -> np.ndarray:
         r"""
         Compute the three integrals
 
-        $$ \mathcal{F}_\mathcal{E}^{(n)}(t) = \int\limits_{0}^{k_{\mathrm{h}}(t)}\frac{\mathrm{d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{\mathrm{h}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2,$$
-        $$ \mathcal{F}_\mathcal{G}^{(n)}(t) = \int\limits_{0}^{k_{\mathrm{h}}(t)}\frac{a k^{n+4}}{2 \pi^2 k_{\mathrm{h}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)]$$
-        $$ \mathcal{F}_\mathcal{B}^{(n)}(t) = \int\limits_{0}^{k_{\mathrm{h}}(t)}\frac{\mathrm{d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{\mathrm{h}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2$$
+        $$ \mathcal{F}_\mathcal{E}^{(n)}(t) = \int\limits_{0}^{k_{{\rm h}}(t)}\frac{{\rm d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{{\rm h}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2\,,$$
+        $$ \mathcal{F}_\mathcal{G}^{(n)}(t) = \int\limits_{0}^{k_{{\rm h}}(t)}\frac{a k^{n+4}}{2 \pi^2 k_{{\rm h}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)]\,,$$
+        $$ \mathcal{F}_\mathcal{B}^{(n)}(t) = \int\limits_{0}^{k_{{\rm h}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm h}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2\,,$$
 
-        at each time coordinate in the spectrum.
+        for a given $n$ and each time coordinate $t$ in the spectrum.
+
+        If the time coordinates stored in `BG` do not match those stored in the spectrum, $k_{\rm h}(t)$ is evaluated using interpolation.
 
         Parameters
         ----------
         BG : BGSystem
-            a system encoding the UV cut-off, $k_{\rm h}$
+            a system containing the UV cut-off, $k_{\rm h}(t)$
         n : int
             the integer $n$ in $\mathcal{F}_\mathcal{X}^{(n)}(t)$ for $\mathcal{X} = \mathcal{E}, \mathcal{B},\mathcal{G}$
         cutoff : str
             the name under which the UV-cutoff is stored in `BG`
         **IntegratorKwargs :  kwargs
-            settings used by `GaugeSpecSlice.integrate_slice`
+            passed to `SpecSlice.integrate_slice`
         
 
         Returns
         -------
-        NDArray
-            encodes $\mathcal{F}_\mathcal{E}^{(n)}(t)$, $\mathcal{F}_\mathcal{G}^{(n)}(t)$ and $\mathcal{F}_\mathcal{B}^{(n)}(t)$ with shape `(len(self["t"]), 3)`
+        FMbM : NDArray
+            $\mathcal{F}_\mathcal{E}^{(n)}(t)$, $\mathcal{F}_\mathcal{B}^{(n)}(t)$, $\mathcal{F}_\mathcal{B}^{(n)}(t)$ stored in a shape (N, 3, 2).
+            The first index corresponds to time $t$, the second index to $\mathcal{X}$, the third index is the integral result (at 0) and its error (at 1).
         """
 
         self._add_cutoff(BG, cutoff)
@@ -251,42 +239,52 @@ class GaugeSpec(dict):
         return FMbM
     
     def estimate_GEF_error(self, BG : BGSystem, references : list[str]=["E", "B", "G"], cutoff : str="kh",
-                                    errthr : float=0.025, binning : int|NoneType=5, verbose : bool=True,
-                                    **IntegratorKwargs) -> Tuple[list, NDArray, list]:
+                                    err_thr : float=0.025, binning : int|NoneType=5, verbose : bool=True,
+                                    **IntegratorKwargs) -> Tuple[list, np.ndarray, list]:
         r"""
-        Estimate the relative deviation between a GEF solution and the mode spectrum by comparing
+        Estimate the relative deviation between a GEF solution and the mode spectrum by computing
 
-        $$ \mathcal{F}_\mathcal{E}^{(0)}(t) = \int\limits_{0}^{k_{\mathrm{h}}(t)}\frac{\mathrm{d} k}{k} \frac{a^2 k^{3}}{2 \pi^2 k_{\mathrm{h}}^{4}}  \sum_{\lambda}|\dot{A}_\lambda(t,k)|^2,$$
-        $$ \mathcal{F}_\mathcal{G}^{(0)}(t) = \int\limits_{0}^{k_{\mathrm{h}}(t)}\frac{a k^{4}}{2 \pi^2 k_{\mathrm{h}}^{4}}\sum_{\lambda}\lambda \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)]$$
-        $$ \mathcal{F}_\mathcal{B}^{(0)}(t) = \int\limits_{0}^{k_{\mathrm{h}}(t)}\frac{\mathrm{d} k}{k} \frac{k^{5}}{2 \pi^{2}k_{\mathrm{h}}^{4}} \sum_{\lambda}|A_\lambda(t,k)|^2$$
+        $$\varepsilon_\mathcal{X} = \left|1 - \frac{\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm MbM}}{\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}}\right|$$
 
-        The function internally calls `integrate` to compute these integrals. 
+        for $\mathcal{X} = \mathcal{E},\,\mathcal{B},\,\mathcal{G}$. Here, $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm MbM}$ are the integrals computed by `integrate`, $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ refer
+          to the same quantity stored in `BG`.
+        If the time coordinate of `BG` does not align with the spectrum, its values are interpolated.
+
+        Because $k_{\rm h}(t)$ increases monotonically, the spectrum contains only few relevant modes $k < k_{\rm h}(t)$ at early times.
+        This poses a problem for the numerical integration of $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm MbM}$.
+        To avoid claiming a disagreement between $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm MbM}$ and $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ due to this effect,
+        errors with $\varepsilon_\mathcal{X} > \varepsilon_{\rm thr}$ are discarded until the first time when $\varepsilon_\mathcal{X} < \varepsilon_{\rm thr}$.
+
+        As the integration result fluctuates significantly for few momenta $k < k_{\rm h}(t)$ when using `simpson`,
+        the errors can be binned by setting `binning`. The reported error is the average over a bin of width $(t_{i}, t_{i+\Delta})$ with $\Delta$ set by `binning`.
+        This binned error is then associated to the time $(t_{i} + t_{i+\Delta})/2$. For `quad`, `binning` can also be set to `None`.
+        For details on the integration methods `simpson` and `quad`, see `SpecSlice.integrate_slice`.
 
         Parameters
         ----------
         BG : BGSystem
-            the system for which to compare $\mathcal{F}_\mathcal{E}^{(0)}$, $\mathcal{F}_\mathcal{G}^{(0)}$ and $\mathcal{F}_\mathcal{B}^{(0)}$
+            the system where $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ is stored
         references : list of str
-            the names under which $\mathcal{F}_\mathcal{E}^{(0)}$, $\mathcal{F}_\mathcal{G}^{(0)}$ and $\mathcal{F}_\mathcal{B}^{(0)}$ are found in `BG`
+            the names where $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ are stored in `BG`
         cutoff : str
-            the name under which the UV-cutoff, $k_{\rm h}$, is stored in `BG`
-        errthr : float
-            errors at early times are discarded if the error is below `errthr` as there are too few modes $k < k_{\rm h}$ to trust the integration.
+            the name where the UV-cutoff, $k_{\rm h}$, is stored in `BG`
+        err_thr : float
+            the error threshold $\varepsilon_{\rm thr}$
         binning : int or None
-            to mitigate the impact of numerical fluctuations, bin the errors in bins $(t_{i}, t_{i+m})$ with $m$ set by`binning`. If `binning` is `None`, the errors are not binned.
+            the bin size $\Delta$ (no binning if `None`)
         verbose : bool
             if `True`, print a summary of the errors
         **IntegratorKwargs :  kwargs
-            settings used by `GaugeSpecSlice.integrate_slice`
+            passed to `SpecSlice.integrate_slice`
 
         Returns
         -------
-        errs : list
-            a list of binned errors. The list entries correspond to $\mathcal{F}_\mathcal{E}^{(0)}$, $\mathcal{F}_\mathcal{B}^{(0)}$ and $\mathcal{F}_\mathcal{G}^{(0)}$
+        errs : list of NDArray
+            a list of the binned errors with entries $[\varepsilon_\mathcal{E},\varepsilon_\mathcal{B}, \varepsilon_\mathcal{G}]$
         terr : NDArray
-            the time coordinates for the errors in `errs` given by $\frac{t_{i} + t_{i+m}}{2}$ if the error is binned. Otherwise, it is the same as `self['t']`.
-        og_errs : list
-            the same as `errs` but without binning.
+            the time coordinates corresponding to `errs`
+        og_errs : list of NDArray
+            the same as `errs` but without binning
         """
 
         og_errs = self._estimate_error(BG, references, cutoff, **IntegratorKwargs)
@@ -297,16 +295,16 @@ class GaugeSpec(dict):
         else:
             errs = og_errs
         
-        errs, terr = self._process_error(errs, terr, errthr)
+        errs, terr = self._process_error(errs, terr, err_thr)
 
         if verbose:
             self._error_summary(errs, terr, references)
 
         return errs, terr, og_errs
     
-    def merge_spectra(self, spec):
+    def merge_spectra(self, spec : 'GaugeSpec'):
         """
-        Combine two spectra with the same wavenumbers $k$ but unequal times $t$
+        Combine two spectra with the same momenta $k$ but unequal times $t$.
 
         Parameters
         ----------
@@ -316,7 +314,7 @@ class GaugeSpec(dict):
         Raises
         ------
         AssertionError
-            if the wavenumbers $k$ do not match up.
+            if the momenta $k$ do not match up.
         
         """
         assert (spec["k"] == self["k"]).all()
@@ -334,9 +332,9 @@ class GaugeSpec(dict):
                     self[key] = np.concatenate([self[key][:,:ind], spec[key]], axis=1)
         return
     
-    def add_momenta(self, spec):
+    def add_momenta(self, spec : 'GaugeSpec'):
         """
-        Combine two spectra with the same times $t$ but unequal wavenumbers $k$
+        Combine two spectra with the same times $t$ but unequal momenta $k$.
 
         Parameters
         ----------
@@ -384,12 +382,12 @@ class GaugeSpec(dict):
     
     def remove_momenta(self, ind):
         """
-        Remove the spectrum at wavenumber `self["k"][ind]`
+        Remove the spectrum at momentum `self["k"][ind]`.
 
         Parameters
         ----------
         ind : int
-            the index at which to remove the spectrum entries
+            the index at which to remove the spectrum entry
         """
         self["k"] = np.delete(self["k"], ind)
         for md in ["Ap", "dAp", "Am", "dAm"]:
@@ -458,11 +456,11 @@ class GaugeSpec(dict):
 
         return errs
     
-    def _process_error(self, errs, terr, errthr):
+    def _process_error(self, errs, terr, err_thr):
         removals = []
         for err in errs:
             #remove the first few errors where the density of modes is low:
-            removals.append(np.where(err < errthr)[0][0])
+            removals.append(np.where(err < err_thr)[0][0])
         #ind = 0
         ind = max(removals)
         errs = [err[ind:] for err in errs]
@@ -504,56 +502,69 @@ class GaugeSpec(dict):
 
    
 # continue from here next time
-class GaugeSpecSlice(dict):
-    def __init__(self, modedic):
-        super().__init__(modedic)
+class SpecSlice(dict):
+    r"""
+    A class representing a spectrum of gauge-field modes at a time $t$.
 
-    def _Espec(self, lam):
-        return abs(self["dA"+lam])**2
-    
-    def _Bspec(self, lam):
-        return abs(self["A"+lam])**2
-    
-    def _Gspec(self, lam):
-        return (self["A"+lam].conjugate()*self["dA"+lam]).real
-    
-    def _simpson_integrate(self, integrand, x):
-        integrand = integrand*np.exp(x)
-        return simpson(integrand, x)
+    Instances of this class are created by `GaugeSpec.tslice`. The main purpose of this class is to integrate the spectrum at time $t$ using `integrate_slice`.
 
-    def _quad_integrate(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4, interp=PchipInterpolator):
-        msk = np.where(abs(integrand) > 1e-1*max(epsrel*max(abs(integrand)), epsabs))[0]
-        if len(msk) > 0:
-            spl = interp(x, np.arcsinh(integrand))
-            def f(x): return np.sinh(spl(x))*np.exp(x)
-            val, err = quad(f, x[msk][0], 0., epsabs=epsabs, epsrel=epsrel)
-            return np.array([val, err])
-        else:
-            return np.nan*np.ones((2))
-        
-        
-    def integrate_slice(self, n : int=0, epsabs : float=1e-20, epsrel : float=1e-4, interp=PchipInterpolator,
-                            method="simpson", modethr=100) -> Tuple[NDArray, NDArray]:
-        """
-        Integrate an input spectrum at a fixed time t to obtain (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
+    Attributes
+    ----------
+    t : NDArray
+        the cosmic time coordinates $t$ of the spectrum
+    N : NDArray
+        the $e$-folds as a function of cosmic time, $N(t)$
+    k : NDarray
+        the momenta $k$ at which the spectrum is evaluated
+    Ap, Am : NDarray
+        the mode functions, $\sqrt{2 k} A_\pm(k, t)$
+    dAp, dAm : NDarray
+        the mode-function derivatives, $\sqrt{2/k} \, e^{N(t)}\dot{A}_\pm(k, t)$
+    """
+
+    def __init__(self, in_dict):
+        super().__init__(in_dict)
+
+    def integrate_slice(self, n : int=0, method="simpson", modethr : int=100, epsabs : float=1e-20, epsrel : float=1e-4, interpolator=PchipInterpolator) -> Tuple[np.ndarray, np.ndarray]:
+        r"""
+        Compute the three integrals
+
+        $$ \mathcal{F}_\mathcal{E}^{(n)}(t) = \int\limits_{0}^{k_{{\rm h}}(t)}\frac{{\rm d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{{\rm h}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2,$$
+        $$ \mathcal{F}_\mathcal{G}^{(n)}(t) = \int\limits_{0}^{k_{{\rm h}}(t)}\frac{a k^{n+4}}{2 \pi^2 k_{{\rm h}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)]$$
+        $$ \mathcal{F}_\mathcal{B}^{(n)}(t) = \int\limits_{0}^{k_{{\rm h}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm h}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2$$
+
+        for a fixed time $t$ and index $n$.
+
+        The integrals can either be computed directly using `simpson` or `quad` from `scipy.interpolate`. When using `quad` the data for $\sqrt{2 k} A_\pm(k, t)$, $\sqrt{2/k} \, e^{N(t)}\dot{A}_\pm(k, t)$
+          are interpolated to obtain smooth functions. To avoid this, it is recommended to use `simpson`.
+
+        When using `simpson`, the integral is only computed if $m > m_{\rm thr}$ momenta $k_i$ satisfy $k < k_{\rm h}$. Otherwise, the integral is set to zero.
+
+        When using `quad`, the absolute and relative tolerances of the integrator are set by `epsabs` and `epsrel`. The interpolation method is defined by `interpolator`.
+        Currently, only `CubicSpline` and `PchipInterpolator` from `scipy.interpolate` are supported. The later is preferred as interpolating the oscillatory mode functions can be subject to "overshooting".
+        See [scipy's tutorial for 1-D interpolation](https://docs.scipy.org/doc/scipy/tutorial/interpolate/1D.html#tutorial-interpolate-1dsection) for more details.
 
         Parameters
         ----------
-        specAtT : dict
-            the spectrum at time t, obtained by GaugeSpec.tslice
-            n : int
-            the power in curls in the expectation value, i.e. E rot^n E etc.
+        n : int
+            the integer $n$ in $\mathcal{F}_\mathcal{X}^{(n)}(t)$ for $\mathcal{X} = \mathcal{E}, \mathcal{B},\mathcal{G}$
+        method : str
+            set the integration method to `simpson` or `quad`
+        modethr : int
+            set $m_{\rm thr}$ when using `simpson`
         epsabs : float
-            absolute tolerance used by scipy.integrate.quad
+            the absolute tolerance of `quad`
         epsrel : float
-            relative tolerance used by scipy.integrate.quad 
+            the relative tolerance of `quad`  
+        interpolator
+            the interpolator used to get smooth functions for `quad`
+        
 
         Returns
         -------
-        vals : NDArray
-            an array of size 3 corresponding to (E, rot^n E), (B, rot^n B), (E, rot^n B)
-        errs : NDArray
-            the error on vals as estimated by scipy.integrate.quad
+        FMbM : NDArray
+            contains [$\mathcal{F}_\mathcal{E}^{(n)}(t)$, $\mathcal{F}_\mathcal{B}^{(n)}(t)$, $\mathcal{F}_\mathcal{B}^{(n)}(t)$] and the error estimated by `quad`.
+             When using `simpson` the error is a dummy output. The shape of the result is (3, 2) with the second index indicating the integral (at 0), or the error (at 1).
         """
         x = (n+4)*np.log(self["k"]/self["cut"])
 
@@ -578,149 +589,138 @@ class GaugeSpecSlice(dict):
                 res[i,1] = 1e-6*res[i,0]
 
             elif method=="quad":
-                resp = self._quad_integrate( integs[i,0,:], x, epsabs, epsrel, interp)
-                resm = self._quad_integrate( (-1)**n*integs[i,1,:], x, epsabs, epsrel, interp)
+                resp = self._quad_integrate( integs[i,0,:], x, epsabs, epsrel, interpolator)
+                resm = self._quad_integrate( (-1)**n*integs[i,1,:], x, epsabs, epsrel, interpolator)
                 res[i,:] = resp +resm
             
         res = 1/(2*np.pi)**2*res/(n+4)
 
         res[:,1] = abs(res[:,1]/res[:,0])
         return res
+
+    def _Espec(self, lam):
+        return abs(self["dA"+lam])**2
     
+    def _Bspec(self, lam):
+        return abs(self["A"+lam])**2
     
-def ModeSolver(ModeEq : Callable, EoMkeys : list, BDEq : Callable, Initkeys : list, default_atol : float=1e-3):
-    """
-    Class-factory creating a custom ModeSolver-class with new mode equations and initial conditions adapted to a modified version of the GEF.
-
-    Parameters
-    ----------
-    ModeEq : function
-        a new mode equation called as ModeEq(t, y, **kwargs)
-    EoMKeys : list of str
-        a list of parameter names passed to the mode equation.
-        These names must match the kwargs of ModeEq.
-    BDEQ : function
-        a function that initialises modes in Bunch-Davies. The signature must be BDInitEQ(t, k, **kwargs)
-    Initkeys : list of str
-        a list of parameter names passed to the Bunch-Davies initialiser
-        These names must match the kwargs of BDEq.
-    default_atol : float
-        the default absolute tolerance used by the ModeByMode class
-
-    Returns
-    -------
-    class
-        a modified ModeByMode class adapted to a modified GEF-model.
-
-    Examples
-    --------
-    >>> def new_mode_eq(t, y, k, a, b, c):
-    ...     # Define your new mode equation here
-    ...     dydt = np.ones_like(y)
-    ...     dydt[0] = ...
-    ...     ...
-    ...     return dydt
-    ...
-    >>> def new_bd_init(t, k, alpha, beta):
-    ...     # Define your new Bunch-Davies initial conditions here
-    ...     return [1, 0, 0, -1, 1, 0, 0, -1]
-    ...
-    >>> EoMkeys = ["a", "b", "c"]
-    >>> Initkeys = ["alpha", "beta"]
-    >>> CustomModeSolver = ModeSolver(new_mode_eq, EoMkeys, new_bd_init, Initkeys, default_atol=1e-4)
-    >>> solver = CustomModeSolver(values)
-    """
+    def _Gspec(self, lam):
+        return (self["A"+lam].conjugate()*self["dA"+lam]).real
     
-    class ModeSolver(BaseModeSolver):
-        """
-        A custom ModeSolver class with new mode equations and initial conditions adapted to a modified version of the GEF
-        It Inherits all methods from 'BaseModeSolver' but changes the following class attributes
-            - ModeEoM
-            - EoMKwargs
-            - BDInit
-            - InitKwargs
-            - default-atol
-        This entails that 'compute_spectrum' will now evolve modes according to BDInit and ModeEom.
+    def _simpson_integrate(self, integrand, x):
+        integrand = integrand*np.exp(x)
+        return simpson(integrand, x)
 
-        Methods
-        -------
-        compute_spectrum()
-            Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
-        integrate()
-            Integrate an input spectrum to determine the expectation values of (E, rot^n E), (B, rot^n B), (E, rot^n B), rescaled by (kh/a)^(n+4)
-        estimate_GEF_error()
-            Estimate the relative deviation in E^2, B^2, E.B between a GEF solution and a mode-spetrum as a function of e-folds
-
-        Example
-        -------
-        >>> M = ModeSolver(G) #initialise the class by a BGSystem or GEF instance
-        ... 
-        >>> spec = M.compute_spectrum(500) #compute a gauge-field spectrum of 500 modes from G
-        """
-        
-        #Overwrite class attibutes of ModeByMode with new mode equations, boundary conditions and default tolerances.
-        ModeEoM = staticmethod(ModeEq)
-        EoMKwargs = dict(zip(EoMkeys, [None for x in EoMkeys]))
-
-        BDInit = staticmethod(BDEq)
-        InitKwargs = dict(zip(Initkeys, [None for x in Initkeys]))
-
-        atol=default_atol
-    
-    return ModeSolver
-
+    def _quad_integrate(self, integrand, x, epsabs : float=1e-20, epsrel : float=1e-4, interpolator=PchipInterpolator):
+        msk = np.where(abs(integrand) > 1e-1*max(epsrel*max(abs(integrand)), epsabs))[0]
+        if len(msk) > 0:
+            spl = interpolator(x, np.arcsinh(integrand))
+            def f(x): return np.sinh(spl(x))*np.exp(x)
+            val, err = quad(f, x[msk][0], 0., epsabs=epsabs, epsrel=epsrel)
+            return np.array([val, err])
+        else:
+            return np.nan*np.ones((2))
 
 class BaseModeSolver:
+    r"""
+    A class used to compute gauge-field modes evolving on a time-dependent background.
+
+    This class is used to evolve the gauge-field modes $A_\pm(t,k)$ and their derivatives in time by using the
+    evolution of the time-dependent background obtained from a GEF solution.
+    
+    The evolution is determined by an ODE for the four (complex) variables 
+
+    $$\sqrt{2k} A_\lambda(t,k), \quad a(t) \sqrt{\frac{2}{k}}\dot{A}_\lambda(k, t), \quad \lambda = \pm 1$$
+
+    in terms of their real and imaginary parts. By default, the evolution equation is
+
+    $$ \ddot{A}_\lambda(t,k) + H \dot{A}_\lambda(t,k) +  \left[ \left(\frac{k}{a}\right)^2  - 2\lambda \left(\frac{k}{a}\right) \xi H\right] A_\lambda(t,k) = 0$$
+    
+    with the evolution for $H(t)$, $a(t)$, $\xi(t)$ obtained from the GEF solution.
+
+    The modes are initialized deep inside the Bunch&ndash;Davies vacuum
+
+    $$ \sqrt{2k} A_\lambda(t,k) \sim e^{-i \eta k}, \quad  a(t) \sqrt{\frac{2}{k}}\dot{A}_\lambda(k, t) \sim -i e^{-i \eta k}, \quad -k\eta \ll 1 $$ 
+     
+    at a time implicitly defined by the condition $k = 10^{5/2} k_{\rm UV}(t_{\rm ini})$, with the default $k_{\rm UV}(t) = k_{\rm h}(t)$ obtained from the GEF solution.
+    At times $t < t_{\rm ini}$ the mode is assumed to be in Bunch&ndash;Davies. The phase $ e^{-i \eta k}$ is computed separately.
+
+    The mode equations are solved with an explicit Runge&ndash;Kutta of order 5(4), which is implemented in `scipy.integrate.solve_ivp`.
+
+    For creating a custom subclass of `BaseModeSolver` with user-specified  mode equation and initial conditions, you can use the class factory `ModeSolver`.
+    
+    Attributes
+    ----------
+    ode_kwargs : dict
+        stores the time-dependent background parameters used by `mode_equation` (default keys: 'a', 'H' and 'xi')
+    bd_kwargs : dict
+        stores the time-dependent background parameters used by `initialise_in_bd` (default: empty)
+    cutoff : dict
+        the name of $k_{\rm UV}(t)$ in the GEF solution (default: 'kh')
+    necessary_keys : set of str
+        necessary keys expected as names of `GEFF.bgtypes.Val` instances belonging to the `GEFF.bgtypes.BGSystem` passed when initialising the class
+        (default keys: 't', 'N', 'H', 'xi', 'a')
+    atol : float
+        the default absolute tolerance for `scipy.integrate.solve_ivp`
     """
-    A class used to solve the gauge-field mode equations for standard axion inflation based on a solution to the GEF equations.
 
-    Methods
-    -------
-    compute_spectrum()
-        Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
-
-    Example
-    -------
-    >>> M = ModeByMode(G) #initialise the class by a BGSystem or GEF instance
-    ... 
-    >>> spec = M.compute_spectrum(500) #compute a gauge-field spectrum of 500 modes from G
-    >>> errs, Nerr = M.estimate_GEF_error(spec) #asses the agreement between G and spec
-    """
-
-    #Rename!
-    ModeEoM = staticmethod(ModeEoMClassic)
-    EoMKwargs = {"a":None, "H":None, "xi":None}
-    BDInit = staticmethod(BDClassic)
-    InitKwargs = {}
+    ode_kwargs = {"a":None, "H":None, "xi":None}
+    bd_kwargs = {}
+    cutoff = "kh"
     atol=1e-3
 
-    def __init__(self, values : BGSystem):
-        #Ensure that all values from the GEF are imported without units
-        values.set_units(False)
+    mode_equation = staticmethod(mode_equation_classic)
+    initialise_in_bd = staticmethod(bd_classic)
 
-        #store the time values of the GEF
-        self.__t = values.t.value
-        self.__N = values.N.value
-        kh = values.kh
-        a = values.a
+    necessary_keys = set(["t", "N"] + list(ode_kwargs.keys()) + list(bd_kwargs.keys()) + [cutoff])
+
+    def __init__(self, sys : BGSystem):
+        """
+        Import the evolution of the background dynamics to configure the solver.
+
+        All values in the BGSystem are treated in numerical units.
+
+        Parameters
+        ----------
+        sys : BGSystem
+            describes the background evolution
+        
+        Raises
+        ------
+        KeyError:
+            if `sys` is missing a `Val` object from `necessary_keys`
+        """
+        #Check that all necessary keys are there:
+        for key in self.necessary_keys:
+            try:
+                assert key in sys.value_names()
+            except AssertionError:
+                KeyError(f"'sys' needs to own an attribute called '{key}'.")
+        
+        #Ensure that all values from the BGSystem are imported without units
+        sys.set_units(False)
+
+        #store the relevant background evolution parameters
+        self.__t = sys.t.value
+        self.__N = sys.N.value
+        kh = getattr(sys, self.cutoff)
+        a = np.exp(self.__N)
 
         self.__khf = CubicSpline(self.__t, kh)
 
-        #import the keys 
-        for key in self.EoMKwargs.keys(): 
-            val = getattr(values, key)
+        #import the values for the mode equation and interpolate
+        for key in self.ode_kwargs.keys(): 
+            val = getattr(sys, key)
             if isinstance(val, Val):
-                self.EoMKwargs[key] = CubicSpline(self.__t, val)
+                self.ode_kwargs[key] = CubicSpline(self.__t, val)
         
-        for key in self.InitKwargs.keys(): 
-            val = getattr(values, key)
+        #import the values for the mode equation and interpolate
+        for key in self.bd_kwargs.keys(): 
+            val = getattr(sys, key)
             if isinstance(val, Val):
-                self.InitKwargs[key] = CubicSpline(self.__t, val)
-
-        for key in ["E", "B", "G"]:
-            func = CubicSpline(self.__N, (a/kh)**4 * getattr(values, key))
-            setattr(self, f"__{key}f", func)
+                self.bd_kwargs[key] = CubicSpline(self.__t, val)
         
+        #compute the evolution of conformal time for the phases
         self.__af = CubicSpline(self.__t, a)
         def deta(t, y): return 1/self.__af(t)
         
@@ -728,48 +728,39 @@ class BaseModeSolver:
 
         self.__eta = soleta.y[0,:]
 
-        #Nend = G.EndOfInflation()
-
-        maxN = max(self.__N)#min(max(self.__N), Nend)
-        
-        #Define suitable range of wavenumbers which can be considered given the background dynamics. mink might still change
-        self.maxk = CubicSpline(self.__N, 10*kh)(maxN)
-        self.mink = 10**4*kh[0]
-
-        #find lowest t value corresponding to kh(t) = 10*mink
-        self.__tmin = self.__t[np.where(kh >= self.mink)][0]
+        #find lowest t value corresponding to kh(t) = 10^4 kh(0)
+        self.__tmin = self.__t[np.where(kh >= 10**4*kh[0])][0]
         
         return
     
-    def compute_spectrum(self, nvals : int, t_interval=None, **SolverKwargs) -> GaugeSpec:
-        """
-        Compute a gauge-field spectrum by evolving each mode in time starting from Bunch-Davies initial conditions
+    def compute_spectrum(self, nvals : int, t_interval : tuple|NoneType=None, **SolverKwargs) -> GaugeSpec:
+        r"""
+        Evolve a gauge-field spectrum from Bunch-Davies initial conditions.
+
+        Evolve the mode functions $A_\lambda(t,k)$ and its derivative in time for $n$ modes between $k_{\rm UV}(t_{\rm min})$ and $k_{\rm UV}(t_{\rm max})$.
+        The $n$ evolved modes are more densly spaced when $\log k_{\rm UV}(t)$ increases more slowly to ensure a higher density of modes
+        crossing the horizon when backreaction effects are relevant.
 
         Parameters
         ----------
         nvals : int
-           The number of modes between self.mink and self.maxk at which to compute the spectrum
-        Nstep : float
-            the spectrum is stored at times evenly spaced in e-folds with spacing Nstep
-        teval : list of float
-            physical time points at which the mode function A(t,k,+/-) and its derivatives will be returned
-            if teval=[], the mode functions are evaluated at self.__t
-        atol : float or None
-            the absolute precision of the numerical intergrator, if not specified, will use self.atol
-        rtol : float
-            the relative precision of the numerical integrator.
+           The number of modes $n$
+        t_interval : tuple or None
+            set $t_{\rm min}$ and $t_{\rm max}$. If None, $t_{\rm min}$ is given by $10^4 k_{\rm UV}(t_{min}) = k_{\rm UV}(0)$ and $t_{\rm max} = \max t$.
+        **SolverKwargs : kwargs
+            tolerance parameters`atol` and `rtol` passed to `solve_ivp` (default: `atol=self.atol`, `rtol=1e-5`)
 
         Returns
         -------
-        GaugeSpec 
+        spec : GaugeSpec 
             the gauge-field spectrum
         """
 
         if t_interval is None:
             t_interval = (self.__tmin, max(self.__t))
-        ks, tstart = self._find_tinit_BD(self._create_k_array(nvals, t_interval), mode="k")
+        ks, tstart = self._find_tinit_bd(self._create_k_array(nvals, t_interval), mode="k")
 
-        modes = np.array([self._evolve_from_BD(k, tstart[i], **SolverKwargs)
+        modes = np.array([self._evolve_from_bd(k, tstart[i], **SolverKwargs)
                   for i, k in enumerate(ks)])
         
         spec = GaugeSpec({"t":self.__t, "N":self.__N, "k":ks,
@@ -777,7 +768,27 @@ class BaseModeSolver:
 
         return spec
     
-    def update_spectrum(self, spec : GaugeSpec, tstart, **SolverKwargs) -> GaugeSpec:
+    def update_spectrum(self, spec : GaugeSpec, tstart : float, **SolverKwargs) -> GaugeSpec:
+        r"""
+        Update an existing gauge-field spectrum starting from $t_{\rm start}$
+
+        Starting from the modes stored in `GaugeSpec`, the function re-evaluates the evolution starting from $t_{\rm start}$.
+        Additional gauge-field modes are evolved starting from Bunch&ndash;Davies to account for new modes crossing the horizon at times beyond the original range covered by the input spectrum.
+
+        Parameters
+        ----------
+        spec : GaugeSpec
+           the spectrum which is to be updated
+        tstart : float
+            the starting time $t_{\rm start}$
+        **SolverKwargs : kwargs
+            as in `compute_spectrum`
+
+        Returns
+        -------
+        spec : GaugeSpec 
+            the updated gauge-field spectrum
+        """
         
         indstart = np.where(tstart <= self.__t)[0][0]
         teval = self.__t[indstart:]
@@ -800,14 +811,14 @@ class BaseModeSolver:
         n_newmodes = int(len(new)*max((teval[-1] - teval[0])/(max(spec["t"]) - tstart), 1))
 
         #Update evolution of modes in spec:
-        kold, tvac = self._find_tinit_BD(spec["k"][old], mode="k")
+        kold, tvac = self._find_tinit_bd(spec["k"][old], mode="k")
 
         updatespec={"t":teval, "N":Neval, "k":kold}
 
         modes = []
         for i, k in enumerate(kold):
             if tvac[i] > teval[0]:
-                modes.append( self._evolve_from_BD(k, tvac[i], **SolverKwargs) )
+                modes.append( self._evolve_from_bd(k, tvac[i], **SolverKwargs) )
             else:
                 yini = np.array(
                             [startspec["Ap"][i].real, startspec["dAp"][i].real,
@@ -841,7 +852,7 @@ class BaseModeSolver:
 
             klen = len(spec["k"])
 
-            vecode = np.vectorize(lambda t, y, k: self.ModeEoM(t, y, k, **self.EoMKwargs),
+            vecode = np.vectorize(lambda t, y, k: self.mode_equation(t, y, k, **self.ode_kwargs),
                                     excluded={0, "t"},
                                 signature="(8,n),(n)->(8,n)",
                                 )
@@ -860,40 +871,36 @@ class BaseModeSolver:
         """
     
 
-    def _evolve_from_BD(self, k : float, tstart : float,
-                    atol : float|None=None, rtol : float=1e-5) -> Tuple[NDArray, NDArray, NDArray, NDArray]:
+    def _evolve_from_bd(self, k : float, tstart : float,
+                    atol : float|None=None, rtol : float=1e-5) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
-        Evolve gauge-field modes for a fixed wavenumber in time starting from Bunch-Davies initial conditions.
+        Evolve a mode with momentum $k$ starting from Bunch-Davies initial conditions.
 
         Parameters
         ----------
         k : float
-           the comoving wavenumber k for which the mode function A(t,k, +/-) is evolved.
+           the momentum $k$
         tstart : float
-            the time from which to initialise the mode evolution. 
-            Should satisfy k < 10^(5/2)k_h(tstart) to ensure that the modes initialised in the Bunch-Davies vacuum
-        teval : list of float
-            physical time points at which the mode function A(t,k,+/-) and its derivatives will be returned
-            if teval=[], the mode functions are evaluated at self.__t
+            the corresponding initialisation time, $t_{\rm init}$
         atol : float or None
-            the absolute precision of the numerical intergrator, if not specified, solver will use self.atol
+            `atol` used by `solve_ivp` if None, use `self.atol`
         rtol : float
-            the relative precision of the numerical integrator.
+            `rtol` used by `solve_ivp`
 
         Returns
         -------
         yp : NDArray
-            the positive helicity modes (rescaled), sqrt(2k)*A(teval, k, +)
+            the positive helicity mode
         dyp : NDArray
-            the derivative of the positive helicity modes (rescaled), sqrt(2/k)*dAdeta(teval, k, +)
+            the derivative of the positive helicity mode
         ym : NDArray
-            the negative helicity modes (rescaled), sqrt(2k)*A(teval, k, -)
+            the positive helicity mode
         dym : NDArray
-            the derivative of the negative helicity modes (rescaled), sqrt(2/k)*dAdeta(teval, k, -)
+            the derivative of the negative helicity mode
         """
 
         #Initial conditions for y and dydt for both helicities (rescaled appropriately)
-        yini = self.BDInit(tstart, k, **self.InitKwargs)
+        yini = self.initialise_in_bd(tstart, k, **self.bd_kwargs)
 
         teval = self.__t
 
@@ -905,7 +912,7 @@ class BaseModeSolver:
         eta = self.__eta
         
         #the mode was in vacuum before tstart
-        yvac = np.array([self.BDInit(t, k, **self.InitKwargs) for t in teval[:istart]]).T 
+        yvac = np.array([self.initialise_in_bd(t, k, **self.bd_kwargs) for t in teval[:istart]]).T 
         phasevac = (np.exp(-1j*k*eta[:istart]))
         vac = yvac * phasevac
 
@@ -917,10 +924,39 @@ class BaseModeSolver:
 
         return yp, dyp, ym, dym
     
-    def _evolve_mode(self, tini, yini, k : float, teval : NDArray,
+    def _evolve_mode(self, tini : float, yini : np.ndarray, k : float, teval : np.ndarray,
                     atol : float|None=None, rtol : float=1e-5):
+        """
+        Evolve a mode of momentum $k$ from $t_{\rm ini}$.
+
+        Parameters
+        ----------
+        tini : float
+           the initial time $t_{\rm ini}$
+        yini : NDArray
+            (8,) array containing the initial data
+        k : float
+            the momentum $k$
+        teval : NDArray
+            the times at which the returned solution is evaluated
+        atol : float or None
+            `atol` used by `solve_ivp` if None, use `self.atol`
+        rtol : float
+            `rtol` used by `solve_ivp`
+
+        Returns
+        -------
+        yp : NDArray
+            the positive helicity mode
+        dyp : NDArray
+            the derivative of the positive helicity mode
+        ym : NDArray
+            the positive helicity mode
+        dym : NDArray
+            the derivative of the negative helicity mode
+        """
         #Define ODE
-        def ode(t, y): return self.ModeEoM(t, y, k, **self.EoMKwargs)
+        def ode(t, y): return self.mode_equation(t, y, k, **self.ode_kwargs)
 
         if atol is None:
             atol = self.atol
@@ -936,20 +972,26 @@ class BaseModeSolver:
         return yp, dyp, ym, dym 
         
 
-    def _create_k_array(self, nvals : int, t_interval : tuple) -> NDArray:
+    def _create_k_array(self, nvals : int, t_interval : tuple) -> np.ndarray:
         """
-        Create an array of wavenumbers between self.mink and self.maxk. The array is created according to the evolution of the instabiltiy scale
-        such that it contains more modes close to the instability scale at late times.
+        Create an array of $n$ momenta
+
+        The $n$ modes are generated between $k_{\rm UV}(t_{\rm min})$ and $k_{\rm UV}(t_{\rm max})$.
+        First, $m$ of modes $k = k_{\rm UV}$ with t evenly spaced between $t_{\rm min}$ and $t_{\rm max}$ are generated.
+        As $k_{\rm UV}$ is monotonic but not strictly monotonic, $m\leq n$. To fill up to $n$ modes, $n-m$ additional modes are
+        created between the existing times $(t_{i},t_{i+1})$ moving backwards from $t_{\rm max}$ to favour larger momenta. 
 
         Parameters
         ----------
         nvals : int
             The size of the output array
+        t_interval : tuple
+            sets $t_{\rm min}$ and $t_{\rm max}$
 
         Returns
         -------
         NDArray
-            an array of wavenumbers with size nvals
+            an array of momenta with size nvals
         """
 
         #create an array of values log(10*kh(t))
@@ -967,29 +1009,30 @@ class BaseModeSolver:
             logks = np.sort(np.concatenate([logks, newvals]))
         return np.exp(logks)
     
-    def _find_tinit_BD(self, init : NDArray, mode : str="k") -> Tuple[NDArray, NDArray]:
+    def _find_tinit_bd(self, init : np.ndarray, mode : str="k") -> Tuple[np.ndarray, np.ndarray]:
         """
-        Determines the solution to k = 10^(5/2)*k_h(t).
-        Initial data can be given for the comoving wavenumber k, the physical time coordinates t, or e-Folds N.
+        Determines the pair of $k$ and $t$ satisfying $k = 10^(5/2)*k_h(t)$.
+
+        Depending on `mode`, `init` may be a time coordinate (`mode='t'`), $e$-folds (`mode='N'`) or momentum (`mode='k'`).
 
         Parameters
         ----------
         init : array
-           an array of physical time coordinates t, OR of e-Folds N, OR of comoving wavenumbers k.
+            the input array (t, N, or k)
         mode : str
-            specify the content of init: "t" for physical time, "k" for comoving wavenumbers, "N" for e-Folds
+            indicate the type of `init`
 
         Returns
         -------
         ks : NDarray
-            an array of comoving wavenumbers satisfying k=10^(5/2)k_h(tstart)
+            an array of momenta
         tstart : NDarray
-            an array of physical-time coordinates satisfying k=10^(5/2)k_h(tstart)
+            an array of times
 
         Raises
         ------
         KeyError
-            if mode is not "t", "k" or "N"
+            if `mode` is not 't, 'k' or 'N'
         """
 
         if mode=="t":
@@ -1013,6 +1056,159 @@ class BaseModeSolver:
             raise KeyError("'mode' must be 't', 'k' or 'N'")
 
         return ks, tstart
+        
+   
+    
+    
+def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Callable, init_keys : list[str], new_cutoff : str="kh", default_atol : float=1e-3):
+    r"""
+    Create a subclass of `BaseModeSolver` with custom mode equation and initial conditions.
+
+    In case your GEF model does not follow the pre-defined gauge-field mode equation defined for `BaseModeSolver`, 
+    you can create a subclass of it by defining new methods for `mode_equation` and `initialise_in_bd` through `new_mode_eq` and `new_bd_init`.
+    
+    The method `new_mode_eq` needs obey the following conditions:
+    1. The call signature is `f(t,y,k,**kwargs)`
+    2. The arguments `t` / `k` expect floats representing time / momentum
+    3. The argument `y` expects a `numpy.ndarrray` of shape (8,) with indices
+        -  0 & 2 / 4 & 6: real & imag. part of $\sqrt{2k} A_\lambda(t_{\rm init},k)$ for $\lambda = 1$ / $\lambda = -1$
+        -  1 & 3 / 5 & 7: real & imag. part of $a\sqrt{2/k} \dot{A}_\lambda(t_{\rm init},k)$ for $\lambda = 1$ / $\lambda = -1$
+    4. The kwargs are functions of the argument `t`.
+    5. The return is the time derivative of `y`
+
+    The method `new_bd_Init` needs to obey the following conditions:
+    1. The call signature is `f(t,k,**kwargs)`
+    2. The arguments `t` / `k` expect floats representing time / momentum
+    3. The kwargs are functions of the argument `t`.
+    4. The return is a `numpy.ndarrray` of shape (8,)  with indices
+        -  0 & 2 / 4 & 6: real & imag. part of $\sqrt{2k} A_\lambda(t_{\rm init},k)$ for $\lambda = 1$ / $\lambda = -1$
+        -  1 & 3 / 5 & 7: real & imag. part of $a\sqrt{2/k} \dot{A}_\lambda(t_{\rm init},k)$ for $\lambda = 1$ / $\lambda = -1$
+    
+    The lists `ode_keys` and `init_keys` are handled as follows:
+    - `ode_keys` and `init_keys` need to contain the keys associated to the respective kwargs of `new_mode_eq` and `new_bd_init`.
+    - These keys correspond to names of `GEFF.bgtypes.Val` objects belonging to a `GEFF.bgtypes.BGSystem` passed to the class upon initialisation.
+        The respective `Val` objects are interpolated to obtain functions of time. 
+        These functions are then passed to to the corresponding keyword arguments of `new_mode_eq`  and `new_bd_init`.
+    - `ode_keys` and `init_keys` are added to the `necessary_keys` attribute of the new subclass.
+
+    You can also overwrite the `cuttoff` and `atol` inherited from `BaseModeSolver` 
+
+    Parameters
+    ----------
+    new_mode_eq : Callable
+        a new mode equation
+    ode_keys : list of str
+        the non-standard keywords of `new_mode_eq`
+    new_bd_init : Callable
+        a new mode bd initial condition
+    init_keys : list of str
+        the non-standard keywords of `new_bd_init`
+    new_cutoff : str
+        the new `cutoff` attribute of the subclass
+    default_atol : float
+        the default absolute tolerance used by the subclass
+
+    Returns
+    -------
+    NewModeSolver : class
+        the newly defined subclass of `BaseModeSolver`
+
+    Example
+    -------
+    ```python
+        import numpy as np
+        from GEFF.bgtypes import BGSystem, BGVal
+
+        # Define a new mode equation:
+        def custom_mode_eq(t, y, k, a, X, Y):
+            #create a return array of the right shape
+            dydt = np.ones_like(y)
+
+            #compute real-part time derivatives for positive modes
+            dydt[0] = k / a(t) * y[1] # a is a function of t.
+            dydt[1] = X(t)/Y(t)*y[0] # X and Y are functions of t.
+
+            #compute imag-part time derivatives for positive modes
+            ...
+
+            #compute real-part time derivatives for negative modes
+            ...
+            ...
+
+            return dydt
+
+        # Define a new initial condition for the modes:
+        def custom_bd_init(t, k, alpha):
+            y = alpha(t)*np.array([...]) # alpha is a function of t.
+            return y
+
+        # the kwargs of custom_mode_eq are 'a', 'X' and 'Y':
+        custom_ode_keys = ['a', 'X', 'Y']
+
+        # the kwarg of custom_bd_init is 'alpha':
+        custom_init_keys = ['alpha']
+
+        # Define the custom mode solver using the class factory:
+        CustomModeSolver = ModeSolver(custom_mode_eq, custom_ode_keys,
+                                         custom_bd_init, custom_init_keys)
+
+        # To initialise CustomModeSolver we need a BGSystem. 
+        # Its Val instances need to have the right names however:
+        # The default: 't', 'N', 'kh' (we did not rename 'cutoff')
+        t = BGVal("t", -1, 0)
+        N = BGVal("N", 0, 0)
+        kh = BGVal("kh", 1, 0)
+        # Because of custom_mode_eq we need 'a', 'X', 'Y'
+        a = BGVal("a", 0, 0)
+        X = BGVal("X", 2, 0)
+        Y = BGVal("X", 2, 0)
+        # Because of custom_bd_init we need 'alpha'
+        alpha = BGVal("alpha", 0, 0)
+
+        # When in doubt, consult necessary_keys:
+        print(CustomModeSolver.necessary_keys)
+
+        # We create the BGSystem and initialise all its values:
+        sys = BGSystem({t, N, kh, a, X, Y, alpha}, 1e-6, 1)
+        sys.initialise(t)(...)
+        ...
+
+        # The values in sys can now be used to initialise CustomModeSolver
+        MbM = CustomModeSolver(sys)
+
+        # Let's compute a spectrum using the new setup:
+        MbM.compute_spectrum(100)
+        ```
+    """
+    
+    class ModeSolver(BaseModeSolver):
+        """
+        A subclass of BaseModeSolver new mode equation and initial condition adapted to a new GEF model
+
+        It Inherits all methods from 'BaseModeSolver' but changes the following class attributes
+            - mode_equation
+            - ode_kwargs
+            - initialise_in_bd
+            - init_kwargs
+            - cutoff
+            - atol
+            
+        This entails that 'compute_spectrum' will now evolve modes according to initialise_in_bd and ModeEom.
+        """
+        
+        #Overwrite class attibutes of ModeByMode with new mode equations, boundary conditions and default tolerances.
+        mode_equation = staticmethod(new_mode_eq)
+        ode_kwargs = dict(zip(ode_keys, [None for x in ode_keys]))
+
+        initialise_in_bd = staticmethod(new_bd_init)
+        bd_kwargs = dict(zip(init_keys, [None for x in init_keys]))
+
+        atol=default_atol
+    
+    return ModeSolver
+
+
+
 
 
 

@@ -1,16 +1,15 @@
 import numpy as np
 
-from GEFF.DefaultQuantities import *
+from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVal
 from GEFF.GEFSolver import TerminalEvent, ErrorEvent
 from GEFF.mode_by_mode import ModeSolver
-from GEFF.bgtypes import BGVal
 
 from GEFF.Models.EoMsANDFunctions.ClassicEoMs import EoMphi, Friedmann, EoMlnkh
 from GEFF.Models.EoMsANDFunctions.SchwingerEoMs import *
 from GEFF.Models.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox
 from GEFF.Models.EoMsANDFunctions.AuxiliaryFuncs import Heaviside
 from GEFF.Models.EoMsANDFunctions.Conductivities import *
-from GEFF.Models.EoMsANDFunctions.ModeEoMs import ModeEoMSchwinger_kS, BDClassic
+from GEFF.utility.mbm_funcs import bd_classic, mode_equation_SE_scale
 
 name = "SE-kh"
 
@@ -199,7 +198,6 @@ events = [EndOfInflation, NegativeEnergies]
 ###########################################
 
 #define mode-by-mode solver
-MbM = ModeSolver(ModeEq=ModeEoMSchwinger_kS,
-                         EoMkeys=["a", "xi", "H", "sigmaE", "sigmaB", "kS"],
-                         BDEq=BDClassic, Initkeys=[], default_atol=1e-3)
+MbM = ModeSolver(mode_equation_SE_scale, ["a", "xi", "H", "sigmaE", "sigmaB", "kS"],
+                         bd_classic, [], default_atol=1e-3)
 

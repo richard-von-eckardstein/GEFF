@@ -1,13 +1,12 @@
 import numpy as np
 
-from GEFF.DefaultQuantities import *
+from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta
 from GEFF.GEFSolver import TerminalEvent, ErrorEvent
-from GEFF.mode_by_mode import ModeSolver
+from GEFF.mode_by_mode import BaseModeSolver
 
 from GEFF.Models.EoMsANDFunctions.ClassicEoMs import *
 from GEFF.Models.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox
 from GEFF.Models.EoMsANDFunctions.AuxiliaryFuncs import Heaviside
-from GEFF.Models.EoMsANDFunctions.ModeEoMs import ModeEoMClassic, BDClassic
 
 
 """
@@ -161,8 +160,7 @@ events = [EndOfInflation, NegativeEnergies]
 ###########################################
 
 #define mode-by-mode solver
-MbM = ModeSolver(ModeEq=ModeEoMClassic, EoMkeys=["a", "xi", "H"], 
-                  BDEq=BDClassic, Initkeys=[], default_atol=1e-3)
+MbM = BaseModeSolver
 
 
 
