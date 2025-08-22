@@ -629,19 +629,13 @@ class BaseModeSolver:
     evolution of the time-dependent background obtained from a GEF solution.
     
     The evolution is determined by an ODE for the four (complex) variables 
-
     $$\sqrt{2k} A_\lambda(t,k), \quad a(t) \sqrt{\frac{2}{k}}\dot{A}_\lambda(k, t), \quad \lambda = \pm 1$$
-
     in terms of their real and imaginary parts. By default, the evolution equation is
-
     $$ \ddot{A}_\lambda(t,k) + H \dot{A}_\lambda(t,k) +  \left[ \left(\frac{k}{a}\right)^2  - 2\lambda \left(\frac{k}{a}\right) \xi H\right] A_\lambda(t,k) = 0$$
-    
     with the evolution for $H(t)$, $a(t)$, $\xi(t)$ obtained from the GEF solution.
 
     The modes are initialized deep inside the Bunch&ndash;Davies vacuum
-
     $$ \sqrt{2k} A_\lambda(t,k) \sim e^{-i \eta k}, \quad  a(t) \sqrt{\frac{2}{k}}\dot{A}_\lambda(k, t) \sim -i e^{-i \eta k}, \quad -k\eta \ll 1 $$ 
-     
     at a time implicitly defined by the condition $k = 10^{5/2} k_{\rm UV}(t_{\rm ini})$, with the default $k_{\rm UV}(t) = k_{\rm h}(t)$ obtained from the GEF solution.
     At times $t < t_{\rm ini}$ the mode is assumed to be in Bunch&ndash;Davies. The phase $ e^{-i \eta k}$ is computed separately.
 
@@ -773,7 +767,8 @@ class BaseModeSolver:
         Update an existing gauge-field spectrum starting from $t_{\rm start}$
 
         Starting from the modes stored in `GaugeSpec`, the function re-evaluates the evolution starting from $t_{\rm start}$.
-        Additional gauge-field modes are evolved starting from Bunch&ndash;Davies to account for new modes crossing the horizon at times beyond the original range covered by the input spectrum.
+        Additional gauge-field modes are evolved starting from Bunch&ndash;Davies to account for new modes crossing the horizon
+          at times beyond the original range covered by the input spectrum.
 
         Parameters
         ----------
@@ -1071,18 +1066,18 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
     1. The call signature is `f(t,y,k,**kwargs)`
     2. The arguments `t` / `k` expect floats representing time / momentum
     3. The argument `y` expects a `numpy.ndarrray` of shape (8,) with indices
-        -  0 & 2 / 4 & 6: real & imag. part of $\sqrt{2k} A_\lambda(t_{\rm init},k)$ for $\lambda = 1$ / $\lambda = -1$
-        -  1 & 3 / 5 & 7: real & imag. part of $a\sqrt{2/k} \dot{A}_\lambda(t_{\rm init},k)$ for $\lambda = 1$ / $\lambda = -1$
+        -  0 & 2 / 4 & 6: real & imaginary part of $\sqrt{2k} A_\lambda(t_{\rm init},k)$ for $\lambda = 1 \, / -1$
+        -  1 & 3 / 5 & 7: real & imaginary part of $a\sqrt{2/k} \dot{A}_\lambda(t_{\rm init},k)$ for $\lambda = 1 \, / -1$
     4. The kwargs are functions of the argument `t`.
     5. The return is the time derivative of `y`
 
-    The method `new_bd_Init` needs to obey the following conditions:
+    The method `new_bd_init` needs to obey the following conditions:
     1. The call signature is `f(t,k,**kwargs)`
     2. The arguments `t` / `k` expect floats representing time / momentum
     3. The kwargs are functions of the argument `t`.
     4. The return is a `numpy.ndarrray` of shape (8,)  with indices
-        -  0 & 2 / 4 & 6: real & imag. part of $\sqrt{2k} A_\lambda(t_{\rm init},k)$ for $\lambda = 1$ / $\lambda = -1$
-        -  1 & 3 / 5 & 7: real & imag. part of $a\sqrt{2/k} \dot{A}_\lambda(t_{\rm init},k)$ for $\lambda = 1$ / $\lambda = -1$
+        -  0 & 2 / 4 & 6: real & imaginary part of $\sqrt{2k} A_\lambda(t_{\rm init},k)$ for $\lambda = 1 \, / -1$
+        -  1 & 3 / 5 & 7: real & imaginary part of $a\sqrt{2/k} \dot{A}_\lambda(t_{\rm init},k)$ for $\lambda = 1 \, / -1$
     
     The lists `ode_keys` and `init_keys` are handled as follows:
     - `ode_keys` and `init_keys` need to contain the keys associated to the respective kwargs of `new_mode_eq` and `new_bd_init`.
@@ -1161,7 +1156,7 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
         # Because of custom_mode_eq we need 'a', 'X', 'Y'
         a = BGVal("a", 0, 0)
         X = BGVal("X", 2, 0)
-        Y = BGVal("X", 2, 0)
+        Y = BGVal("Y", 2, 0)
         # Because of custom_bd_init we need 'alpha'
         alpha = BGVal("alpha", 0, 0)
 
@@ -1170,7 +1165,7 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
 
         # We create the BGSystem and initialise all its values:
         sys = BGSystem({t, N, kh, a, X, Y, alpha}, 1e-6, 1)
-        sys.initialise(t)(...)
+        sys.initialise("t")(...)
         ...
 
         # The values in sys can now be used to initialise CustomModeSolver
@@ -1189,7 +1184,7 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
             - mode_equation
             - ode_kwargs
             - initialise_in_bd
-            - init_kwargs
+            - bd_kwargs
             - cutoff
             - atol
             

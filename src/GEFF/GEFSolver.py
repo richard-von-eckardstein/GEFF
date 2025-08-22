@@ -6,19 +6,58 @@ from scipy.integrate import solve_ivp
 
 from copy import deepcopy
 
+from typing import Callable
+
 class TruncationError(Exception):
     pass
 
 class Event:
-    #Terminal events can modify a solver and pass concrete orders to the solver. The orders are:
-    ### finish: finalise the solver
-    ### repeat: repeat the last iteration of the solver
-    ### proceed: continue solving from the point of termination
-    #Any event may pass the secondary order "update" to the solver. This can update the following attributes of the solver:
-    ### __ODE__, __tend, __atol, __rtol, __method 
+    """
+    An event which is tracked while solving the GEF equations.
+
+    The class defines a function `event(t, y)` which is used by `scipy.integrate.solve_ivp` to track occurrences of `event(t, y(t))=0`.
+    The event can be `terminal` causing the solver to stop upon `event(t, y(t))=0`.
+    The event only triggers if the event condition changes sign according to:
+    - positive zero crossing: `direction=1`
+    - negative derivative, `direction=-1` 
+    - arbitrary zero crossing `direction=0`
+
+    The zeros are recorded and returned as part of the solvers output.
+
+    Within the `GEFSolver` class, three subclasses of `Event` are used by the `solve_GEF` method:
+    1. `TerminalEvent`
+    2. `ErrorEvent`
+    3. `ObserverEvent` 
+
+    Attributes
+    ----------
+    `name` : str
+        the name of the event
+    `eventtype` : str
+        the eventtype 'terminal', 'error', or 'observer'
+    event_func : Callable
+        the event condition
+    active : boolean
+        The events state. `False` implies the `Event` is disregarded by `GEFSolver`.
+    """
     
-    #Terminal event consequences should distinguish the cases: termination on this event, termination not on this event, termination without event.
-    def __init__(self, name, eventtype, func, terminal, direction):
+    def __init__(self, name : str, eventtype : str, func : Callable, terminal : bool, direction : int):
+        """
+        Initialise the event as `active`.
+
+        Parameters
+        ----------
+        name : str
+            sets the `name` attribute
+        eventtype : str
+            sets the `eventtype` attribute
+        func : Callable
+            sets the `event_func` attribute
+        terminal : boolean
+            defines if the event occurrence is terminal or not
+        direction : int
+            defines the direction for which event occurrences are tracked.
+        """
         self.name = name
 
         self.type = eventtype
@@ -26,32 +65,126 @@ class Event:
         func.terminal = terminal
         func.direction = direction
         
-        #ToDo: check for func signature (once it is fixed)
-        self.event_func = func
+        self.event_func = staticmethod(func)
     
         self.active = True
         return
     
+    @staticmethod
+    def event_func(t : float, y : np.ndarray, sys : BGSystem) -> float:
+        """
+        The event tracked by `Event`
+
+        This method is overwritten by the `func` input upon class initialisation.
+        The signature and return of `func`needs to match this method
+
+        Parameters
+        ----------
+        t : float
+            time
+        y : np.ndarray
+            the solution array
+        sys : BGSystem
+            the system which is evolved alongside y
+
+        Returns
+        -------
+        condition : float
+            condition=0 is an event occurrence
+        """
+        return 1.
+    
 class TerminalEvent(Event):
-    def __init__(self, name, func, direction, consequence):
+    """
+    An `Event` subclass whose occurrence terminates the solver.
+
+    When the solver has terminated (due to an event or otherwise) it checks for `TerminalEvent` occurrences.
+     This calls the `event_consequence` method, which returns instructions to the `GEFSolver`. 
+     These instructions may be different depending on an event occurrence or a non-occurrence.
+    """
+    def __init__(self, name : str, func : Callable, direction : int, consequence : Callable):
+        """
+        Initialise the parent class and overwrite the `event_consequence` method.
+
+        Parameters
+        ----------
+        name : str
+            passed as `name` to the parent class
+        func : Callable
+            passed as `func` to the parent class
+        direction : int
+            passed as `direction` to the parent class
+        consequence : Callable
+            overwrites the `event_consequence` method
+        """
         super().__init__(name, "terminal", func, True, direction)
         #ToDo: check for Consequence signature (once it is fixed)
-        self.event_consequence = consequence
+        self.event_consequence = staticmethod(consequence)
+
+    @staticmethod
+    def event_consequence(sys : BGSystem, occurrence : bool) -> tuple[str, dict]:
+        """
+        Inform the solver how to handle a (non-)occurrence of the event.
+        
+        This method is overwritten by the `consequence` input upon class initialisation.
+
+        The methods returns are treated as an instruction to the solver:
+        - `primary`: this informs the solver what to do with its ODE solution:
+            - 'finish': the solver returns its solution marked as successful.
+            - 'proceed': the solver continues solving from the termination time onwards.
+            - 'repeat': the solver recomputes the solution.
+        - `secondary`: this informs the solver if any of its settings need to be changed. 
+        Allowed settings are 'timestep', 'tend', 'atol', 'rtol'. See `GEFSolver` for more details.
+
+        Parameters
+        ----------
+        sys : BGSystem
+            a system containing the solution of the solver
+        occurrence : bool
+            indicates if the event occurred during the solution or not
+
+        Returns
+        -------
+        primary : str
+            either 'finish', 'proceed' or 'repeat'
+        secondary : dict
+            the affected settings as keys and their new value as an item.
+        """
+        if occurrence:
+            return "proceed", {}
+        else:
+            return "proceed", {}
+
 
 class ErrorEvent(Event):
+    """
+    An `Event` subclass whose occurrence indicates undesired behavior of the solution.
+
+    When the solver terminates with an `ErrorEvent`, the `GEFSolver` returns the solution as unsuccessful.
+    """
     def __init__(self, name, func, direction):
+        """Initialise the parent class."""
         super().__init__(name, "error", func, True, direction)
 
 class ObserverEvent(Event):
+    """An `Event` which does not terminate the solver and is only recorded."""
     def __init__(self, name, func, direction):
+        """Initialise the parent class."""
         super().__init__(name, "observer", func, False, direction)
 
 
 class GEFSolver:
+    """
+    A class used to solve the GEF equations defined by a GEF model.
+
+    Attributes
+    ----------
+    
+    """
     def __init__(self, update_vals, timestep, initialise, events, variable_dict):
         self._base_initialise = initialise
+        #think how you can add these as (static)methods to the class -> helps documentation
         self.compute_initial_conditions = self.initialise_from_slowroll
-        
         self._update_vals = update_vals
         self.compute_timestep = timestep
 
@@ -150,7 +283,7 @@ class GEFSolver:
             rmserr = np.sqrt(np.sum(err**2)/len(err))
             if max(err[-1], rmserr) > 0.10:
                 agreement=False
-                #find where the error is above 5%, take the earliest occurance, reduce by 1
+                #find where the error is above 5%, take the earliest occurrence, reduce by 1
                 inds = np.where(err > errthr)
                 err_ind = inds[0][0]-1               
             else:
@@ -276,7 +409,7 @@ class GEFSolver:
             else:
                 sols.append(sol)
 
-                event_dict_new, command, terminal_event = self._assess_event_occurances(sol.t_events, sol.y_events, vals)
+                event_dict_new, command, terminal_event = self._assess_event_occurrences(sol.t_events, sol.y_events, vals)
 
                 for key in event_dict_new.keys():
                     event_dict[key]["t"].append(event_dict_new[key]["t"])
@@ -367,7 +500,7 @@ class GEFSolver:
         
         return event_dict, event_funcs
     
-    def _assess_event_occurances(self, t_events, y_events, vals):
+    def _assess_event_occurrences(self, t_events, y_events, vals):
         commands = {"primary":[], "secondary":[]}
         event_dict = {}
 
@@ -376,19 +509,19 @@ class GEFSolver:
         for i, event in enumerate(active_events):
 
             #Check if the event occured
-            occurance = (len(t_events[i]) != 0)
+            occurrence = (len(t_events[i]) != 0)
 
-            #Add the event occurance to the event dictionary:
-            if occurance:
+            #Add the event occurrence to the event dictionary:
+            if occurrence:
                 event_dict.update({event.name:{"t":t_events[i], "N": y_events[i][:,0]}})
                 print(f"{event.name} at t={np.round(t_events[i], 1)} and N={np.round(y_events[i][:,0],1)}.")
 
-            if event.type == "error" and occurance:
+            if event.type == "error" and occurrence:
                 commands["primary"].append( ("error", event.name) )
             
             elif event.type=="terminal":
-                #Asses the events consequences based on its occurance or non-occurance
-                primary, secondary = event.event_consequence(vals, occurance)
+                #Asses the events consequences based on its occurrence or non-occurrence
+                primary, secondary = event.event_consequence(vals, occurrence)
                 
                 for key, item in {"primary":(primary, event.name), "secondary":secondary}.items(): 
                     commands[key].append(item)
