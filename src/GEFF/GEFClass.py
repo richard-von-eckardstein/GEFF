@@ -90,7 +90,7 @@ def _model_setup(model_name, user_settings):
 
         cls._input_signature = input_info[0]
         cls._input_handler = staticmethod(input_info[1])
-        cls.GEFSolver = GEFSolver(*solver_info, variable_dict=object_classifier)
+        cls.GEFSolver = GEFSolver(*solver_info, object_classifier)
         cls.ModeSolver = MbM_info
         return cls
     return GEF_decorator
@@ -243,7 +243,7 @@ class BaseGEF(BGSystem):
 
         while not(done) and attempt<MbMattempts:
             attempt +=1
-            #This can be taken care of internally
+            #This can be taken care of internally. The GEF should not need to get sol objects...
             solnew, vals = self.GEFSolver.compute_GEF_solution()
             sol = self.GEFSolver.update_sol(sol, solnew)
             self.GEFSolver.parse_arr_to_sys(sol.t, sol.y, vals)
@@ -260,7 +260,7 @@ class BaseGEF(BGSystem):
                     spec = MbM.compute_spectrum(nmodes, rtol=rtol)
                 print("Performing mode-by-mode comparison with GEF results.")
 
-                agreement, reinit_spec = self.GEFSolver.MbMcrosscheck(spec, vals, errthr=errthr, binning=binning, method=selfcorrmethod, **MbMkwargs)
+                agreement, reinit_spec = self.MbMcrosscheck(spec, vals, errthr=errthr, binning=binning, method=selfcorrmethod, **MbMkwargs)
 
                 if agreement:
                     print("The mode-by-mode comparison indicates a convergent GEF run.\n")
@@ -270,7 +270,7 @@ class BaseGEF(BGSystem):
                     t_reinit = reinit_spec["t"]
                     print(f"Attempting to solve GEF using self-correction starting from t={np.round(reinit_spec['t'], 1)}, N={np.round(reinit_spec['N'], 1)}.\n")
 
-                    self.GEFSolver.compute_initial_conditions = self.GEFSolver.initialise_from_MbM(sol, reinit_spec, method, **MbMkwargs)
+                    self.GEFSolver.set_initial_conditions_to_MbM(sol, reinit_spec, method, **MbMkwargs)
                 
             else:
                 done=True
@@ -288,6 +288,32 @@ class BaseGEF(BGSystem):
         
         else:
             raise RuntimeError(f"GEF did not complete after {attempt} attempts.")
+        
+     #move to GEF
+    @staticmethod
+    def MbMcrosscheck(spec, vals, errthr, binning, method, **MbMkwargs):
+        errs, terr, _ = spec.estimate_GEF_error(vals, errthr=errthr, binning=binning, method=method, **MbMkwargs)
+
+        reinit_inds = []
+        agreement=True
+        for err in errs:
+            rmserr = np.sqrt(np.sum(err**2)/len(err))
+            if max(err[-1], rmserr) > 0.10:
+                agreement=False
+                #find where the error is above 5%, take the earliest occurrence, reduce by 1
+                inds = np.where(err > errthr)
+                err_ind = inds[0][0]-1               
+            else:
+                err_ind = len(terr)-1
+            reinit_inds.append( err_ind )
+
+        t0 = terr[min(reinit_inds)]
+
+        ind = np.where(spec["t"] <= t0)[0][-1]
+
+        reinit_slice = spec.tslice(ind)
+
+        return agreement, reinit_slice
 
     def load_GEFdata(self, path : NoneType|str=None):
         """
