@@ -18,14 +18,14 @@ class NegativeEnergyError(Exception):
 
 def _load_model(name : str, user_settings : dict):
     """
-    Import and execute a module containg a GEF model.
+    Import and execute a module defining a GEF model.
 
     Parameters
     ----------
     modelname : str
         the name of the GEF model
     settings : dict
-        a dictionary containing the model settings
+        a dictionary containing updated settings for the module
 
     Returns
     -------
@@ -55,7 +55,7 @@ def _load_model(name : str, user_settings : dict):
     
 
 def _compile_model(modelname, user_settings):
-    #compile the model file
+    #load the model file
     model = _load_model(modelname, user_settings)
 
     #import quantities dictionary
@@ -104,10 +104,9 @@ class GEFType:
 @_model_setup("Classic", {})
 class BaseGEF(BGSystem):
     """
-    This class is the primary interface for the GEF. It's main function is to create the GEFSolver according to model-specification and to store the results of the GEF.
-    Following a successful run, it contains all information about the evolution of the time-dependent background as specified by the model-file.
-    This information can be passed to various useful tools, for example, computing the gauge-field spectrum, the tensor-power spectrum, and the GW-spectrum.
-    The GEF subclasses BGSystem and inherits all its functionalities.
+    This class is the primary interface for the GEF.
+     
+    
     
     Attributes
     ----------
@@ -115,18 +114,7 @@ class BaseGEF(BGSystem):
         The mode-by-mode class associated to the current GEF-model
     GEFSolver : GEFSolver
         The GEFSolver-instance used to solve the GEF equations
-
-    Methods
-    -------
-    load_GEFdata()
-        Load data and store its results in the current GEF instance.
-    save_GEFdata()
-        Save the data in the current GEF instance in an ouput file.
-    set_units()
-        Switch the GEF instance between numerical units and physical units
-    get_units()
-        Return a boolean indicating if the GEF is set to physical units
-
+        
     Example 1 (Initialisation)
     --------------------------
     >>> import numpy as np
