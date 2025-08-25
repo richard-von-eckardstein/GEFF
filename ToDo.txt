@@ -1,3 +1,5 @@
+Long term
+---------
 GEF:
     - Mode Parser: Check model input for consistency with GEF
     - GEFAlgorithm: less unnecessary attempt trackers
@@ -16,5 +18,18 @@ MbM:
     - find out when and why MbM can get stuck
 
 General:
-    - Documentation!!!
+    - 
     - Meta classes for consistent class creation? -> seems like overkill
+
+
+
+For release
+-----------
+- Add class factories (GEF, MbM, Solver) to Utility directory
+- Make Solver class into "BaseSolver", use class factories to customize
+- Documentation:
+    * GEFClass
+    * GEFSolver
+    * Tools 
+- Write arxiv manual
+- write read me
