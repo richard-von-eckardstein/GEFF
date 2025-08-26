@@ -1,0 +1,778 @@
+import numpy as np
+
+from GEFF.bgtypes import BGSystem, t, N, a, H
+from GEFF.mode_by_mode import SpecSlice
+
+from scipy.integrate import solve_ivp
+
+from copy import deepcopy
+
+from typing import Callable, Tuple
+
+class TruncationError(Exception):
+    """
+    Exception indicating that a GEF solution was unsuccessful.
+    """
+    pass
+
+
+class BaseGEFSolver:
+    r"""
+    A class used to solve the equations of motion defined by a GEF model.
+
+    The main purpose of the class is to provide the `compute_GEF_solution` method to `GEFF.GEFClass.BaseGEF.run`. 
+    Internally, the method uses `solve_eom`, which wraps `scipy.integrate.solve_ivp`.
+    
+    All specifications on the GEF model are encoded in the attributes `known_variables` and `known_events`, as well as
+    the methods `vals_to_yini`, `update_vals` and `timestep`. 
+    For illustration, purposes, these methods are configured such that the GEFSolver solves the
+    EoMs for de Sitter expansion:
+    $$\frac{{\rm d} \log a}{{\rm d} t} = H_0$$
+
+    In practice, the class factory `GEFSolver` creates a subclass of `BaseGEFSolver` adapted to the EoMs of other models.
+    
+    Attributes
+    ----------
+    known_variables : dict
+        classification of `Quantity` objects in `init_vals` as 'dynamical', 'constant', 'static', 'function' or 'ode tower'.
+    known_events : dict
+        the `Event` objects which are tracked by the solver
+    init_vals : BGSystem
+        initial data for the EoM's defined at $t_0 = 0$.
+    ntr : int
+        truncation number for truncated towers of ODE's
+    tend : float
+        the time $t_{\rm end}$ up to which the EoMs are solved
+    settings : dict
+        a dictionary of internal settings used by the class:
+        - atol: absolute tolerance used by `solve_ivp` (default: 1e-20)
+        - rtol: relative tolerance used by `solve_ivp` (default: 1e-6)
+        - solvermethod: method used by `solve_ivp` (default: 'RK45')
+        - attempts: attempts made by `compute_GEF_solution` (default: 5)
+        - ntrstep: `ntr` increment used in `compute_GEF_solution` (default: 10)
+    """
+    known_variables = {"time":{t}, "dynamical":{N}, "static":{a}, "constant":{H}, "function":{}, "ode tower":{}}
+    known_events = {}
+
+    def __init__(self, init_sys : BGSystem):
+        """
+        Pass initial data to the solver.
+
+        Parameters
+        ----------
+        init_sys : BGSystem
+            initial data used by the solver
+        """
+        self.init_vals = BGSystem.from_system(init_sys, copy=True)
+        #think how you can add these as (static)methods to the class -> helps documentation
+        self.set_initial_conditions_to_default()
+
+        self.settings={"atol":1e-20, "rtol":1e-6, "attempts":5, "solvermethod":"RK45", "ntrstep":10}
+        self.ntr = 100
+        self.tend = 120
+
+    def compute_GEF_solution(self):
+        """
+        An algorithm to solve the GEF equations.
+
+        The solver attempts to solve the EoMs several times using `solve_eom`. 
+        If this is unsuccessful or a `TruncationError` is returned, `ntr` is increased by `setting['ntrstep']`.
+        Afterwards, `solve_eom` is called again until it returns a successful result.
+        This is done for `setting['attempts']` times or until `ntr=200` is reached.
+        If no solution is marked as successful by this time, the last solution is returned for further processing.
+
+        Returns
+        -------
+        sol
+            Bunch object returned by `solve_ivp` containing the solution
+
+        Raises
+        ------
+        RuntimeError
+             if no solution was obtained after the maximum number of attempts.
+        """
+        maxntr = 200
+        maxattempts = self.settings["attempts"]
+        ntrstep = self.settings["ntrstep"]
+
+        attempt=0
+        done = False
+        sol = None
+        #Run GEF
+        while not(done) and (attempt<maxattempts):
+            attempt+=1
+            try:
+                #Try to get convergent solution
+                t0, yini, vals = self.initial_conditions()
+                sol = self.solve_eom(t0, yini, vals)
+            except KeyboardInterrupt:
+                raise KeyboardInterrupt
+            except TruncationError:
+                if self.ntr<maxntr:
+                    self._increase_ntr( min(ntrstep, maxntr-self.ntr) )
+                else:
+                    print("Cannot increase ntr further.")
+                    break
+            else:
+                done=True
+        
+        if sol is None:
+            raise RuntimeError(f"No GEF solution after {attempt} attempts.")
+        else:
+            if sol.success:
+                print("Successful GEF solution obtained. Proceeding.")
+            else:
+                print("Processing unsuccessful solution.\n")
+        
+        return sol
+    
+    ### handle initial conditions ###
+
+    @staticmethod
+    def vals_to_yini(vals : BGSystem, ntr : int) -> np.ndarray:
+        """
+        Create an array of initial data from a BGSystem.
+
+        Parameters
+        ----------
+        vals : BGSystem
+            unit system with initial data
+        ntr : int
+            truncation number (relevant for dynamical gauge-fields)
+
+        Returns
+        -------
+        yini : NDarray
+            array of initial data
+        """
+        vals.set_units(False) #ensure the system is in numerical units
+
+        #In the simple version, ntr has no meaning, as there are no gauge fields
+        yini = np.zeros((1)) 
+        #get N from vals
+        yini[0] = vals.N.value 
+        return yini
+
+    def set_initial_conditions_to_default(self):
+        """
+        Configure the solver to use initial data from `init_vals` using `vals_to_yini`.
+        """
+        def default_initial_conditions():
+            """
+            Compute initial data with `init_vals` using `vals_to_yini`.
+            """
+            t0 = 0
+            vals = deepcopy(self.init_vals)
+            vals.set_units(False)
+            yini = self.vals_to_yini(vals, self.ntr)
+            return t0, yini, vals
+        self.initial_conditions = staticmethod(default_initial_conditions)
+        return
+        
+    
+    def set_initial_conditions_to_MbM(self, sol, reinit_spec : SpecSlice):
+        r"""
+        Configure the solver to initialise data from a mode-by-mode solution.
+
+        Used for mode-by-mode self correction. 
+        Gauge-bilinears, $F_{\mathcal X}^{(n>1)}$ are re-initialized using `GEFF.mode_by_mode.SpecSlice.integrate_slice`.
+        
+        Parameters
+        ----------
+        sol
+            Bunch object returned by `solve_ivp` containing the solution
+        reinit_spec : SpecSlice
+            spectrum at time of reinitialization
+        """
+        def MbM_initial_conditions():
+            ntr = self.ntr
+
+            t_reinit = reinit_spec["t"]
+
+            reinit_ind = np.where(sol.t == t_reinit)[0][0]
+
+            #Create unit system (copy to also get constants and functions):
+            temp = BGSystem.from_system(self.init_vals, copy=True)
+
+            #get number of regular dynamical variables
+            n_dynam = len(self.known_variables["dynamical"])
+
+            #construct yini
+            yini = np.zeros(((ntr+1)*3+n_dynam))
+
+            #parse everyting except for GEF-bilinears with n>1 to yini
+            yini[:n_dynam+3] = sol.y[:n_dynam+3,reinit_ind]
+
+            # compute En, Bn, Gn, for n>1 from Modes
+            yini[n_dynam+3:] = np.array([reinit_spec.integrate_slice(n=n, integrator="simpson")
+                                            for n in range(1,ntr+1)])[:,:,0].reshape(3*(ntr))
+            
+            self.parse_arr_to_sys(t_reinit, yini, temp)
+
+            return t_reinit, yini, temp
+        self.initial_conditions = staticmethod(MbM_initial_conditions)
+        return
+    
+    ### Define ODE ###
+    
+    @staticmethod
+    def update_vals(t : float, y : np.ndarray, vals : BGSystem, atol : float=1e-20, rtol : float=1e-6):
+        """
+        Translate an array of data at time t into a BGSystem.
+
+        Parameters
+        ----------
+        t : float
+            time coordinate
+        y : NDArray:
+            array of data at time t
+        vals : BGSystem
+            the target system
+        atol : float
+            absolute tolerance parameters (if needed)
+        rtol : float
+            relative tolerance parameters (if needed)
+        """
+
+        #parse dynamical variables back to vals:
+        vals.t.set_value(t)
+        vals.N.set_value(y[0])
+
+        #compute static variables from y:
+        vals.a.set_value(np.exp(y[0]))
+
+        #in case heaviside functions are needed in update_vals, atol and rtol are passed
+        return
+    
+    @staticmethod
+    def timestep(t : float, y : np.ndarray, vals : BGSystem, atol : float=1e-20, rtol : float=1e-6) -> np.ndarray:
+        """
+        Compute time derivatives for data at time t using a BGSystem.
+
+        Parameters
+        ----------
+        t : float
+            time coordinate
+        y : NDArray:
+            array of data at time t
+        vals : BGSystem
+            the system used to compute the derivative
+        atol : float
+            absolute tolerance parameters (if needed)
+        rtol : float
+            relative tolerance parameters (if needed)
+
+        Returns
+        -------
+        dydt : NDArray
+            time derivative of y
+        """
+        dydt = np.zeros_like(y)
+
+        dydt[0] = vals.H.value #use the constant hubble rate to evolve N
+        return dydt
+    
+    def ode(self, t : float, y : np.ndarray, vals : BGSystem) -> np.ndarray:
+        """
+        subsequently call `update_vals` and `timestep` to formulate an ODE for `solve_ivp`.
+
+        Parameters
+        ----------
+        t : float
+            time coordinate
+        y : NDArray:
+            array of data at time t
+        vals : BGSystem
+            the system passed to `update_vals` and `timestep` and 
+
+        Returns
+        -------
+        dydt : NDArray
+            time derivative of y
+        """
+        atol = self.settings["atol"]
+        rtol = self.settings["rtol"]
+        self.update_vals(t, y, vals, atol=atol, rtol=rtol)
+        dydt = self.timestep(t, y, vals, atol=atol, rtol=rtol)
+        return dydt
+    
+    ### solve EoMs ###
+    
+    def solve_eom(self, t0 : float, yini : np.ndarray, vals : BGSystem):
+        """
+        Attempt to solve the GEF EoM's using `scipy.integrate`
+
+        The solver attempts to obtain a GEF solution. This solution is then checked for any `ErrorEvent` occurrences.
+        In this case, the solver marks the solution as unsuccessful and returns it for further processing.
+        If no `ErrorEvent` occurrences are found, the other `TerminalEvent` occurrences are analyzed.
+        These decide if the solution is returned, repeated, or if the solver should continue to solve.
+        If there are no active `TerminalEvent` instances, the solution is returned after reaching `settings['tend']`.
+
+        Parameters
+        ----------
+        t0 : float
+            time of initialization
+        yini : NDArray
+            initial data at t0
+        vals : BGSystem
+            evolved alongside yini
+
+        Returns
+        -------
+        sol
+            Bunch object returned by `solve_ivp` containing the solution
+
+        Raises
+        ------
+        TruncationError: 
+            if an internal error occurred while solving the ODE.
+        RuntimeError:
+            if no 'finish' or 'error' command is obtained from an `Event` and `settings['tend']` is also not reached.
+        """
+        done = False
+        attempts = 0
+        sols = []
+
+        event_dict, event_funcs = self._setup_events()
+
+        print(f"The solver aims at reaching t={self.tend} with ntr={self.ntr}.")
+        while not(done) and attempts < 10:
+
+            try:
+                tend = self.tend
+                atol = self.settings["atol"]
+                rtol = self.settings["rtol"]
+                solvermethod = self.settings["solvermethod"]
+
+                teval = np.arange(np.ceil(10*t0), np.floor(10*tend) +1)/10 #hotfix
+
+                sol = solve_ivp(self.ode, [t0,tend], yini, t_eval=teval, args=(vals,),
+                                method=solvermethod, atol=atol, rtol=rtol, events=event_funcs)
+                if not(sol.success):
+                    raise TruncationError
+            #find 
+            except KeyboardInterrupt:
+                print(f"The run failed at t={vals.t}, N={vals.N}.")
+                raise KeyboardInterrupt
+            except Exception as e:
+                print(f"While solving the GEF ODE, an error occured at t={vals.t}, N={vals.N} : \n \t {e}")
+                raise TruncationError
+            
+            else:
+                sols.append(sol)
+
+                event_dict_new, command, terminal_event = self._assess_event_occurrences(sol.t_events, sol.y_events, vals)
+
+                for key in event_dict_new.keys():
+                    event_dict[key]["t"].append(event_dict_new[key]["t"])
+                    event_dict[key]["N"].append(event_dict_new[key]["N"])
+
+                if command in ["finish", "error"]:
+                    done=True
+                elif command=="repeat":
+                    print("Repeating")
+                    sols.pop()
+                elif command=="proceed":
+                    #print("Proceeding")
+                    t0 = sol.t[-1]
+                    yini = sol.y[:,-1]
+
+        sol = self._finalise_solution(sols, event_dict, terminal_event)
+    
+        if attempts != 1 and not(done):
+            print(f"The run failed after {attempts} attempts.")
+            raise RuntimeError
+        
+        return sol
+
+    
+    def _setup_events(self):
+        
+        #eventually reinstate this
+        """
+        def EventWrapper(t, y, vals):
+            def SolveIVPcompatibleEvent(func):
+                return func(t, y, vals, self.settings["atol"], self.settings["rtol"])
+            return SolveIVPcompatibleEvent
+        """
+
+        event_funcs = []
+        event_dict = {}
+        for name, event in self.known_events.items():
+            if event.active:
+                event_funcs.append(event.event_func)
+                event_dict[name] = {"t":[], "N":[]}
+        
+        return event_dict, event_funcs
+    
+    
+    def _assess_event_occurrences(self, t_events, y_events, vals):
+        commands = {"primary":[], "secondary":[]}
+        event_dict = {}
+
+        active_events = [event for event in self.known_events.values() if event.active]
+
+        for i, event in enumerate(active_events):
+
+            #Check if the event occured
+            occurrence = (len(t_events[i]) != 0)
+
+            #Add the event occurrence to the event dictionary:
+            if occurrence:
+                event_dict.update({event.name:{"t":t_events[i], "N": y_events[i][:,0]}})
+                print(f"{event.name} at t={np.round(t_events[i], 1)} and N={np.round(y_events[i][:,0],1)}.")
+
+            if event.type == "error" and occurrence:
+                commands["primary"].append( ("error", event.name) )
+            
+            elif event.type=="terminal":
+                #Asses the events consequences based on its occurrence or non-occurrence
+                primary, secondary = event.event_consequence(vals, occurrence)
+                
+                for key, item in {"primary":(primary, event.name), "secondary":secondary}.items(): 
+                    commands[key].append(item)
+
+
+        #Handle secondary commands
+        for command in commands["secondary"]:
+            for key, item in command.items():
+                if key in ["timestep", "tend", "atol", "rtol"]:
+                    setattr(self, key, item)
+                else:
+                    print("Unknown setting 'key', ignoring input.")
+        
+        #Check command priority (in case of multiple final events occuring). error > finish > repeat > proceed
+        for primary_command in ["error", "finish", "repeat", "proceed"]:
+            for item in commands["primary"]:
+                command = item[0]
+                trigger = item[1]
+                if command == primary_command:
+                    return event_dict, command, trigger 
+
+        #if no primarycommand was passed, return "finish"
+        return event_dict, "finish", None
+    
+    def _finalise_solution(self, sols, event_dict, trigger_event):
+        nfevs = 0
+        y = []
+        t = []
+        solution = sols[-1]
+        for s in sols:
+            t.append(s.t[:-1])
+            y.append(s.y[:,:-1])
+            nfevs += s.nfev
+        t.append(np.array([s.t[-1]]))
+        y.append(np.array([s.y[:,-1]]).T)
+
+        t = np.concatenate(t)
+        y = np.concatenate(y, axis=1)
+
+        solution.t = t
+        solution.y = y
+        solution.nfev = nfevs
+
+        if trigger_event is None:
+            solution.success = True
+        else:
+            solution.success = (trigger_event not in [event.name for event in self.known_events.values() if event.active and event.type=="error"])
+            solution.message = f"A terminal event occured: '{trigger_event}'"
+
+        for event_name in (event_dict.keys()):
+            try:
+                event_dict[event_name]["t"] = np.round(np.concatenate(event_dict[event_name]["t"]), 1)
+                event_dict[event_name]["N"] = np.round(np.concatenate(event_dict[event_name]["N"]), 3)
+            except ValueError:
+                event_dict[event_name]["t"] = np.array(event_dict[event_name]["t"])
+                event_dict[event_name]["N"] = np.array(event_dict[event_name]["N"])
+
+        solution.events = event_dict
+        return solution
+    
+    ### Utility fumctions ###
+    
+    #can become an internal-only method once the GEFSolver output is changed.
+    def parse_arr_to_sys(self, t : float, y : np.ndarray, vals : BGSystem):
+        """
+        Translate a GEF solution array to a BGSystem.
+
+        Parameters
+        ----------
+        t : NDArray
+            array of time coordinates
+        y : NDArray
+            array of variables at time t
+        vals : BGSystem
+            the target system
+        """
+        ts = deepcopy(t)
+        ys = deepcopy(y)
+        vals.set_units(False)
+        self.update_vals(ts, ys, vals)
+        return
+    
+    def update_settings(self, **new_settings):
+        """
+        Update the `settings` of the class.
+        """
+        unknown_settings = []
+        
+        for setting, value in new_settings.items():
+            if setting not in self.settings.keys():
+                unknown_settings.append(setting)
+            elif value != self.settings[setting]:
+                print(f"Changing {setting} from {self.settings[setting]} to {value}.")
+                self.settings[setting] = value
+        
+        if len(unknown_settings) > 0:
+            print(f"Unknown settings: {unknown_settings}")
+        return
+
+    def toggle_event(self, event_name : str, toggle : bool):
+        """
+        Disable or enable an `Event` instance of a given name.
+
+        Parameters
+        ----------
+        event_name : str
+            the name of the target
+        toggle : bool
+            if the event should be active or inactive
+        """
+        if event_name in [event for event in self.known_events.keys()]:
+            self.known_events[event_name].active = toggle
+            humanreadable = {True:"active", False:"inactive"}
+            print(f"The event '{event_name}' is now {humanreadable[toggle]}")
+        else:
+            print(f"Unknown event: '{event_name}'")
+        return
+    
+    def _increase_ntr(self, val : int):
+        self.ntr+=val
+        print(f"Increasing ntr by {val} to {self.ntr}.")
+        return
+    
+    
+    
+def GEFSolver(new_init : Callable, new_update_vals : Callable, new_timestep : Callable, new_events : list['Event'], new_variables : dict):
+    r"""
+    Create a subclass of `BaseGEFSolver` with custom equation of motions and initial conditions.
+
+    The subclass is adjusted to the specific EoMs of a new GEF model by defining new methods for `vals_to_yini`, `update_vals` and `timestep` via `new_init`, `new_update_val` and `new_timestep`.
+    Information about the underlying `GEFF.bgtypes.BGSystem` used by the solver is encoded in `new_variables` which overwrites `known_variables`.
+
+    The `new_variables` dictionary classifies variables used by the solver according to:
+    1. 'dynamical': variables evolved by the EoM (not 'gauge')
+    2. 'gauge': tower of gauge-field expectation values evolved by the EoM
+    3. 'static': variables computed from 'dynamical' and 'gauge'
+    4. 'constants': constant variables
+    5. 'functions': functions of the above variables.
+    
+    The `new_init` needs to obey the following rules:
+    1. The call signature and output matches `BaseGEFSolver.vals_to_yini`.
+    2. The return array `yini` has a shape: #${\rm dynamical\, vars.} + 3(n_{\rm tr}+1) \times$#${\rm gauge\, fields}$.
+    3. All dynamical variables are reflected in the first #${\rm dynamical\, vars.}$-indices of `yini`.
+    4. All gauge variables are reflected in the last $3(n_{\rm tr}+1) \times$#${\rm gauge\, fields}$-indices of `yini`.
+
+    The `new_update_vals` needs to obey the following rules:
+    1. The call signature and output matches `BaseGEFSolver.update_vals`.
+    2. It updates every static variable using values in `y` and `t`.
+
+    The `new_timestep` needs to obey the following rules:
+    1. The call signature and output matches `BaseGEFSolver.timestep`.
+    2. It computes derivatives `dydt` for every dynamical or gauge varibale.
+    3. Static variables from `new_update_vals` can be re-used, as it is called before `new_timestep`.
+    4. The indices in `dydt` need to match those of `yini` returned by `new_init`.
+
+    All these functions assume that `vals` is in numerical units throughout the computation.
+
+    In addition, a new list of `Event` objects can be passed to the subclass using `new_events`
+
+    For an example on how to define a new solver, see `GEFF.models.classic`.
+
+    Parameters
+    ----------
+    new_init : Callable
+        a new initialiser function
+    new_update_vals : Callable
+        a new method to compute static variables
+    new_timestep : Callable
+        a new method to compute time derivatives
+    new_events :  list of Event
+        a list of events tracked by the solver
+    new_variables :  dict
+        classifies the variables used in the solver
+
+    Returns
+    -------
+    GEFSolver
+        a subclass of BaseGEFSolver
+    """
+    class GEFSolver(BaseGEFSolver):
+        vals_to_yini = staticmethod(new_init)
+        update_vals = staticmethod(new_update_vals)
+        timestep = staticmethod(new_timestep)
+        known_variables = new_variables
+        known_events = {event.name : event for event in new_events}
+    return GEFSolver
+        
+    
+class Event:
+    r"""
+    An event which is tracked while solving the GEF equations.
+
+    The class defines a function $f(t, y)$ which is used by `scipy.integrate.solve_ivp` to track occurrences of $f(t, y(t))=0$.
+    The event can be `terminal` causing the solver to stop upon an event occurrence.
+    The event only triggers if the event condition changes sign according to:
+    - positive zero crossing: `direction=1`
+    - negative derivative, `direction=-1` 
+    - arbitrary zero crossing `direction=0`
+
+    The zeros are recorded and returned as part of the solvers output.
+
+    The function $f$ is encoded in the method `event_func` which is defined upon initialization.
+
+    Within subclasses of `BaseGEFSolver` class, three subclasses of `Event` are used:
+    1. `TerminalEvent`
+    2. `ErrorEvent`
+    3. `ObserverEvent` 
+
+    Attributes
+    ----------
+    name : str
+        the name of the event
+    eventtype : str
+        the eventtype 'terminal', 'error', or 'observer'
+    active : boolean
+        The events state, `False` implies the `Event` is disregarded by the solver
+    """
+    
+    def __init__(self, name : str, eventtype : str, func : Callable, terminal : bool, direction : int):
+        """
+        Initialise the event as `active`.
+
+        Parameters
+        ----------
+        name : str
+            sets the `name` attribute
+        eventtype : str
+            sets the `eventtype` attribute
+        func : Callable
+            sets the `event_func` attribute
+        terminal : boolean
+            defines if the event occurrence is terminal or not
+        direction : int
+            defines the direction for which event occurrences are tracked
+        """
+        self.name = name
+
+        self.type = eventtype
+        
+        func.terminal = terminal
+        func.direction = direction
+        
+        self.event_func = func
+    
+        self.active = True
+        return
+    
+    @staticmethod
+    def event_func(t : float, y : np.ndarray, sys : BGSystem) -> float:
+        """
+        The event tracked by `Event`
+
+        This method is overwritten by the `func` input upon class initialisation.
+        The signature and return of `func`needs to match this method
+
+        Parameters
+        ----------
+        t : float
+            time
+        y : np.ndarray
+            the solution array
+        sys : BGSystem
+            the system which is evolved alongside y
+
+        Returns
+        -------
+        condition : float
+            condition=0 is an event occurrence
+        """
+        return 1.
+    
+class TerminalEvent(Event):
+    """
+    An `Event` subclass whose occurrence terminates the solver.
+
+    When the solver has terminated (due to an event or otherwise) it checks for `TerminalEvent` occurrences.
+     This calls the `event_consequence` method, which returns instructions to `BaseGEFSolver`. 
+     These instructions may be different depending on an event occurrence or a non-occurrence.
+    """
+    def __init__(self, name : str, func : Callable, direction : int, consequence : Callable):
+        """
+        Initialise the parent class and overwrite the `event_consequence` method.
+
+        Parameters
+        ----------
+        name : str
+            passed as `name` to the parent class
+        func : Callable
+            passed as `func` to the parent class
+        direction : int
+            passed as `direction` to the parent class
+        consequence : Callable
+            overwrites the `event_consequence` method
+        """
+        super().__init__(name, "terminal", func, True, direction)
+        #ToDo: check for Consequence signature (once it is fixed)
+        self.event_consequence = staticmethod(consequence)
+
+    @staticmethod
+    def event_consequence(sys : BGSystem, occurrence : bool) -> Tuple[str, dict]:
+        """
+        Inform the solver how to handle a (non-)occurrence of the event.
+        
+        This method is overwritten by the `consequence` input upon class initialisation.
+
+        The methods returns are treated as an instruction to the solver:
+        - `primary`: this informs the solver what to do with its ODE solution:
+            - 'finish': the solver returns its solution marked as successful.
+            - 'proceed': the solver continues solving from the termination time onwards.
+            - 'repeat': the solver recomputes the solution.
+        - `secondary`: this informs the solver if any of its settings need to be changed. 
+        Allowed attributes are 'timestep', 'tend', 'atol', 'rtol'. See `BaseGEFSolver` for more details.
+
+        Parameters
+        ----------
+        sys : BGSystem
+            a system containing the solution of the solver
+        occurrence : bool
+            indicates if the event occurred during the solution or not
+
+        Returns
+        -------
+        primary : str
+            either 'finish', 'proceed' or 'repeat'
+        secondary : dict
+            the affected settings as keys and their new value as an item
+        """
+        if occurrence:
+            return "proceed", {}
+        else:
+            return "proceed", {}
+
+
+class ErrorEvent(Event):
+    """
+    An `Event` subclass whose occurrence indicates undesired behavior of the solution.
+
+    When the solver terminates with an `ErrorEvent`, `BaseGEFSolver.solve_eom` returns the solution as unsuccessful.
+    """
+    def __init__(self, name : str, func : Callable, direction : int):
+        """Initialise the parent class."""
+        super().__init__(name, "error", func, True, direction)
+
+class ObserverEvent(Event):
+    """An `Event` which does not terminate the solver and is only recorded."""
+    def __init__(self, name : str, func : Callable, direction : int):
+        """Initialise the parent class."""
+        super().__init__(name, "observer", func, False, direction)

@@ -1,12 +1,12 @@
 import numpy as np
 
 from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta
-from GEFF.GEFSolver import TerminalEvent, ErrorEvent
+from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mode_by_mode import BaseModeSolver
 
-from GEFF.Models.EoMsANDFunctions.ClassicEoMs import *
-from GEFF.Models.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox
-from GEFF.Models.EoMsANDFunctions.AuxiliaryFuncs import Heaviside
+from GEFF.utility.classic_eoms import *
+from GEFF.utility.whittaker import WhittakerApprox
+from GEFF.utility.auxiliary_functions import Heaviside
 
 
 """
@@ -34,7 +34,7 @@ quantities={
             "static":{a, H, xi, E, B, G, ddphi}, #variables which are derived from dynamical variables
             "constant":{beta}, #constant quantities in the model
             "function":{V, dV}, #functions of variables such as scalar potentials
-            "gaugefields":{GF1} #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
+            "gauge":{GF1} #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
             }
 
 
@@ -155,6 +155,8 @@ def condition_NegativeEnergies(t, y, vals):
 NegativeEnergies = ErrorEvent("Negative energies", condition_NegativeEnergies, -1)
 
 events = [EndOfInflation, NegativeEnergies]
+
+solver = GEFSolver(initial_conditions, update_values, compute_timestep, events, quantities)
 
 ##### Define Handling of Gauge Fields #####
 ###########################################

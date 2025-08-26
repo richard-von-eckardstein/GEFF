@@ -5,7 +5,7 @@ import pandas as pd
 import os
 import random
 
-from GEFF.Utility import g_rho, g_rho_freq, g_rho_0, g_s, g_s_freq, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
+from GEFF.utility.constants import g_rho, g_rho_freq, g_rho_0, g_s, g_s_freq, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
 
 from scipy.interpolate import CubicSpline
 from scipy.integrate import simpson
@@ -142,7 +142,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
     """
     #the path to the sensitivity curve data
     print(basepath)
-    path = os.path.join(basepath, "../Data/power-law-integrated_sensitivities/")
+    path = os.path.join(basepath, "../data/power-law-integrated_sensitivities/")
     arr = os.listdir(path)
     
     #Obtain List of experiments and running experiments
@@ -205,7 +205,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
     return ax
 
 def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
-    path = os.path.join(basepath, "../Data/strains/")
+    path = os.path.join(basepath, "../data/strains/")
     arr = os.listdir(path)
 
     exp = [a.replace("strain_","").replace(".dat", "") for a in arr ]

@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 
 from GEFF.bgtypes import BGSystem
-from GEFF.GEFSolver import GEFSolver
 
 import importlib.util as util
 import os
@@ -11,9 +10,6 @@ from numbers import Number
 from types import NoneType
 
 class MissingInputError(Exception):
-    pass
-
-class NegativeEnergyError(Exception):
     pass
 
 def _load_model(name : str, user_settings : dict):
@@ -34,7 +30,7 @@ def _load_model(name : str, user_settings : dict):
     """
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    modelpath = os.path.join(current_dir, f"Models/{name}.py")
+    modelpath = os.path.join(current_dir, f"models/{name}.py")
     #Check if Model exists
     try:
         #Load ModelAttributes from GEFFile
@@ -54,57 +50,47 @@ def _load_model(name : str, user_settings : dict):
         raise FileNotFoundError(f"No model found under '{modelpath}'")
     
 
-def _compile_model(modelname, user_settings):
-    #load the model file
-    model = _load_model(modelname, user_settings)
+def _define_model(model_name, user_settings):
+    """
+    Define a GEF subclass based on a module.
 
-    #import quantities dictionary
-    q_dict = model.quantities
+    Parameters
+    ----------
+    modelname : str
+        the name of the GEF model
+    settings : dict
+        a dictionary containing updated settings for the module
 
-    #import information on input and how to handle it
-    input_signature = model.input
-    input_handler = model.parse_input
-
-    #import information for solver:
-    init_func = model.initial_conditions
-    static_variable_func = model.update_values#model.ComputeStaticvariables
-    EoM_func = model.compute_timestep
-    event_list = model.events
-
-    #import Mode-By-Mode class:
-    MbM_solver = model.MbM
-
-    return q_dict, (input_signature, input_handler), (static_variable_func, EoM_func, init_func, event_list), MbM_solver
-    
-
-def _model_setup(model_name, user_settings):
+    Returns
+    -------
+    ModuleType
+        the executed module
+    """
     def GEF_decorator(cls):
-        quantity_info, input_info, solver_info, MbM_info = _compile_model(model_name, user_settings)
-        
-        object_classifier = { key:{i.name for i in item} for key, item in quantity_info.items()}
-        cls._object_classification = object_classifier
-        
-        quantity_info.pop("gaugefields")
-        cls._known_objects = set().union(*quantity_info.values())
-        
+        #load the model file
+        model = _load_model(model_name, user_settings)
 
-        cls._input_signature = input_info[0]
-        cls._input_handler = staticmethod(input_info[1])
-        cls.GEFSolver = GEFSolver(*solver_info, object_classifier)
-        cls.ModeSolver = MbM_info
+        #import quantities dictionary
+        q_dict = model.quantities
+
+        #import information on input and how to handle it
+        cls._input_signature = model.input
+        cls._input_handler = staticmethod(model.parse_input)
+
+        #import information for solver:
+        cls.GEFSolver = model.solver
+        #import Mode-By-Mode class:
+        cls.ModeSolver = model.MbM
+
+        cls._object_classification = { key:{i.name for i in item} for key, item in q_dict.items()}
+
         return cls
     return GEF_decorator
 
-class GEFType:
-    def __new__(cls, *args, **kwargs):
-        #Here, I can ensure that the input from the model really compiles, i.e.,
-        #that all class attributes are as intended
-        return super().__new__(cls, *args, **kwargs)
-
-@_model_setup("Classic", {})
+@_define_model("Classic", {})
 class BaseGEF(BGSystem):
     """
-    This class is the primary interface for the GEF.
+    This class is the primary interface to solve the GEF equations.
      
     
     
@@ -183,15 +169,13 @@ class BaseGEF(BGSystem):
             if name not in (self.value_names() + self.function_names()):
                 self.initialise(name)(0)
 
-        self.GEFSolver.set_init_vals(self)
-
         #Add information about file paths
         self.GEFdata = GEFdata
         self.MbMdata = MbMdata
 
     @classmethod
     def print_input(cls):
-        print("This 'GEF' model requires the following input:")
+        print("This GEF model requires the following input:")
         for key, item in cls._input_signature.items():
             print(f"\t {key.capitalize()}: {item}")
         return
@@ -216,26 +200,27 @@ class BaseGEF(BGSystem):
         return
     
     def run(self, ntr, tend, nmodes=500, print_stats=True, **kwargs):
+        self.set_units(False)
+
+        solver = self.GEFSolver(self)
 
         #Configuring GEFSolver
-        self.GEFSolver.ntr=ntr
-        self.GEFSolver.tend=tend
-        GEFkwargs = {setting : kwargs[setting] for setting in self.GEFSolver.settings if setting in kwargs}        
-        self.GEFSolver.update_settings(**GEFkwargs)
+        solver.ntr=ntr
+        solver.tend=tend
+        solver_kwargs = {setting : kwargs[setting] for setting in solver.settings if setting in kwargs}        
+        solver.update_settings(**solver_kwargs)
 
         #Configuring ModeSolver
         MbMattempts = kwargs.get("MbMattempts", 5)
         binning = kwargs.get("binning", 5)
-        errthr = kwargs.get("errthr", 0.025)
+        err_thr = kwargs.get("err_thr", 0.025)
         resumeMbM = kwargs.get("resumeMbM", True)
-        method = kwargs.get("method", "simpson")
-        selfcorrmethod = kwargs.get("selfcorrmethod", "simpson")
+        int_method = kwargs.get("integrator", "simpson")
 
-        MbMkwargs = {"epsabs":self.GEFSolver.settings["atol"], "epsrel":self.GEFSolver.settings["rtol"]}
-
-        rtol = self.GEFSolver.settings["rtol"]
+        integrator_kwargs = {"integrator":int_method, "epsabs":solver.settings["atol"], "epsrel":solver.settings["rtol"]}
 
         done=False
+        vals = BGSystem.from_system(self, copy=True)
         sol = None
         spec = None
         t_reinit = 0.
@@ -244,23 +229,24 @@ class BaseGEF(BGSystem):
         while not(done) and attempt<MbMattempts:
             attempt +=1
             #This can be taken care of internally. The GEF should not need to get sol objects...
-            solnew, vals = self.GEFSolver.compute_GEF_solution()
-            sol = self.GEFSolver.update_sol(sol, solnew)
-            self.GEFSolver.parse_arr_to_sys(sol.t, sol.y, vals)
+            sol_new = solver.compute_GEF_solution()
+            sol = self._update_sol(sol, sol_new)
+            solver.parse_arr_to_sys(sol.t, sol.y, vals)
 
             if nmodes is not None:
                 print("Using last successful GEF solution to compute gauge-field mode functions.")
                 MbM = self.ModeSolver(vals)
-                rtol = self.GEFSolver.settings["rtol"]
+
+                rtol = solver.settings["rtol"]
 
                 if resumeMbM and attempt > 1:
-                    #How to fix?
                     spec = MbM.update_spectrum(spec, t_reinit, rtol=rtol)
                 else:
                     spec = MbM.compute_spectrum(nmodes, rtol=rtol)
                 print("Performing mode-by-mode comparison with GEF results.")
 
-                agreement, reinit_spec = self.MbMcrosscheck(spec, vals, errthr=errthr, binning=binning, method=selfcorrmethod, **MbMkwargs)
+                agreement, reinit_spec = self.MbMcrosscheck(spec, vals, err_thr=err_thr, binning=binning,
+                                                             **integrator_kwargs)
 
                 if agreement:
                     print("The mode-by-mode comparison indicates a convergent GEF run.\n")
@@ -268,9 +254,10 @@ class BaseGEF(BGSystem):
                 
                 else:
                     t_reinit = reinit_spec["t"]
-                    print(f"Attempting to solve GEF using self-correction starting from t={np.round(reinit_spec['t'], 1)}, N={np.round(reinit_spec['N'], 1)}.\n")
+                    print(f"Attempting to solve GEF using self-correction starting from \
+                          t={np.round(reinit_spec['t'], 1)}, N={np.round(reinit_spec['N'], 1)}.\n")
 
-                    self.GEFSolver.set_initial_conditions_to_MbM(sol, reinit_spec, method, **MbMkwargs)
+                    solver.set_initial_conditions_to_MbM(sol, reinit_spec)
                 
             else:
                 done=True
@@ -278,21 +265,68 @@ class BaseGEF(BGSystem):
         if done:
             
             if print_stats:
-                print_summary(sol)
+                self._print_summary(sol)
             if sol.success:
                 print("\nStoring results in GEF instance.")
-                self.GEFSolver.parse_arr_to_sys(sol.t, sol.y, self)
+                for obj in self.value_list():
+                    obj.set_value(getattr(vals, obj.name).value)
             else:
                 print("The run terminated on with an error, check output for details.")
+
+            self.set_units(True)
             return sol, spec
         
         else:
             raise RuntimeError(f"GEF did not complete after {attempt} attempts.")
+    
+    @staticmethod
+    def _print_summary(sol):
+        print("GEF run completed with the following statistics")
+        for attr in sol.keys():
+            if attr not in ["y", "t", "y_events", "t_events", "sol", "events"]:
+                print(rf" - {attr} : {getattr(sol, attr)}")
+        events = sol.events
+        if np.array([(len(event["t"])==0) for event in events.values()]).all():
+            print("No events occured during the run")
+        else:
+            print("The following events occured during the run:")
+            for event in events.keys():
+                time = events[event]["t"]
+                efold = events[event]["N"]
+                if len(time > 0):
+                    print(f"  - {event} at t={time} or N={efold}")
+        return
+        
+    @staticmethod
+    def _update_sol(sol_old, sol_new):
+        """
+        Update an old GEF solution with a new one, overwriting the overlap.
+        """
+        if sol_old is None:
+            return sol_new
+        else:
+            sol = sol_old
+            ind_overlap = np.where(sol_new.t[0] >= sol_old.t)[0][-1]
+            sol.t = np.concatenate([sol_old.t[:ind_overlap], sol_new.t])
+
+            if sol_old.y.shape[0] < sol_new.y.shape[0]:
+                #if ntr increased from one solution to the next, fill up sol_old with zeros to match sol_new
+                fillshape = (sol_new.y.shape[0] - sol_old.y.shape[0], sol_old.y.shape[1])
+                yfill = np.zeros( fillshape )
+                sol_old.y = np.concatenate([sol_old.y, yfill], axis=0)
+
+            sol.y = np.concatenate([sol_old.y[:,:ind_overlap], sol_new.y], axis=1)
+            sol.events.update(sol_new.events)
+            for attr in ["nfev", "njev", "nlu"]:
+                setattr(sol, attr, getattr(sol_old, attr) + getattr(sol_new, attr))
+            for attr in ["message", "success", "status"]:
+                setattr(sol, attr, getattr(sol_new, attr))
+            return sol
         
      #move to GEF
     @staticmethod
-    def MbMcrosscheck(spec, vals, errthr, binning, method, **MbMkwargs):
-        errs, terr, _ = spec.estimate_GEF_error(vals, errthr=errthr, binning=binning, method=method, **MbMkwargs)
+    def MbMcrosscheck(spec, vals, err_thr, binning, **MbMkwargs):
+        errs, terr, _ = spec.estimate_GEF_error(vals, err_thr=err_thr, binning=binning, **MbMkwargs)
 
         reinit_inds = []
         agreement=True
@@ -301,7 +335,7 @@ class BaseGEF(BGSystem):
             if max(err[-1], rmserr) > 0.10:
                 agreement=False
                 #find where the error is above 5%, take the earliest occurrence, reduce by 1
-                inds = np.where(err > errthr)
+                inds = np.where(err > err_thr)
                 err_ind = inds[0][0]-1               
             else:
                 err_ind = len(terr)-1
@@ -380,7 +414,7 @@ class BaseGEF(BGSystem):
         Parameters
         ----------
         path : str
-            if None, stores data in self.GEFdata, otherwise stores data in the specified file.
+            if None, stores data in self.GEFdata, else, stores data in the specified file.
 
         Raises
         ------
@@ -432,26 +466,10 @@ class BaseGEF(BGSystem):
 
 
 def GEF(modelname, settings):
-    @_model_setup(modelname, settings)
+    @_define_model(modelname, settings)
     class GEF(BaseGEF):
         pass
 
     return GEF
 
 
-def print_summary(sol):
-    print("GEF run completed with the following statistics")
-    for attr in sol.keys():
-        if attr not in ["y", "t", "y_events", "t_events", "sol", "events"]:
-            print(rf" - {attr} : {getattr(sol, attr)}")
-    events = sol.events
-    if np.array([(len(event["t"])==0) for event in events.values()]).all():
-        print("No events occured during the run")
-    else:
-        print("The following events occured during the run:")
-        for event in events.keys():
-            time = events[event]["t"]
-            efold = events[event]["N"]
-            if len(time > 0):
-                print(f"  - {event} at t={time} or N={efold}")
-    return

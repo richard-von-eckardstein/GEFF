@@ -7,7 +7,7 @@ from scipy.integrate import solve_ivp
 from scipy.integrate import quad, simpson
 
 from GEFF.bgtypes import Val, BGSystem
-from GEFF.utility.mbm_funcs import mode_equation_classic, bd_classic
+from GEFF.utility.mode_functions import mode_equation_classic, bd_classic
 
 from typing import Tuple, Callable
 from types import NoneType
@@ -18,6 +18,8 @@ class GaugeSpec(dict):
 
     This class inherits from `dict` and needs the following keys:  
     't', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'
+
+    All quantities are represented in numerical units (see `GEFF.bgtypes.BGSystem`).
 
     The spectrum can be evaluated at certain times $t$ or for certain momenta $k$ by using `tslice` and `kslice`
     Furthermore, the spectrum contained in the object can be integrated to compute gauge-field expectation values.
@@ -525,7 +527,7 @@ class SpecSlice(dict):
     def __init__(self, in_dict):
         super().__init__(in_dict)
 
-    def integrate_slice(self, n : int=0, method="simpson", modethr : int=100, epsabs : float=1e-20, epsrel : float=1e-4, interpolator=PchipInterpolator) -> Tuple[np.ndarray, np.ndarray]:
+    def integrate_slice(self, n : int=0, integrator="simpson", modethr : int=100, epsabs : float=1e-20, epsrel : float=1e-4, interpolator=PchipInterpolator) -> Tuple[np.ndarray, np.ndarray]:
         r"""
         Compute the three integrals
 
@@ -548,7 +550,7 @@ class SpecSlice(dict):
         ----------
         n : int
             the integer $n$ in $\mathcal{F}_\mathcal{X}^{(n)}(t)$ for $\mathcal{X} = \mathcal{E}, \mathcal{B},\mathcal{G}$
-        method : str
+        integrator : str
             set the integration method to `simpson` or `quad`
         modethr : int
             set $m_{\rm thr}$ when using `simpson`
@@ -579,7 +581,7 @@ class SpecSlice(dict):
         res = np.zeros((3,2))
         
         for i in range(3):
-            if method=="simpson":
+            if integrator=="simpson":
                 msk = np.where(x < 0)[0]
                 if len(msk) < modethr: #cannot trust simpsons integration for too few modes.
                     return res
@@ -588,7 +590,7 @@ class SpecSlice(dict):
                                          + (-1)**n*self._simpson_integrate(integs[i,1,msk], x) )
                 res[i,1] = 1e-6*res[i,0]
 
-            elif method=="quad":
+            elif integrator=="quad":
                 resp = self._quad_integrate( integs[i,0,:], x, epsabs, epsrel, interpolator)
                 resm = self._quad_integrate( (-1)**n*integs[i,1,:], x, epsabs, epsrel, interpolator)
                 res[i,:] = resp +resm
@@ -1052,17 +1054,15 @@ class BaseModeSolver:
 
         return ks, tstart
         
-   
-    
     
 def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Callable, init_keys : list[str], new_cutoff : str="kh", default_atol : float=1e-3):
     r"""
     Create a subclass of `BaseModeSolver` with custom mode equation and initial conditions.
 
     In case your GEF model does not follow the pre-defined gauge-field mode equation defined for `BaseModeSolver`, 
-    you can create a subclass of it by defining new methods for `mode_equation` and `initialise_in_bd` through `new_mode_eq` and `new_bd_init`.
+    this method creates a subclass of it by defining new methods for `mode_equation` and `initialise_in_bd` through `new_mode_eq` and `new_bd_init`.
     
-    The method `new_mode_eq` needs obey the following conditions:
+    The method `new_mode_eq` needs to obey the following rules:
     1. The call signature is `f(t,y,k,**kwargs)`
     2. The arguments `t` / `k` expect floats representing time / momentum
     3. The argument `y` expects a `numpy.ndarrray` of shape (8,) with indices
@@ -1071,7 +1071,7 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
     4. The kwargs are functions of the argument `t`.
     5. The return is the time derivative of `y`
 
-    The method `new_bd_init` needs to obey the following conditions:
+    The method `new_bd_init` needs to obey the following rules:
     1. The call signature is `f(t,k,**kwargs)`
     2. The arguments `t` / `k` expect floats representing time / momentum
     3. The kwargs are functions of the argument `t`.
@@ -1086,7 +1086,7 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
         These functions are then passed to to the corresponding keyword arguments of `new_mode_eq`  and `new_bd_init`.
     - `ode_keys` and `init_keys` are added to the `necessary_keys` attribute of the new subclass.
 
-    You can also overwrite the `cuttoff` and `atol` inherited from `BaseModeSolver` 
+    The `cuttoff` and `atol` attributes inherited from `BaseModeSolver` can also be adjusted.
 
     Parameters
     ----------
@@ -1178,17 +1178,17 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
     
     class ModeSolver(BaseModeSolver):
         """
-        A subclass of BaseModeSolver new mode equation and initial condition adapted to a new GEF model
+        A subclass of `BaseModeSolver` new mode equation and initial condition adapted to a new GEF model
 
-        It Inherits all methods from 'BaseModeSolver' but changes the following class attributes
-            - mode_equation
-            - ode_kwargs
-            - initialise_in_bd
-            - bd_kwargs
-            - cutoff
-            - atol
+        It Inherits all methods from `BaseModeSolver` but changes the following class attributes
+        - mode_equation
+        - ode_kwargs
+        - initialise_in_bd
+        - bd_kwargs
+        - cutoff
+        - atol
             
-        This entails that 'compute_spectrum' will now evolve modes according to initialise_in_bd and ModeEom.
+        This entails that `compute_spectrum` will now evolve modes according to `initialise_in_bd` and `mode_equation`.
         """
         
         #Overwrite class attibutes of ModeByMode with new mode equations, boundary conditions and default tolerances.

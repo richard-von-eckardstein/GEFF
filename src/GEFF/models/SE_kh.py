@@ -1,15 +1,14 @@
 import numpy as np
 
 from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVal
-from GEFF.GEFSolver import TerminalEvent, ErrorEvent
+from GEFF.solver import TerminalEvent, ErrorEvent
 from GEFF.mode_by_mode import ModeSolver
 
-from GEFF.Models.EoMsANDFunctions.ClassicEoMs import EoMphi, Friedmann, EoMlnkh
-from GEFF.Models.EoMsANDFunctions.SchwingerEoMs import *
-from GEFF.Models.EoMsANDFunctions.WhittakerFuncs import WhittakerApprox
-from GEFF.Models.EoMsANDFunctions.AuxiliaryFuncs import Heaviside
-from GEFF.Models.EoMsANDFunctions.Conductivities import *
-from GEFF.utility.mbm_funcs import bd_classic, mode_equation_SE_scale
+from GEFF.utility.classic_eoms import EoMphi, Friedmann, EoMlnkh
+from GEFF.utility.schwinger_effect import *
+from GEFF.utility.whittaker import WhittakerApprox
+from GEFF.utility.auxiliary_functions import Heaviside
+from GEFF.utility.mode_functions import bd_classic, mode_equation_SE_scale
 
 name = "SE-kh"
 
@@ -50,7 +49,7 @@ quantities={
             "static":{a, H, xi, E, B, G, ddphi, sigmaE, sigmaB, xieff, kS}, #variables which are derived from dynamical variables
             "constant":{beta}, #constant quantities in the model
             "function":{V, dV}, #functions of variables such as scalar potentials
-            "gaugefields":{GF1} #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
+            "gauge":{GF1} #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
             }
 
 ##### Define Input hanlder #####
