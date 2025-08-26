@@ -7,9 +7,9 @@ from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, b
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mode_by_mode import BaseModeSolver
 
-from GEFF.utility.model_eoms import friedmann, gauge_field_ode, compute_dlnkh, klein_gordon
-from GEFF.utility.whittaker import WhittakerApprox
-from GEFF.utility.auxiliary_functions import heaviside
+from GEFF.utility.aux_eom import friedmann, gauge_field_ode, dlnkh, klein_gordon
+from GEFF.utility.boundary import boundary_approx
+from GEFF.utility.auxiliary import heaviside
 
 
 name = "classic"
@@ -106,7 +106,7 @@ def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
     dydt[2] = vals.ddphi.value
 
     
-    dlnkhdt = compute_dlnkh( vals.kh, vals.dphi, vals.ddphi, vals.beta,
+    dlnkhdt = dlnkh( vals.kh, vals.dphi, vals.ddphi, vals.beta,
                        0., vals.xi, vals.a, vals.H )
     
     logfc = y[0] + np.log( 2*abs(vals.xi)*dydt[0])
@@ -116,7 +116,7 @@ def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
 
     Fcol = y[4:].shape[0]//3
     F = y[4:].reshape(Fcol,3)
-    W = WhittakerApprox(vals.xi.value)
+    W = boundary_approx(vals.xi.value)
     dFdt = gauge_field_ode(F, vals.a, vals.kh, 2*vals.H*vals.xi, W, dlnkhdt, L=20)
     
     dydt[4:] = dFdt.reshape(Fcol*3)

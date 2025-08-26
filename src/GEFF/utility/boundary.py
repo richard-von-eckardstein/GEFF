@@ -1,27 +1,25 @@
+r"""
+This module facilitates computing boundary terms which appear when computing the evolution of gauge-field bilinears like $\langle {\bf E}^2 \rangle$
+due to the time dependence of the UV-regulator scale $k_{\rm h}$.
+
+All functions in this module return the same quantities, namely
+$$E_\lambda = \frac{1}{r^2}\left| (i r - i \lambda \xi - s) W_{-i \lambda \xi, \frac{1}{2} + s}(-2 i r) + W_{1-i \lambda \xi, 1/2 + s}(-2 i r) \right|^2 \, , $$
+$$B_\lambda = \left| W_{-i \lambda \xi, \frac{1}{2} + s}(-2 i r) \right|^2 \, , $$
+$$G_\lambda(\xi, s) = \frac{1}{r}\left[\operatorname{Re}\left[W_{1-i \lambda \xi, 1/2 + s}(-2 i r) W_{i \lambda \xi, \frac{1}{2} + s}(2 i r)\right] -  s \left| W_{-i \lambda \xi, \frac{1}{2} + s}(-2 i r)\right|^2 \right]\, ,$$
+with $r = |\xi| + \sqrt{\xi^2 + s^2 + s}$, the Whittaker-W function $W_{\kappa, \mu}(x)$, $\xi$ the instability parameter, and $s= \sigma_{\rm E}/(2H)$ an effective electric conductivity.
+
+The functions in this module return an array of shape (3,2), with the first index corresponding to $E$, $B$, $G$ and the second index to helicity $\lambda=\pm 1$.
+"""
 import numpy as np
 import math
-from mpmath import whitw, whitm, mp
-from numpy.typing import NDArray
+from mpmath import whitw, mp
 
-"""
-Module for computing boundary terms based on
-whittaker functions W(-i*lambda*xi, 1/2+s, 2|xi|), lambda=+/-
-
-Functions
----------
-WhittakerExact
-    compute boundary terms using exact whittaker functions
-WhittakerApprox
-    use approximate formulas for WhittakerExact(xi, 0) when applicable.
-WhittakerApprox_SE
-    use approximate formulas for WhittakerExact(xi, s) when applicable.
-"""
-
+#set accuracy of mpmath
 mp.dps = 8
 
-def WhittakerExact(xi : float, s : float) -> NDArray:
+def boundary_exact(xi : float, s : float) -> np.ndarray:
     """
-    compute boundary terms using exact whittaker functions
+    Compute boundary terms using exact Whittaker functions.
 
     Parameters
     ----------
@@ -30,8 +28,7 @@ def WhittakerExact(xi : float, s : float) -> NDArray:
 
     Returns
     -------
-    NDArray
-        Boundary terms for gauge bilinears, shape (3,2)
+    W : NDArray
     """
     r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
     
@@ -57,10 +54,11 @@ def WhittakerExact(xi : float, s : float) -> NDArray:
 
     return Fterm
 
-#Whittaker Functions
-def WhittakerApprox(xi : float):
-    """
-    use approximate formulas for WhittakerExact(xi, 0) where applicable.
+def boundary_approx(xi : float) -> np.ndarray:
+    r"""
+    Use approximate formulas to compute boundary terms for the case $s=0$ when $\xi > 3$.
+
+    The approximations are taken from the Appendix B in [2109.01651](https://arxiv.org/abs/2109.01651).
 
     Parameters
     ----------
@@ -68,8 +66,7 @@ def WhittakerApprox(xi : float):
 
     Returns
     -------
-    NDArray
-        Boundary terms for gauge bilinears, shape (3,2)
+    W : NDArray
     """
     if (abs(xi) >= 3):
         Fterm = np.zeros((3, 2))
@@ -130,12 +127,14 @@ def WhittakerApprox(xi : float):
         t4 = -6003491/(2**31*xi**6)
         Fterm[2, 1-sgnsort] = -np.sqrt(2)/(32*xi)*(t1 + t2 + t3 + t4) 
     else:
-        Fterm = WhittakerExact(xi, 0.)
+        Fterm = boundary_exact(xi, 0.)
     return Fterm
 
-def WhittakerApproxSE(xi :float, s : float):
-    """
-    use approximate formulas for WhittakerExact(xi, s) where applicable.
+def boundary_approx_schwinger(xi :float, s : float) -> np.ndarray:
+    r"""
+    Use approximate formulas to compute boundary terms for the case $s=0$ when $\xi > 4$.
+
+    The approximations are taken from the Appendix B in [2109.01651](https://arxiv.org/abs/2109.01651).
 
     Parameters
     ----------
@@ -143,8 +142,7 @@ def WhittakerApproxSE(xi :float, s : float):
 
     Returns
     -------
-    NDArray
-        Boundary terms for gauge bilinears, shape (3,2)
+    W : NDArray
     """
     if (abs(xi) >= 4):
         Fterm = np.zeros((3, 2))
@@ -186,5 +184,5 @@ def WhittakerApproxSE(xi :float, s : float):
 
         Fterm[2, 1-sgnsort] = -((3*xi -r)/xi + 8*s)/(16*np.sqrt(xi*r))
     else:
-        Fterm = WhittakerExact(xi, s)
+        Fterm = boundary_exact(xi, s)
     return Fterm

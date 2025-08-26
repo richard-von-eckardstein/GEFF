@@ -1,10 +1,13 @@
+"""
+A module containing equations of motions for common quantities in GEF models.
+"""
 import numpy as np
 import math
 from typing import Tuple
 
 def friedmann(*rhos) -> float:
     """
-    Calculate the Hubble rate $H$ from the Friedmann equation
+    Calculate the Hubble rate $H$ from the Friedmann equation.
 
     Parameters
     ----------
@@ -21,7 +24,7 @@ def friedmann(*rhos) -> float:
 
 def klein_gordon(dphi : float, dV : float, H : float, friction : float) -> float:
     r"""
-    Calculate the Klein&ndash;Gordon equation (including gauge-field friction)
+    Calculate the Klein&ndash;Gordon equation (including gauge-field friction).
 
     Parameters
     ----------
@@ -104,7 +107,7 @@ def gauge_field_ode(F : np.ndarray, a : float, kh : float, sclrCpl : float,
     sclrCpl : float
         the inflaton gauge-field coupling, $2H\xi$
     W : NDarray
-        whittaker functions used for boundary terms, shape (3,2)
+        boundary terms, shape (3,2)
     dlnkhdt : float
         logarithmic derivative of the instability scale, ${\rm d} \log k_{\rm h} / {\rm d}t$
     L : int
@@ -178,13 +181,13 @@ def dlnkh_schwinger(kh : float, dphi : float, ddphi : float,
         the inflaton--gauge-field coupling, $I_{,\varphi}$
     ddI : float
         derivative of the inflaton--gauge-field coupling, $I_{,\varphi \varphi}$
-    xieff : float or Val
+    xieff : float
         the effective instability parameter, $\xi + \sigma_{\rm B}/(2H)$
     s : float or val
         the effective electric conductivity, $\sigma_{\rm E}/(2H)$
-    a : float or Val
+    a : float
         the scale factor, $a$
-    H : float or Val
+    H : float
         the Hubble rate, $H$
 
     Returns
@@ -216,9 +219,9 @@ def ddelta(delta : float, sigmaE : float) -> float:
 
     Parameters
     ----------
-    delta : float or Val
+    delta : float
         cumulative electric damping, $\Delta$
-    sigmaE : float or Val
+    sigmaE : float
         electric conductivity, $\sigma_{\rm E}$
 
     Returns
@@ -235,17 +238,17 @@ def drhoChi(rhoChi : float, E : float, G : float,
 
     Parameters
     ----------
-    rhoChi : float or Val
+    rhoChi : float
         the fermion energy density, $\rho_{\chi}$
-    E : float or Val
+    E : float
         the electric field expecation value, $\langle {\bf E}^2 \rangle$
-    G : float or Val
+    G : float
         the expectation value of $-\langle {\bf E} \cdot {\bf B} \rangle$
-    sigmaE : float or Val
+    sigmaE : float
         electric conductivity, $\sigma_{\rm E}$
-    sigmaB : float or Val
+    sigmaB : float
         magnetic conductivity, $\sigma_{\rm B}$
-    H : float or Val
+    H : float
         the Hubble rate, $H$
 
     Returns
@@ -277,10 +280,10 @@ def gauge_field_ode_schwinger(F : np.ndarray, a : float, kh : float, sclrCpl : f
         the instability scale $k_{\rm h}$
     sclrCpl : float
         the inflaton gauge-field coupling, $2H\xi_{\rm eff}$
-    delta : float or Val
+    delta : float
         cumulative electric damping, $\Delta$
     W : NDarray
-        whittaker functions used for boundary terms, shape (3,2)
+        boundary terms, shape (3,2)
     dlnkhdt : float
         logarithmic derivative of the instability scale, ${\rm d} \log k_{\rm h} / {\rm d}t$
     L : int
@@ -336,36 +339,36 @@ def gauge_field_ode_schwinger(F : np.ndarray, a : float, kh : float, sclrCpl : f
 
 def conductivities_collinear(a  : float, H  : float,
                            E  : float, B : float, G : float,
-                             pic : int, H0 : float) -> Tuple[float, float, float]:
-    """
-    Compute electric & magnetic conductivities and the damping scale kS
-    assuming collinear electric and magnetic fields (picture: electric, magnetic).
+                             picture : int, H0 : float) -> Tuple[float, float, float]:
+    r"""
+    Compute electric & magnetic conductivities and the damping scale $k_{\rm S}$
+    assuming collinear E & M fields.
 
     Parameters
     ----------
-    a : float or Val
-        the scale factor, a
-    H : float or Val
-        the Hubble rate, H
-    E : float or Val
-        the electric field expectation value E^2
-    B : float or Val
-        the magnetic field expectation value B^2
-    G : float or Val
-        the expectation value of -E.B
-    pic : int
-        an integer specifying electric (pic=-1) or magnetic pictures (pic=1) 
+    a : float
+        the scale factor, $a$
+    H : float
+        the Hubble rate, $H$
+    E : float
+        the electric field expecation value, $\langle {\bf E}^2 \rangle$
+    E : float
+        the magnetic field expecation value, $\langle {\bf B}^2 \rangle$
+    G : float
+        the expectation value of $-\langle {\bf E} \cdot {\bf B} \rangle$
+    picture : int
+        an integer specifying electric (=-1) or magnetic pictures (=1) 
     H0 : float
-        the Hubble rate at initialisation
+        the reference frequency to convert from numerical to physical units
 
     Returns
     -------
     float
-        the electric damping, sigmaE
+        the electric damping, $\sigma_{\rm E}$
     float
-        the magnetic damping, sigmaB
+        the magnetic damping, $\sigma_{\rm B}$
     float
-        the damping scale, kS
+        the damping scale, $k_{\rm S}S
     """     
     mu = (E+B)
     if mu<=0:
@@ -379,9 +382,61 @@ def conductivities_collinear(a  : float, H  : float,
         C = 41/12
 
         sigma = (C*gmu**3/(6*np.pi**2 * H * np.tanh(np.pi*np.sqrt(B/E))))
-        sigmaE =  np.sqrt(B) * (min(1., (1.- pic))*E + max(-pic, 0.)*B) * sigma / (E+B)         
-        sigmaB = -np.sign(G) * np.sqrt(E)*(min(1., (1.+ pic))*B + max(pic,0.)*E)* sigma/(E+B)
+        sigmaE =  np.sqrt(B) * (min(1., (1.- picture))*E + max(-picture, 0.)*B) * sigma / (E+B)         
+        sigmaB = -np.sign(G) * np.sqrt(E)*(min(1., (1.+ picture))*B + max(picture,0.)*E)* sigma/(E+B)
         
         ks = C**(1/3)*gmu*E**(1/4)*a
         
         return sigmaE, sigmaB, ks
+    
+def conductivities_mixed(a  : float, H  : float,
+                           E  : float, B : float, G : float,
+                            H0 : float) -> Tuple[float, float, float]:
+    r"""
+    Compute electric & magnetic conductivities and the damping scale $k_{\rm S}$
+    in the mixed picture.
+
+    Parameters
+    ----------
+    a : float
+        the scale factor, $a$
+    H : float
+        the Hubble rate, $H$
+    E : float
+        the electric field expecation value, $\langle {\bf E}^2 \rangle$
+    E : float
+        the magnetic field expecation value, $\langle {\bf B}^2 \rangle$
+    G : float
+        the expectation value of $-\langle {\bf E} \cdot {\bf B} \rangle$
+    H0 : float
+        the reference frequency to convert from numerical to physical units
+
+    Returns
+    -------
+    float
+        the electric damping, $\sigma_{\rm E}$
+    float
+        the magnetic damping, $\sigma_{\rm B}$
+    float
+        the damping scale, $k_{\rm S}S
+    """     
+    Sigma = np.sqrt((E - B)**2 + 4*G**2)
+    if Sigma<=0:
+        return 0., 0., 0.
+    else:
+        mz = 91.2/(2.43536e18)
+        mu = ((Sigma)/2)**(1/4)
+        gmz = 0.35
+        gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*H0))))
+
+        Eprime = np.sqrt( (E - B + Sigma)/2 )
+        Bprime = np.sqrt( (B- E + Sigma)/2 )
+        Sum = E + B + Sigma
+
+        C = 41/12
+        
+        sigma = ( C*gmu**3/(6*np.pi**2) / (np.sqrt(Sigma*Sum)*H * np.tanh(np.pi*Bprime/Eprime)))
+        
+        ks = C**(1/3)*gmu*Eprime**(1/2)*a
+
+        return 2**(1/2)*abs(G)*Eprime*sigma, -2**(1/2)*G*Bprime*sigma, ks

@@ -1,3 +1,6 @@
+"""
+A module defining mode equations and Bunch&ndash;Davies initial conditions for `GEFF.mode_by_mode.ModeSolver`.
+"""
 import numpy as np
 from typing import Callable
 

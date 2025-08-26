@@ -1,29 +1,31 @@
+r"""
+Module defining the GEF model "SE:no-scale" corresponding to fermionic axion inflation without a heuristic scale dependence.
+"""
 import numpy as np
 
 from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVal
 from GEFF.solver import TerminalEvent, ErrorEvent
 from GEFF.mode_by_mode import ModeSolver
 
-from GEFF.utility.model_eoms import klein_gordon, friedmann, dlnkh_schwinger, ddelta, drhoChi, gauge_field_ode_schwinger
-from GEFF.utility.schwinger_effect import *
-from GEFF.utility.whittaker import WhittakerApproxSE
-from GEFF.utility.auxiliary_functions import heaviside
-from GEFF.utility.mode_functions import mode_equation_SE_scale, damped_bd
+from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh_schwinger,
+                                      ddelta, drhoChi, gauge_field_ode_schwinger,
+                                        conductivities_collinear, conductivities_mixed)
+from GEFF.utility.boundary import boundary_approx_schwinger
+from GEFF.utility.auxiliary import heaviside
+from GEFF.utility.aux_mode import mode_equation_SE_scale, damped_bd
 
-
-
-name = "SE-old"
+name = "SE:no-scale"
 
 settings = {"pic":"mixed"}
 
 def define_conductivity(setting_dict):
     def collinear_conductivity(frac):
         def conductivity(a, H, E, B, G, H0):
-            return ComputeSigmaCollinear(a, H, E, B, G, frac, H0)
+            return conductivities_collinear(a, H, E, B, G, frac, H0)
         return conductivity
 
     if setting_dict["pic"]=="mixed":
-        return ComputeImprovedSigma
+        return conductivities_mixed
     elif setting_dict["pic"]=="electric":
         return collinear_conductivity(-1.0)
     elif setting_dict["pic"]=="magnetic":
@@ -66,7 +68,7 @@ input = {
         }
 
 #Define how initial data is used to infer the initial Hubble rate, Planck mass, and other initial conditions
-def parse_input(consts, init, funcs):
+def define_units(consts, init, funcs):
     #Compute Hubble rate
     H0 = friedmann(  0.5*init["dphi"]**2, funcs["V"](init["phi"]), init["rhoChi"] )
     
@@ -161,7 +163,7 @@ def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
 
     Fcol = y[6:].shape[0]//3
     F = y[6:].reshape(Fcol,3)
-    W = WhittakerApproxSE(vals.xieff.value, vals.s.value)
+    W = boundary_approx_schwinger(vals.xieff.value, vals.s.value)
     dFdt = gauge_field_ode_schwinger( F, vals.a, vals.kh, 2*vals.H*vals.xieff,
                                             vals.sigmaE, vals.delta,
                                                 W, dlnkhdt )

@@ -1,3 +1,6 @@
+"""
+Some general purpose utility functions.
+"""
 import numpy as np
 
 def heaviside(x : float, eps : float) -> float:
@@ -6,7 +9,7 @@ def heaviside(x : float, eps : float) -> float:
 
     Parameters
     ----------
-    dx : float
+    x : float
         the argument of the heaviside function
     eps : float
         controls sharpness of the transition, smaller eps gives sharper transition

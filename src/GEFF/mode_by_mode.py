@@ -7,7 +7,7 @@ from scipy.integrate import solve_ivp
 from scipy.integrate import quad, simpson
 
 from GEFF.bgtypes import Val, BGSystem
-from GEFF.utility.mode_functions import mode_equation_classic, bd_classic
+from GEFF.utility.aux_mode  import mode_equation_classic, bd_classic
 
 from typing import Tuple, Callable
 from types import NoneType

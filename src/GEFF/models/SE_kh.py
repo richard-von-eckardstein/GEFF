@@ -1,33 +1,34 @@
+r"""
+Module defining the GEF model "SE:kh" corresponding to fermionic axion inflation with a heuristic scale dependence given by the instability scale $k_{\rm h}$.
+"""
 import numpy as np
 
 from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVal
 from GEFF.solver import TerminalEvent, ErrorEvent
 from GEFF.mode_by_mode import ModeSolver
 
-from GEFF.utility.model_eoms import klein_gordon, friedmann, dlnkh, drhoChi, gauge_field_ode_schwinger
-from GEFF.utility.schwinger_effect import *
-from GEFF.utility.whittaker import WhittakerApprox
-from GEFF.utility.auxiliary_functions import heaviside
-from GEFF.utility.mode_functions import bd_classic, mode_equation_SE_scale
+from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh, drhoChi,
+                                      gauge_field_ode_schwinger,
+                                        conductivities_collinear, conductivities_mixed)
+from GEFF.utility.boundary import boundary_approx
+from GEFF.utility.auxiliary import heaviside
+from GEFF.utility.aux_mode  import bd_classic, mode_equation_SE_scale
 
-name = "SE-kh"
+name = "SE:kh"
 
 settings = {"pic":"mixed"}
 
-def define_conductivity(setting_dict):
-    def collinear_conductivity(frac):
-        def conductivity(a, H, E, B, G, H0):
-            return ComputeSigmaCollinear(a, H, E, B, G, frac, H0)
-        return conductivity
-
-    if setting_dict["pic"]=="mixed":
-        return ComputeImprovedSigma
-    elif setting_dict["pic"]=="electric":
-        return collinear_conductivity(-1.0)
-    elif setting_dict["pic"]=="magnetic":
-        return collinear_conductivity(1.0)
-    else:
-        raise Exception("Unknown choice for setting 'picture'")
+# parse settings
+if settings["pic"]=="mixed":
+    conductivity = conductivities_mixed
+elif settings["pic"]=="electric":
+    def conductivity(a, H, E, B, G, H0):
+        return conductivities_collinear(a, H, E, B, G, -1, H0)
+elif settings["pic"]=="magnetic":
+    def conductivity(a, H, E, B, G, H0):
+        return conductivities_collinear(a, H, E, B, G, 1, H0)
+else:
+    raise KeyError(f"{settings['pic']} is an unknown choice for the setting'pic'")
 
 ##### Define Variables #####
 ############################
@@ -63,16 +64,12 @@ input = {
         }
 
 #Define how initial data is used to infer the initial Hubble rate, Planck mass, and other initial conditions
-def parse_input(consts, init, funcs):
+def define_units(consts, init, funcs):
     #Compute Hubble rate
     H0 = friedmann(  0.5*init["dphi"]**2, funcs["V"](init["phi"]), init["rhoChi"] )
     
     freq = H0 #Characteristic frequency is the initial Hubble rate
     amp = 1. #Charatcterisic amplitude is the Planck mass
-
-    global conductivity
-    conductivity = np.vectorize(define_conductivity(settings))
-
     return freq, amp
 
 
@@ -152,7 +149,7 @@ def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
 
     Fcol = y[5:].shape[0]//3
     F = y[5:].reshape(Fcol,3)
-    W = WhittakerApprox(vals.xi)
+    W = boundary_approx(vals.xi)
     dFdt = gauge_field_ode_schwinger( F, vals.a, vals.kh, 2*vals.H*vals.xieff,
                     vals.sigmaE, 1.0,
                         W, dlnkhdt )
