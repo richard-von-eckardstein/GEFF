@@ -1,7 +1,6 @@
 import numpy as np
 from copy import deepcopy
-from numpy.typing import NDArray
-from typing import Callable
+from typing import Callable, ClassVar
 
 
 class BGSystem:
@@ -9,25 +8,13 @@ class BGSystem:
     A collection of cosmological variables sharing a system of units.
 
     Instances of this class define two base unit systems,
-    'physical units' and 'numerical units', by setting two scales:
-    - **H0**: a frequency scale (typically the Hubble rate at some reference time)
-    - **MP**: an energy scale (typically the Planck mass)
+    'physical units' and 'numerical units', by setting an energy scale, `MP` and an inverse time scale, `H0`. 
 
     The cosmological variables (time, Hubble rate etc) are represented by `Quantity` objects.
-    Instances of these objects can be converted between units
-    by using the scales H0 and MP.  
-    This class is the fundamental building block of the GEF-code. 
+    These objects are stored in `quantities` and can can be initialise using `initialise`.
+    Instances of these objects can be collectively converted between units by using the scales `H0` and `MP`. 
 
-    Attributes
-    ----------
-    H0 : float
-        the frequency scale
-    MP : float
-        the energy scale
-    quantities : dict
-        A dictionary of all `Quantity` objects for this BGSystem
-    'QuantityName' : Val or Func
-        Instances of `Quantity`
+    This class is the fundamental building block of the GEF-code. 
 
     Example
     -------
@@ -74,13 +61,16 @@ class BGSystem:
         quantity_set : set of Quantity
             used to define `quantities`
         H0 : float
-            the frequency scale
+            the characteristic frequency scale
         MP : float
-            the energy scale
+            the characteristic energy scale
         """
-        self.quantities = {q.name:q for q in quantity_set}
-        self.H0 = H0
-        self.MP = MP
+        self.quantities : dict = {q.name:q for q in quantity_set}
+        """A dictionary of all `Quantity` objects for this BGSystem"""
+        self.H0 : float = H0
+        """A frequency scale (typically the Hubble rate at some reference time)"""
+        self.MP : float = MP
+        """An energy scale(typically the Planck mass)"""
         self._units=True
     
     @classmethod
@@ -172,7 +162,7 @@ class BGSystem:
             a function used to initialize the `Quantity` object
         """
 
-        def init(obj : NDArray | Callable):
+        def init(obj : np.ndarray | Callable):
             """
             Initialize a `Quantity` object with an arithmetic type / Callable.
 
@@ -350,20 +340,14 @@ class Quantity:
     `Quantity` objects are initialized as part of a `BGSystem`, which defines a common frequency scale and energy scale for all its `quantities`.
 
     This class serves as a parent for `Val` and `Func`.
-    
-    Attributes
-    ----------
-    name : str
-        the objects name
-    u_H0 : int
-        an integer indicating how the object scales with frequency
-    u_MP : int
-        an integer indicating how the object scales with energy
     """
 
-    name= ""
-    u_H0 = 0
-    u_MP = 0
+    name : ClassVar[str]= ""
+    """The objects name"""
+    u_H0 : ClassVar[int] = 0
+    """Indicates how the object scales with frequency."""
+    u_MP : ClassVar[int] = 0
+    """Indicates how the object scales with energy."""
 
     def __init__(self, sys : BGSystem):
         """
@@ -446,30 +430,17 @@ class Quantity:
     
 class Val(Quantity):
     r"""
-    A `Quantity` representing real-valued variables like cosmic time or Hubble rate.
+    A `Quantity` subclass representing real-valued variables like cosmic time or Hubble rate.
      
     Instances of this class can be used like a 1-D Numpy-Array for mathematical operations and indexing.
     This class defines basic arithmetic operations for its instances as operations on their underlying 1-D Numpy-Array, `value`.  
+
     As a subclass of `Quantity` it inherits all its attributes and methods, but re-defines the `set_units` method
-    such that changing units converts the value of the underlying `value` according to its conversion factor.
+    such that changing units converts `value` according to `Quantity.get_conversion`.
 
     A typical object is the scalar field velocity, $\dot\varphi$: *scales with $HM_{\rm P}$*
 
     To define a custom `Val` object use the class factory `BGVal`.
-
-    Attributes
-    ----------
-    name : str
-        the object's name
-    u_H0 : int
-        an integer indicating how the object scales with frequency
-    u_MP : int
-        an integer indicating how the object scales with energy
-    value : NDArray
-        a 1-D array of values in the units of the class instance.
-    dtype : numpy.floating
-        the data type of `value`
-    
     
     Examples
     --------
@@ -516,12 +487,12 @@ class Val(Quantity):
     # We can safely add up E0 and B0 as they are in the same units:
     print(U.E0 + U.B0) #gives 7e-10 = 6e-10 + 1e-10
     ```
-
     """
 
-    dtype = np.float64
+    dtype : ClassVar[np.floating] = np.float64
+    """The data type of `value`."""
 
-    def __init__(self, value : NDArray, sys : BGSystem):
+    def __init__(self, value : np.ndarray, sys : BGSystem):
         """
         Create a new instance using a numpy array and a BGSystem
 
@@ -533,7 +504,8 @@ class Val(Quantity):
             the BGSystem to which the instance belongs
         """
         super().__init__(sys)
-        self.value = np.asarray(value, dtype=self.dtype)
+        self.value : np.ndarray =  np.asarray(value, dtype=self.dtype)
+        """A 1-D array of values in the units of the class instance."""
 
     def __str__(self) -> str:
         """
@@ -570,13 +542,13 @@ class Val(Quantity):
         self._units=units
         return
     
-    def set_value(self, value : NDArray):
+    def set_value(self, value : np.ndarray):
         """
         Overwrite the `value` attribute.
 
         Parameters
         ----------
-        value : NDarray or float
+        value : NDArray or float
             the new value.
         """
 
@@ -665,13 +637,13 @@ class Val(Quantity):
 #CONTINUE FROM HERE!
 class Func(Quantity):
     r"""
-    A `Quantity` representing real functions of variables like the inflaton potential.
+    A `Quantity` subclass representing real functions of variables like the inflaton potential.
     
     An instance of this class can be used as a function,
-    evaluating the underlying `Callable` method, `_basefunc` depending on the current units.
-    In physical units, the call returns the result of the underlying function, `self._basefunc(*args)`.
-    In numerical units, the call instead returns `_basefunc(*args)/_conversion`, 
-    with `_conversion` defined by the parent class, `Quantity`.  
+    evaluating the underlying method, `f(*args)` depending on the current units.
+    In physical units, the call returns the result of the underlying function, `f(*args)`.
+    In numerical units, the call instead returns `f(*args)/conversion_factor`, 
+    with `conversion_factor` defined by `Quantity.get_conversion`.  
     If called by a `Val` object, the argument is also converted according to the units of the `Val` instance
     (generically, identical to the ones of the `Func` instance).
     If instead called by a regular arithmetic data type (e.g., `float`),
@@ -680,19 +652,6 @@ class Func(Quantity):
     A typical object is the scalar potential, $V(\varphi)$: *scales with $(H M_{\rm P})^2$*
 
     To define a custom `Func` object, use the class factory `BGFunc`
-
-    Attributes
-    ----------
-    name : str
-        the object's name
-    u_H0 : int
-        an integer indicating how the object scales with frequency
-    u_MP : int
-        an integer indicating how the object scales with energy
-    args : list of Val
-        indicates the argument signature for the class.
-    dtype : numpy.floating
-        the data type returned by `_basefunc`
 
     Examples
     --------
@@ -763,25 +722,28 @@ class Func(Quantity):
     ```
 
     """
-    args = []
+    args : ClassVar[list[Val]] = []
+    """Indicates the argument signature for the class."""
+    dtype : ClassVar[np.floating] = np.float64
+    """The data type returned by `__call__`."""
 
-    def __init__(self, func, sys):
+    def __init__(self, func : Callable, sys : BGSystem):
         """
         Create a new instance using a `Callable` and a BGSystem
 
         Parameters
         ----------
         func : NDArray
-            the underlying `_basefunc` of the instance
+            the underlying function `f(*args)` of the instance
         sys : BGSystem
             the BGSystem to which the instance belongs
 
         Raises
         ------
         TypeError
-            if the number of arguments of `func`do not match `len(self.args)`
+            if the number of arguments of `func` do not match `args`
         ValueError
-            if the return of`func` can't be converted to `self.dtype`
+            if the return of`func` can't be converted to `dtype`
         """
         super().__init__(sys)
         func = np.vectorize(func, otypes=[self.dtype])
@@ -792,7 +754,7 @@ class Func(Quantity):
         except TypeError:
             raise TypeError("The number of non-default arguments of 'func' needs to match 'len(self.args)'.")
         except ValueError:
-            raise ValueError("'func' must return a single value which can be converted to '{self.dtype}'")
+            raise ValueError(f"'func' must return a single value which can be converted to '{self.dtype}'")
         
         self._basefunc = func
 
@@ -801,7 +763,7 @@ class Func(Quantity):
         
     def get_basefunc(self) -> Callable:
         """
-        Get the underlying `_basefunc` which defines the `__call__` method.
+        Get the underlying function which defines the `__call__` method.
 
         Returns
         -------
@@ -812,7 +774,7 @@ class Func(Quantity):
     
     def get_arg_conversions(self) -> list[float]:
         """
-        Get a list of conversion factors for each argument of `_basefunc`.
+        Get a list of conversion factors for each argument of `f(*args)`.
 
         Returns
         -------
@@ -844,7 +806,7 @@ class Func(Quantity):
     
 def BGVal(q_name : str, H0 : int, MP : int, q_dtype : np.floating=np.float64):
     """
-    Creates a subclass of `Val` with custom values for `name`, `u_H0` and `u_MP`.
+    Creates a subclass of `Val` with custom `Val.name`, `Val.u_H0` and `Val.u_MP`.
 
     Parameters
     ----------
@@ -873,27 +835,15 @@ def BGVal(q_name : str, H0 : int, MP : int, q_dtype : np.floating=np.float64):
 
     class BGVal(Val):
         """
-        A `Quantity` representing real-valued variables like cosmic time or Hubble rate.
+        A `Quantity` subclass representing real-valued variables like cosmic time or Hubble rate.
      
         Instances of this class can be used like a 1-D Numpy-Array for mathematical operations and indexing.
         This class defines basic arithmetic operations for its instances as operations on their underlying 1-D Numpy-Array, `value`.  
+
         As a subclass of `Quantity` it inherits all its attributes and methods, but re-defines the `set_units` method
-        such that changing units converts the value of the underlying `value` according to its conversion factor.
+        such that changing units converts `value` according to `Quantity.get_conversion`.
 
         This is a subclass of `Val` with a custom name and scaling.
-    
-        Attributes
-        ----------
-        name : str
-        the objects name
-        u_H0 : int
-            an integer indicating how the object scales with frequency
-        u_MP : int
-            an integer indicating how the object scales with energy
-        value : NDArray
-            a 1-D array of values in the units of the class instance.
-        dtype : numpy.floating
-            the data type of `value`
         """
 
         name=q_name
@@ -909,7 +859,7 @@ def BGVal(q_name : str, H0 : int, MP : int, q_dtype : np.floating=np.float64):
 
 def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_dtype : np.dtype=np.float64):
     """
-    Creates a subclass of `Func` with custom values for `name`, `u_H0`, `u_MP` and `args`.
+    Creates a subclass of `Func` with custom `Func.name`, `Func.u_H0` and `Func.u_MP`. and `Func.args`.
 
     Parameters
     ----------
@@ -938,34 +888,19 @@ def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_dtype : np.
     
     class BGFunc(Func):
         r"""
-        A `Quantity` representing real functions of variables like the inflaton potential.
-        
+        A `Quantity` subclass representing real functions of variables like the inflaton potential.
+    
         An instance of this class can be used as a function,
-        evaluating the underlying `Callable` method, `_basefunc` depending on the current units.
-        In physical units, the call returns the result of the underlying function, `self._basefunc(*args)`.
-        In numerical units, the call instead returns `_basefunc(*args)/_conversion` is returned, 
-        with `_conversion` defined by the parent class, `Quantity`.  
+        evaluating the underlying method, `f(*args)` depending on the current units.
+        In physical units, the call returns the result of the underlying function, `f(*args)`.
+        In numerical units, the call instead returns `f(*args)/conversion_factor`, 
+        with `conversion_factor` defined by `Quantity.get_conversion`.  
         If called by a `Val` object, the argument is also converted according to the units of the `Val` instance
         (generically, identical to the ones of the `Func` instance).
-        If instead called by a regular arithmetic data type (e.g., 'float'),
+        If instead called by a regular arithmetic data type (e.g., `float`),
         it is assumed that the argument is in the same unit system as the `Func` instance.
 
-        A typical object is the scalar potential, $V(\varphi)$: *scales with $(H M_{\rm P})^2$*
-
         This is a subclass of `Func` with a custom name and scaling.
-
-        Attributes
-        ----------
-        name : str
-            the object's name
-        u_H0 : int
-            an integer indicating how the object scales with frequency
-        u_MP : int
-            an integer indicating how the object scales with energy
-        args : list of `Val`
-            indicates the argument signature for the class.
-        dtype : numpy.floating
-            the data type returned by `_basefunc`
         """
 
         name=qname

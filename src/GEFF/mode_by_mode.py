@@ -9,7 +9,7 @@ from scipy.integrate import quad, simpson
 from GEFF.bgtypes import Val, BGSystem
 from GEFF.utility.aux_mode  import mode_equation_classic, bd_classic
 
-from typing import Tuple, Callable
+from typing import Tuple, Callable, ClassVar
 from types import NoneType
 
 class GaugeSpec(dict):
@@ -644,31 +644,23 @@ class BaseModeSolver:
     The mode equations are solved with an explicit Runge&ndash;Kutta of order 5(4), which is implemented in `scipy.integrate.solve_ivp`.
 
     For creating a custom subclass of `BaseModeSolver` with user-specified  mode equation and initial conditions, you can use the class factory `ModeSolver`.
-    
-    Attributes
-    ----------
-    ode_kwargs : dict
-        stores the time-dependent background parameters used by `mode_equation` (default keys: 'a', 'H' and 'xi')
-    bd_kwargs : dict
-        stores the time-dependent background parameters used by `initialise_in_bd` (default: empty)
-    cutoff : dict
-        the name of $k_{\rm UV}(t)$ in the GEF solution (default: 'kh')
-    necessary_keys : set of str
-        necessary keys expected as names of `GEFF.bgtypes.Val` instances belonging to the `GEFF.bgtypes.BGSystem` passed when initialising the class
-        (default keys: 't', 'N', 'H', 'xi', 'a')
-    atol : float
-        the default absolute tolerance for `scipy.integrate.solve_ivp`
     """
 
-    ode_kwargs = {"a":None, "H":None, "xi":None}
-    bd_kwargs = {}
-    cutoff = "kh"
-    atol=1e-3
+    
+    _ode_kwargs : dict = {"a": None, "H":None, "xi":None}
+    _bd_kwargs = {}
+
+    cutoff : ClassVar[str] = "kh"
+    r"""The name of $k_{\rm UV}(t)$ in the GEF solution."""
+    
+    atol : ClassVar[float] = 1e-3
+    """The default absolute tolerance used in `scipy.integrate.solve_ivp`"""
+
+    necessary_keys : ClassVar[set] = (["t", "N"] + list(_ode_kwargs.keys()) + list(_bd_kwargs.keys()) + [cutoff])
+    """The class expects these attributes in the `GEFF.bgtypes.BGSystem` passed on initialisation."""
 
     mode_equation = staticmethod(mode_equation_classic)
     initialise_in_bd = staticmethod(bd_classic)
-
-    necessary_keys = set(["t", "N"] + list(ode_kwargs.keys()) + list(bd_kwargs.keys()) + [cutoff])
 
     def __init__(self, sys : BGSystem):
         """
@@ -705,16 +697,16 @@ class BaseModeSolver:
         self.__khf = CubicSpline(self.__t, kh)
 
         #import the values for the mode equation and interpolate
-        for key in self.ode_kwargs.keys(): 
+        for key in self._ode_kwargs.keys(): 
             val = getattr(sys, key)
             if isinstance(val, Val):
-                self.ode_kwargs[key] = CubicSpline(self.__t, val)
+                self._ode_kwargs[key] = CubicSpline(self.__t, val)
         
         #import the values for the mode equation and interpolate
-        for key in self.bd_kwargs.keys(): 
+        for key in self._bd_kwargs.keys(): 
             val = getattr(sys, key)
             if isinstance(val, Val):
-                self.bd_kwargs[key] = CubicSpline(self.__t, val)
+                self._bd_kwargs[key] = CubicSpline(self.__t, val)
         
         #compute the evolution of conformal time for the phases
         self.__af = CubicSpline(self.__t, a)
@@ -849,7 +841,7 @@ class BaseModeSolver:
 
             klen = len(spec["k"])
 
-            vecode = np.vectorize(lambda t, y, k: self.mode_equation(t, y, k, **self.ode_kwargs),
+            vecode = np.vectorize(lambda t, y, k: self.mode_equation(t, y, k, **self._ode_kwargs),
                                     excluded={0, "t"},
                                 signature="(8,n),(n)->(8,n)",
                                 )
@@ -897,7 +889,7 @@ class BaseModeSolver:
         """
 
         #Initial conditions for y and dydt for both helicities (rescaled appropriately)
-        yini = self.initialise_in_bd(tstart, k, **self.bd_kwargs)
+        yini = self.initialise_in_bd(tstart, k, **self._bd_kwargs)
 
         teval = self.__t
 
@@ -909,7 +901,7 @@ class BaseModeSolver:
         eta = self.__eta
         
         #the mode was in vacuum before tstart
-        yvac = np.array([self.initialise_in_bd(t, k, **self.bd_kwargs) for t in teval[:istart]]).T 
+        yvac = np.array([self.initialise_in_bd(t, k, **self._bd_kwargs) for t in teval[:istart]]).T 
         phasevac = (np.exp(-1j*k*eta[:istart]))
         vac = yvac * phasevac
 
@@ -953,7 +945,7 @@ class BaseModeSolver:
             the derivative of the negative helicity mode
         """
         #Define ODE
-        def ode(t, y): return self.mode_equation(t, y, k, **self.ode_kwargs)
+        def ode(t, y): return self.mode_equation(t, y, k, **self._ode_kwargs)
 
         if atol is None:
             atol = self.atol
@@ -1059,8 +1051,9 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
     r"""
     Create a subclass of `BaseModeSolver` with custom mode equation and initial conditions.
 
-    In case your GEF model does not follow the pre-defined gauge-field mode equation defined for `BaseModeSolver`, 
-    this method creates a subclass of it by defining new methods for `mode_equation` and `initialise_in_bd` through `new_mode_eq` and `new_bd_init`.
+    In case your GEF model does not follow the pre-defined gauge-field mode equation `BaseModeSolver.mode_equation`,
+    or initial conditions, `BaseModeSolver.initialise_in_bd` this method  defines a new subclass with
+     these methods replaced by `new_mode_eq` and `new_bd_init`.
     
     The method `new_mode_eq` needs to obey the following rules:
     1. The call signature is `f(t,y,k,**kwargs)`
@@ -1084,9 +1077,9 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
     - These keys correspond to names of `GEFF.bgtypes.Val` objects belonging to a `GEFF.bgtypes.BGSystem` passed to the class upon initialisation.
         The respective `Val` objects are interpolated to obtain functions of time. 
         These functions are then passed to to the corresponding keyword arguments of `new_mode_eq`  and `new_bd_init`.
-    - `ode_keys` and `init_keys` are added to the `necessary_keys` attribute of the new subclass.
+    - `ode_keys` and `init_keys` are added to `BaseModeSolver.necessary_keys` of the new subclass.
 
-    The `cuttoff` and `atol` attributes inherited from `BaseModeSolver` can also be adjusted.
+    The `BaseModeSolver.cutoff` and `BaseModeSolver.atol` attributes can also be adjusted.
 
     Parameters
     ----------
@@ -1105,7 +1098,7 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
 
     Returns
     -------
-    NewModeSolver : class
+    NewModeSolver
         the newly defined subclass of `BaseModeSolver`
 
     Example
@@ -1180,23 +1173,22 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
         """
         A subclass of `BaseModeSolver` new mode equation and initial condition adapted to a new GEF model
 
-        It Inherits all methods from `BaseModeSolver` but changes the following class attributes
-        - mode_equation
-        - ode_kwargs
-        - initialise_in_bd
-        - bd_kwargs
-        - cutoff
-        - atol
+        It Inherits all methods from `BaseModeSolver` but changes the attributes:
+        - `BaseModeSolver.mode_equation`
+        - `BaseModeSolver.initialise_in_bd`
+        - `BaseModeSolver.necessary_keys`
+        - `BaseModeSolver.cutoff`
+        - `BaseModeSolver.atol`
             
         This entails that `compute_spectrum` will now evolve modes according to `initialise_in_bd` and `mode_equation`.
         """
         
         #Overwrite class attibutes of ModeByMode with new mode equations, boundary conditions and default tolerances.
         mode_equation = staticmethod(new_mode_eq)
-        ode_kwargs = dict(zip(ode_keys, [None for x in ode_keys]))
+        _ode_kwargs = dict(zip(ode_keys, [None for x in ode_keys]))
 
         initialise_in_bd = staticmethod(new_bd_init)
-        bd_kwargs = dict(zip(init_keys, [None for x in init_keys]))
+        _bd_kwargs = dict(zip(init_keys, [None for x in init_keys]))
 
         atol=default_atol
     

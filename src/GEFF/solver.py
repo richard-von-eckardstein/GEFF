@@ -7,13 +7,7 @@ from scipy.integrate import solve_ivp
 
 from copy import deepcopy
 
-from typing import Callable, Tuple
-
-class TruncationError(Exception):
-    """
-    Exception indicating that a GEF solution was unsuccessful.
-    """
-    pass
+from typing import Callable, Tuple, ClassVar
 
 class BaseGEFSolver:
     r"""
@@ -29,29 +23,20 @@ class BaseGEFSolver:
     $$\frac{{\rm d} \log a}{{\rm d} t} = H_0$$
 
     In practice, the class factory `GEFSolver` creates a subclass of `BaseGEFSolver` adapted to the EoMs of other models.
-    
-    Attributes
-    ----------
-    known_variables : dict
-        classification of `Quantity` objects in `init_vals` as 'dynamical', 'constant', 'static', 'function' or 'ode tower'.
-    known_events : dict
-        the `Event` objects which are tracked by the solver
-    init_vals : BGSystem
-        initial data for the EoM's defined at $t_0 = 0$.
-    ntr : int
-        truncation number for truncated towers of ODE's
-    tend : float
-        the time $t_{\rm end}$ up to which the EoMs are solved
-    settings : dict
-        a dictionary of internal settings used by the class:
-        - atol: absolute tolerance used by `solve_ivp` (default: 1e-20)
-        - rtol: relative tolerance used by `solve_ivp` (default: 1e-6)
-        - solvermethod: method used by `solve_ivp` (default: 'RK45')
-        - attempts: attempts made by `compute_GEF_solution` (default: 5)
-        - ntrstep: `ntr` increment used in `compute_GEF_solution` (default: 10)
     """
-    known_variables = {"time":{t}, "dynamical":{N}, "static":{a}, "constant":{H}, "function":{}, "ode tower":{}}
-    known_events = {}
+
+    known_variables : ClassVar[dict] = {"time":{t}, "dynamical":{N}, "static":{a}, "constant":{H}, "function":{}, "ode tower":{}}
+    """
+    Classifies variables used by the solver according to:
+    * 'dynamical': variables evolved by the EoM (not 'gauge')
+    * 'gauge': tower of gauge-field expectation values evolved by the EoM
+    * 'static': variables computed from 'dynamical' and 'gauge'
+    * 'constants': constant variables
+    * 'functions': functions of the above variables.
+    """
+
+    known_events : ClassVar[dict] = {}
+    """The `Event` objects which are tracked by the solver."""
 
     def __init__(self, init_sys : BGSystem):
         """
@@ -62,22 +47,36 @@ class BaseGEFSolver:
         init_sys : BGSystem
             initial data used by the solver
         """
-        self.init_vals = BGSystem.from_system(init_sys, copy=True)
-        #think how you can add these as (static)methods to the class -> helps documentation
-        self.set_initial_conditions_to_default()
+        self.init_vals : BGSystem = BGSystem.from_system(init_sys, copy=True)
+        """Initial data for the EoM's defined at $t_0 = 0$."""
 
-        self.settings={"atol":1e-20, "rtol":1e-6, "attempts":5, "solvermethod":"RK45", "ntrstep":10}
-        self.ntr = 100
-        self.tend = 120
+        self.settings : dict ={"atol":1e-20, "rtol":1e-6, "attempts":5, "solvermethod":"RK45", "ntrstep":10}
+        """
+        A dictionary of internal settings used by the class:
+        - atol: absolute tolerance used by `solve_ivp` (default: 1e-20)
+        - rtol: relative tolerance used by `solve_ivp` (default: 1e-6)
+        - solvermethod: method used by `solve_ivp` (default: 'RK45')
+        - attempts: attempts made by `compute_GEF_solution` (default: 5)
+        - ntrstep: `ntr` increment used in `compute_GEF_solution` (default: 10)
+        """
+
+        self.ntr : int = 100
+        r"""Truncation number $n_{\rm tr}$, for truncated towers of ODE's"""
+
+        self.tend : float = 120.
+        r"""The time $t_{\rm end}$ up to which the EoMs are solved"""
+
+        #initial conditions on initialisation
+        self.set_initial_conditions_to_default()
 
     def compute_GEF_solution(self):
         """
         An algorithm to solve the GEF equations.
 
         The solver attempts to solve the EoMs several times using `solve_eom`. 
-        If this returns a `TruncationError`, `ntr` is increased by `setting['ntrstep']`.
+        If this returns a `TruncationError`, `ntr` is increased by `settings['ntrstep']`.
         Afterwards, `solve_eom` is called again until it returns a result.
-        This is done for `setting['attempts']` times or until `ntr=200` is reached.
+        This is done for `settings['attempts']` times or until `ntr=200` is reached.
 
         Returns
         -------
@@ -555,28 +554,21 @@ def GEFSolver(new_init : Callable, new_update_vals : Callable, new_timestep : Ca
     r"""
     Create a subclass of `BaseGEFSolver` with custom equation of motions and initial conditions.
 
-    The subclass is adjusted to the specific EoMs of a new GEF model by defining new methods for `vals_to_yini`, `update_vals` and `timestep` via `new_init`, `new_update_val` and `new_timestep`.
-    Information about the underlying `GEFF.bgtypes.BGSystem` used by the solver is encoded in `new_variables` which overwrites `known_variables`.
-
-    The `new_variables` dictionary classifies variables used by the solver according to:
-    1. 'dynamical': variables evolved by the EoM (not 'gauge')
-    2. 'gauge': tower of gauge-field expectation values evolved by the EoM
-    3. 'static': variables computed from 'dynamical' and 'gauge'
-    4. 'constants': constant variables
-    5. 'functions': functions of the above variables.
+    The subclass is adjusted to the specific EoMs of a new GEF model by defining new methods for `BaseGEFSolver.vals_to_yini`, `BaseGEFSolver.update_vals` and `BaseGEFSolver.timestep` via `new_init`, `new_update_val` and `new_timestep`.
+    Information about the classificiation of variables is encoded in `new_variables` which overwrites `BaseGEFSolver.known_variables`.
     
     The `new_init` needs to obey the following rules:
-    1. The call signature and output matches `BaseGEFSolver.vals_to_yini`.
+    1. The call signature and output matches `vals_to_yini`.
     2. The return array `yini` has a shape: #${\rm dynamical\, vars.} + 3(n_{\rm tr}+1) \times$#${\rm gauge\, fields}$.
     3. All dynamical variables are reflected in the first #${\rm dynamical\, vars.}$-indices of `yini`.
     4. All gauge variables are reflected in the last $3(n_{\rm tr}+1) \times$#${\rm gauge\, fields}$-indices of `yini`.
 
     The `new_update_vals` needs to obey the following rules:
-    1. The call signature and output matches `BaseGEFSolver.update_vals`.
+    1. The call signature and output matches `update_vals`.
     2. It updates every static variable using values in `y` and `t`.
 
     The `new_timestep` needs to obey the following rules:
-    1. The call signature and output matches `BaseGEFSolver.timestep`.
+    1. The call signature and output matches `timestep`.
     2. It computes derivatives `dydt` for every dynamical or gauge varibale.
     3. Static variables from `new_update_vals` can be re-used, as it is called before `new_timestep`.
     4. The indices in `dydt` need to match those of `yini` returned by `new_init`.
@@ -590,15 +582,15 @@ def GEFSolver(new_init : Callable, new_update_vals : Callable, new_timestep : Ca
     Parameters
     ----------
     new_init : Callable
-        a new initialiser function
+        overwrites `BaseGEFSolver.vals_to_yini`
     new_update_vals : Callable
-        a new method to compute static variables
+        overwrites `BaseGEFSolver.update_vals`
     new_timestep : Callable
-        a new method to compute time derivatives
+        overwrites `BaseGEFSolver.timestep`
     new_events :  list of Event
-        a list of events tracked by the solver
+        overwrites `BaseGEFSolver.known_events`
     new_variables :  dict
-        classifies the variables used in the solver
+        overwrites `BaseGEFSolver.known_variables`
 
     Returns
     -------
@@ -633,15 +625,6 @@ class Event:
     1. `TerminalEvent`
     2. `ErrorEvent`
     3. `ObserverEvent` 
-
-    Attributes
-    ----------
-    name : str
-        the name of the event
-    eventtype : str
-        the eventtype 'terminal', 'error', or 'observer'
-    active : boolean
-        The events state, `False` implies the `Event` is disregarded by the solver
     """
     
     def __init__(self, name : str, eventtype : str, func : Callable, terminal : bool, direction : int):
@@ -653,7 +636,7 @@ class Event:
         name : str
             sets the `name` attribute
         eventtype : str
-            sets the `eventtype` attribute
+            sets the `type` attribute
         func : Callable
             sets the `event_func` attribute
         terminal : boolean
@@ -661,16 +644,19 @@ class Event:
         direction : int
             defines the direction for which event occurrences are tracked
         """
-        self.name = name
+        self.name : str= name
+        """The name of the event."""
 
-        self.type = eventtype
-        
+        self.type : str= eventtype
+        """The event type 'terminal', 'error', or 'observer'."""
+    
+        self.active : bool = True
+        """The events state, `False` implies the `Event` is disregarded by the solver."""
+
         func.terminal = terminal
         func.direction = direction
         
         self.event_func = func
-    
-        self.active = True
         return
     
     @staticmethod
@@ -712,9 +698,9 @@ class TerminalEvent(Event):
         Parameters
         ----------
         name : str
-            passed as `name` to the parent class
+            sets the `name` attribute
         func : Callable
-            passed as `func` to the parent class
+            sets the `event_func` attribute
         direction : int
             passed as `direction` to the parent class
         consequence : Callable
@@ -774,3 +760,10 @@ class ObserverEvent(Event):
     def __init__(self, name : str, func : Callable, direction : int):
         """Initialise the parent class."""
         super().__init__(name, "observer", func, False, direction)
+
+
+class TruncationError(Exception):
+    """
+    Exception indicating that a GEF solution was unsuccessful.
+    """
+    pass
