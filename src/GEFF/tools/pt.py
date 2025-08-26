@@ -76,7 +76,9 @@ def GreenEoM(A : ArrayLike, k : float, H : float, a : float) -> ArrayLike:
 
 class PowSpecT:
     """
-    A class used to compute the gravitational-wave power spectrum, including vacuum and gauge-field induced contributions.
+    A class used to compute the tensor power spectrum including vacuum and gauge-field induced contributions.
+
+
     This computation is based on knowledge of the background dynamics of axion inflation using the GEF and a set of gauge-field spectra.
     All quantities throughout the code are treated in Hubble units.
     
@@ -147,17 +149,17 @@ class PowSpecT:
     PTAnalyitcal():
         From a given GEF result, compute the analytical estimate of the tensor power spectrum from axion inflation.
     """
-    def __init__(self, values):
+    def __init__(self, sys):
         #Set GEF results to Hubble units.
-        values.set_units(False)
+        sys.set_units(False)
         
-        a = values.a
-        H = values.H
+        a = sys.a
+        H = sys.H
         
-        Nend = values.N[-1]
-        N = values.N
+        Nend = sys.N[-1]
+        N = sys.N
 
-        self.__omega = values.H0
+        self.__omega = sys.H0
         
         #Assess if the end of inflation is reached for this run
         """if np.log10(abs(max(N) - Nend)) > -2:
@@ -171,16 +173,16 @@ class PowSpecT:
 
         #Define Useful quantities
 
-        self.__t = values.t
+        self.__t = sys.t
         self.__N = N
         self.__H = H
-        self.__xi= values.xi
+        self.__xi= sys.xi
 
         
         self.__af = CubicSpline(self.__t, a)
         self.__Hf = CubicSpline(self.__t, H)
         self.__HN = CubicSpline(self.__N, self.__H)
-        self.__khN = CubicSpline(N, values.kh)
+        self.__khN = CubicSpline(N, sys.kh)
 
         #Obtain eta as a functio of time
         def deta(t, y): return 1/self.__af(t)

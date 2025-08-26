@@ -5,7 +5,7 @@ import pandas as pd
 import os
 import random
 
-from GEFF.utility.constants import g_rho, g_rho_freq, g_rho_0, g_s, g_s_freq, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
+from GEFF.utility.cosmo import g_rho, g_rho_freq, g_rho_0, g_s, g_s_freq, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
 
 from scipy.interpolate import CubicSpline
 from scipy.integrate import simpson
