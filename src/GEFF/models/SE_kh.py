@@ -4,10 +4,10 @@ from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, b
 from GEFF.solver import TerminalEvent, ErrorEvent
 from GEFF.mode_by_mode import ModeSolver
 
-from GEFF.utility.classic_eoms import EoMphi, Friedmann, EoMlnkh
+from GEFF.utility.model_eoms import klein_gordon, friedmann, dlnkh, drhoChi, gauge_field_ode_schwinger
 from GEFF.utility.schwinger_effect import *
 from GEFF.utility.whittaker import WhittakerApprox
-from GEFF.utility.auxiliary_functions import Heaviside
+from GEFF.utility.auxiliary_functions import heaviside
 from GEFF.utility.mode_functions import bd_classic, mode_equation_SE_scale
 
 name = "SE-kh"
@@ -65,7 +65,7 @@ input = {
 #Define how initial data is used to infer the initial Hubble rate, Planck mass, and other initial conditions
 def parse_input(consts, init, funcs):
     #Compute Hubble rate
-    H0 = Friedmann( init["dphi"], funcs["V"](init["phi"]), 0., 0., init["rhoChi"], 1. )
+    H0 = friedmann(  0.5*init["dphi"]**2, funcs["V"](init["phi"]), init["rhoChi"] )
     
     freq = H0 #Characteristic frequency is the initial Hubble rate
     amp = 1. #Charatcterisic amplitude is the Planck mass
@@ -112,8 +112,8 @@ def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.B.set_value( y[6]*np.exp(4*(y[3]-y[0])))
     vals.G.set_value( y[7]*np.exp(4*(y[3]-y[0])))
 
-    vals.H.set_value( Friedmann(vals.dphi, vals.V(vals.phi),
-                                 vals.E, vals.B, vals.rhoChi, vals.H0) )
+    vals.H.set_value( friedmann(0.5*vals.dphi**2, vals.V(vals.phi), 
+                                0.5*(vals.E+vals.B)*vals.H0**2, vals.rhoChi*vals.H0**2) )
 
     sigmaE, sigmaB, ks = conductivity(
         vals.a.value, vals.H.value,
@@ -121,15 +121,14 @@ def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
           , vals.H0) # How do I treat model settings?
 
     eps = np.vectorize(max)(abs(y[0])*rtol, atol)
-    GlobalFerm = Heaviside(np.log(ks/(vals.a*vals.H)), eps)
+    GlobalFerm = heaviside(np.log(ks/(vals.a*vals.H)), eps)
     vals.sigmaE.set_value(GlobalFerm*sigmaE)
     vals.sigmaB.set_value(GlobalFerm*sigmaB)
 
     vals.xi.set_value( vals.beta*(vals.dphi/(2*vals.H)))
     vals.xieff.set_value(vals.xi + vals.sigmaB/(2*vals.H))
 
-    vals.ddphi.set_value( EoMphi(vals.dphi, vals.dV(vals.phi),
-                                vals.beta, vals.G, vals.H, vals.H0) )
+    vals.ddphi.set_value( klein_gordon(vals.dphi, vals.dV(vals.phi), -vals.G*vals.beta*vals.H0**2) )
     return
 
 def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
@@ -141,20 +140,20 @@ def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
     dydt[2] = vals.ddphi.value
 
     eps = max(abs(y[3])*rtol, atol)
-    dlnkhdt = EoMlnkh( vals.kh, vals.dphi, vals.ddphi, vals.beta,
+    dlnkhdt = dlnkh( vals.kh, vals.dphi, vals.ddphi, vals.beta,
                        0., vals.xi, vals.a, vals.H )
     r = 2*abs(vals.xi)
     logfc = y[0] + np.log(r*dydt[0]) 
-    dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-y[3]+10*eps, eps)
+    dlnkhdt *= heaviside(dlnkhdt, eps)*heaviside(logfc-y[3]+10*eps, eps)
     dydt[3] = dlnkhdt
 
-    dydt[4] = EoMrhoChi( vals.rhoChi, vals.E, vals.G,
+    dydt[4] = drhoChi( vals.rhoChi, vals.E, vals.G,
                          vals.sigmaE, vals.sigmaB, vals.H )
 
     Fcol = y[5:].shape[0]//3
     F = y[5:].reshape(Fcol,3)
     W = WhittakerApprox(vals.xi)
-    dFdt = EoMFSE( F, vals.a, vals.kh, 2*vals.H*vals.xieff,
+    dFdt = gauge_field_ode_schwinger( F, vals.a, vals.kh, 2*vals.H*vals.xieff,
                     vals.sigmaE, 1.0,
                         W, dlnkhdt )
     dydt[5:] = dFdt.reshape(Fcol*3)

@@ -628,7 +628,7 @@ class BaseModeSolver:
     A class used to compute gauge-field modes evolving on a time-dependent background.
 
     This class is used to evolve the gauge-field modes $A_\pm(t,k)$ and their derivatives in time by using the
-    evolution of the time-dependent background obtained from a GEF solution.
+    evolution of the time-dependent background obtained from a GEF solution (in numerical units).
     
     The evolution is determined by an ODE for the four (complex) variables 
     $$\sqrt{2k} A_\lambda(t,k), \quad a(t) \sqrt{\frac{2}{k}}\dot{A}_\lambda(k, t), \quad \lambda = \pm 1$$

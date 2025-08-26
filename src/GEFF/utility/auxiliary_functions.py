@@ -1,15 +1,6 @@
 import numpy as np
 
-"""
-Module for useful auxiliary functions used in many model-files.
-
-Functions
----------
-Heaviside
-    a smoothed version of the heaviside function 
-"""
-
-def Heaviside(x : float, eps : float) -> float:
+def heaviside(x : float, eps : float) -> float:
     """
     A smoothed version of the heaviside function
 
@@ -23,6 +14,6 @@ def Heaviside(x : float, eps : float) -> float:
     Returns
     -------
     float
-        Heaviside(x)
+        heaviside(x)
     """
     return 1/(1+np.exp(-x/eps))

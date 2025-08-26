@@ -75,7 +75,7 @@ def _define_model(model_name, user_settings):
 
         #import information on input and how to handle it
         cls._input_signature = model.input
-        cls._input_handler = staticmethod(model.parse_input)
+        cls._input_handler = staticmethod(model.define_units)
 
         #import information for solver:
         cls.GEFSolver = model.solver

@@ -15,7 +15,6 @@ class TruncationError(Exception):
     """
     pass
 
-
 class BaseGEFSolver:
     r"""
     A class used to solve the equations of motion defined by a GEF model.
@@ -76,10 +75,9 @@ class BaseGEFSolver:
         An algorithm to solve the GEF equations.
 
         The solver attempts to solve the EoMs several times using `solve_eom`. 
-        If this is unsuccessful or a `TruncationError` is returned, `ntr` is increased by `setting['ntrstep']`.
-        Afterwards, `solve_eom` is called again until it returns a successful result.
+        If this returns a `TruncationError`, `ntr` is increased by `setting['ntrstep']`.
+        Afterwards, `solve_eom` is called again until it returns a result.
         This is done for `setting['attempts']` times or until `ntr=200` is reached.
-        If no solution is marked as successful by this time, the last solution is returned for further processing.
 
         Returns
         -------

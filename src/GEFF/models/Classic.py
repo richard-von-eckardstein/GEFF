@@ -1,17 +1,16 @@
+"""
+Module defining the GEF model "classic" corresponding to pure axion inflation.
+"""
 import numpy as np
 
 from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mode_by_mode import BaseModeSolver
 
-from GEFF.utility.classic_eoms import *
+from GEFF.utility.model_eoms import friedmann, gauge_field_ode, compute_dlnkh, klein_gordon
 from GEFF.utility.whittaker import WhittakerApprox
-from GEFF.utility.auxiliary_functions import Heaviside
+from GEFF.utility.auxiliary_functions import heaviside
 
-
-"""
-Module defining the model "classic" used by GEF to define a class including a custom GEFSolver and ModeSolver
-"""
 
 name = "classic"
 
@@ -49,12 +48,12 @@ input = {
         }
 
 #Define how initial data is used to infer the initial Hubble rate, Planck mass, and other initial conditions
-def parse_input(consts, init, funcs):
-    #Compute Hubble rate
-    H0 = Friedmann( init["dphi"], funcs["V"](init["phi"]), 0., 0., 0., 1. )
+def define_units(consts, init, funcs):
+    #compute Hubble rate at t0
+    H0 = friedmann( 0.5*init["dphi"]**2, funcs["V"](init["phi"]) )
     
-    freq = H0 #Characteristic frequency is the initial Hubble rate
-    amp = 1. #Charatcterisic amplitude is the Planck mass
+    freq = H0 #Characteristic frequency is the initial Hubble rate in Planck units
+    amp = 1. #Charatcterisic amplitude is the Planck mass (in Planck units)
 
     return freq, amp
 
@@ -90,12 +89,11 @@ def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.B.set_value( y[5]*np.exp(4*(y[3]-y[0])))
     vals.G.set_value( y[6]*np.exp(4*(y[3]-y[0])))
 
-    vals.H.set_value( Friedmann(vals.dphi, vals.V(vals.phi),
-                                 vals.E, vals.B, 0., vals.H0) )
+    vals.H.set_value( friedmann(0.5*vals.dphi**2, vals.V(vals.phi), 0.5*(vals.E+vals.B)*vals.H0**2) )
     
     vals.xi.set_value( vals.beta*(vals.dphi/(2*vals.H)))
 
-    vals.ddphi.set_value( EoMphi(vals.dphi, vals.dV(vals.phi), vals.beta, vals.G, vals.H, vals.H0)  )
+    vals.ddphi.set_value( klein_gordon(vals.dphi, vals.dV(vals.phi), -vals.G*vals.beta*vals.H0**2)  )
 
     return
 
@@ -108,18 +106,18 @@ def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
     dydt[2] = vals.ddphi.value
 
     
-    dlnkhdt = EoMlnkh( vals.kh, vals.dphi, vals.ddphi, vals.beta,
+    dlnkhdt = compute_dlnkh( vals.kh, vals.dphi, vals.ddphi, vals.beta,
                        0., vals.xi, vals.a, vals.H )
     
     logfc = y[0] + np.log( 2*abs(vals.xi)*dydt[0])
     eps = max(abs(y[3])*rtol, atol) 
-    dlnkhdt *= Heaviside(dlnkhdt, eps)*Heaviside(logfc-y[3]+10*eps, eps)
+    dlnkhdt *= heaviside(dlnkhdt, eps)*heaviside(logfc-y[3]+10*eps, eps)
     dydt[3] = dlnkhdt
 
     Fcol = y[4:].shape[0]//3
     F = y[4:].reshape(Fcol,3)
     W = WhittakerApprox(vals.xi.value)
-    dFdt = EoMF(F, vals.a, vals.kh, 2*vals.H*vals.xi, W, dlnkhdt, L=20)
+    dFdt = gauge_field_ode(F, vals.a, vals.kh, 2*vals.H*vals.xi, W, dlnkhdt, L=20)
     
     dydt[4:] = dFdt.reshape(Fcol*3)
 
