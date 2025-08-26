@@ -36,14 +36,14 @@ def _load_model(name : str, user_settings : dict):
         #Load ModelAttributes from GEFFile
         spec = util.spec_from_file_location(name, modelpath)
         mod  = util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-
+        #update the settings according to the user input
         for key, item in user_settings.items():
             try:
                 mod.settings[key] = item
             except AttributeError:
                 print(f"Ignoring unknown model setting '{key}'.")
-
+        #execute the module.
+        spec.loader.exec_module(mod)
         return mod
     
     except FileNotFoundError:
@@ -87,7 +87,7 @@ def _define_model(model_name, user_settings):
         return cls
     return GEF_decorator
 
-@_define_model("Classic", {})
+@_define_model("classic", {})
 class BaseGEF(BGSystem):
     """
     This class is the primary interface to solve the GEF equations.
