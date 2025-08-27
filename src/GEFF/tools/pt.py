@@ -1,7 +1,7 @@
 r"""
 This module is designed to compute the tensor power spectrum from a GEF result.
 
-The polarized power spectrum at time $t$ with momentum $k$ and helicity $\lambda$ is defined as
+The polarized tensor power spectrum at time $t$ with momentum $k$ and helicity $\lambda$ is given by
 $$\mathcal{P}_{T,\lambda}(t, k) = \mathcal{P}_{T,\lambda}^{\mathrm{vac}}(t, k) + \mathcal{P}_{T,\lambda}^{\mathrm{ind}}(t, k)\, ,$$
 with the vacuum contribution
 $$\mathcal{P}_{T,\lambda}^{\mathrm{vac}}(t, k) = \frac{4 k^3}{\pi^2 M_{\rm P}^2} |u_0(t, k)|^2\, ,$$
@@ -9,7 +9,7 @@ and induced contribution
 $$\mathcal{P}_{T,\lambda}^{\mathrm{ind}}(t, k) = \frac{k^3}{2 \pi^2 M_{\rm P}^4} \int \frac{{\rm d}^3 {\bf p}}{(2 \pi)^3} \sum_{\alpha,\beta = \pm1} 
         \left(1 +  \lambda \alpha \frac{{\bf k} \cdot {\bf p}}{k p} \right)^2 \left(1 +  \lambda \beta \frac{k^2 - {\bf k} \cdot {\bf p}}{kq}  \right)^2 $$
 $$ \qquad \qquad \qquad \times \left|\int_{-\infty}^\infty {\rm d} s \frac{G_k(t, s)}{a^3(s)} 
-    \left[A'_\alpha(s, p)A'_\beta(s, q) + \alpha \beta\, p q\, A_\alpha(s, p) A_\alpha(s, q) \right] \right|^2 \, .
+    \left[A'_\alpha(s, p)A'_\beta(s, q) + \alpha \beta\, p q\, A_\alpha(s, p) A_\alpha(s, q) \right] \right|^2 \, ,
 $$
 with momentum $q = |{\bf p} + {\bf q}|$ and scale-factor $a$.
 
@@ -22,88 +22,21 @@ The gauge-field mode functions $A_\lambda(t,k)$ are defined as in the `GEFF.mode
 For details on the numerical computation, see the Appendix B of [2508.00798](https://arxiv.org/abs/2508.00798).
 """
 import numpy as np
-from scipy.interpolate import CubicSpline
-from scipy.optimize import fsolve
+from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.integrate import solve_ivp, trapezoid
 
 from GEFF.mode_by_mode import GaugeSpec
 from GEFF.bgtypes import BGSystem
 
 from typing import Tuple
+from types import NoneType
 
-
-def tensor_mode_eq(y : np.ndarray, k : float, H : float, a : float) -> np.ndarray:
-    r"""
-    Mode equation for vacuum tensor modes.
-
-    Parameters
-    ----------
-    y : array
-        the vacuum tensor mode and its derivatives.
-        $a \sqrt{2k} u_0(t,k)$ and $ a^2\sqrt{2/k} \dot{u}_0(t, k)$ 
-    k : float
-        comoving momentum $k$
-    H : float
-        Hubble rate, $H(t)$
-    a : float
-        scale factor, $a(t)$
-
-    Returns
-    -------
-    dydt : array
-        an array of time derivatives of y
-
-    """
-    dydt = np.zeros(y.shape)
-
-    #real
-    dydt[0] = (H*y[0] + k/a*y[1])
-    dydt[1] = ( -H*y[1] - k/a*y[0] )
-
-    #imaginary
-    dydt[2] = (H*y[2] + k/a*y[3])
-    dydt[3] = ( -H*y[3] - k/a*y[2] )
-
-    return dydt
-
-def green_ode(y : np.ndarray, k : float, H : float, a : float) -> np.ndarray:
-    r"""
-    Evolve the re-scaled Green function for tensor modes in time.
-
-    The re-scaled Green function is
-    $$B_{t'}^k(t) = 2 k a(t)^2 \operatorname{Im} \left[ u_0^*(t', k) \, u_0(t,k) \right] = k G_k(t', t) \,.$$
-     
-    whose ODE is coupled to 
-
-    $$C_{t'}^k(t) = 2 a(t)^3 \operatorname{Im} \left[ u_0^*(t', k) \, {\dot{u}_0}(t,k) \right] \,.$$
-
-    Parameters
-    ----------
-    y : array
-        the functions B and C
-    k : float
-        comoving momentum $k$
-    H : float
-        Hubble rate, $H(t)$
-    a : float
-        scale factor, $a(t)$
-
-    Returns
-    -------
-    dydt : array
-        an array of time derivatives of A
-
-    """
-    dydt = np.zeros(y.shape)
-    dydt[0] =(2*H*y[0] + k/a*y[1])
-    dydt[1] = -k/a*y[0]
-    return dydt
 
 class PowSpecT:
     r"""
     A class used to compute the tensor power spectrum including vacuum and gauge-field induced contributions.
 
-    These main method of this module is `ComputePowSpec`, which computes both the vacuum and gauge-field induced contribution
+    These main method of this module is `compute_pt`, which computes both the vacuum and gauge-field induced contribution
       to the tensor power spectrum, $\mathcal{P}_{T,\lambda}^{\mathrm{vac}}$ and $\mathcal{P}_{T,\lambda}^{\mathrm{ind}}$.
 
     Results are internally computed using numerical units, but are returned in physical units.
@@ -112,7 +45,8 @@ class PowSpecT:
         """
         Initialise the class from a GEF solution.
 
-        Parameters:
+        Parameters
+        ----------
         sys : BGSystem
             the GEF solution.
         """
@@ -153,28 +87,29 @@ class PowSpecT:
         return
     
     def compute_pt(self, nmodes : int, mbm_file : str, FastGW : bool=True,
-                    atols : list=[1e-3,1e-20], rtols : list=[1e-4,1e-4], ngrid : int=100
+                    atols : list=[1e-3,1e-20], rtols : list=[1e-4,1e-4], momgrid : int=100
                     ) -> Tuple[np.ndarray,dict]:
         r"""
         Compute the full tensor power spectrum.
 
-        The method lodes data on gauge-mode $A_\lambda(t,k)$ from a file indicated by `mbm_file`.
-        The power spectrum is computed for `nmodes` log-spaced momenta $k$.
+        The method lodes data on gauge modes $A_\lambda(t,k)$ from a file indicated by `mbm_file`.
+        The power spectrum is evaluated fpr `nmodes` log-spaced momenta $k \in [10^{4}a(0)H(0), 10 a(t_{\rm max}) H(t_{\rm max})]$
 
         Parameters
         ----------
-        nmodes : array
+        nmodes : NDArray
             the number of momenta
         ModePath : str
-            The path to a file containing the tabulated gauge-field mode functions from a mode-by-mode computation
+            path to a file containing gauge-field mode functions
         FastGW : bool
             If `True`, only the expected dominant contributions to $\mathcal{P}_{T,\lambda}^{\mathrm{ind}}$ are computed
         atols : list
-            the absolute tolerance used by `_GetHomSol_` (index 0) and `_GreenFunc_` (index 1)
+            absolute tolerance for `compute_homogeneous` (index 0) and `compute_green` (index 1)
         rtols : list
-            the relative tolerance used by `_GetHomSol_` (index 0) and `_GreenFunc_` (index 1)
-        ngrid : int
-            passed to `_InducedPowSpec_`
+            relative tolerance for `compute_homogeneous` (index 0) and `compute_green` (index 1)
+        momgrid : int
+            passed to `compute_ptind`
+        
         Returns
         -------
         ks : NDArray
@@ -184,12 +119,12 @@ class PowSpecT:
         """
 
         k = np.logspace(np.log10(self.mink), np.log10(10*self.maxk), nmodes)
-        ks, tstarts = self._InitialKTN_(k, mode="k")
+        ks, tstarts = self._find_tinit_bd(k, mode="k")
         
         spec = GaugeSpec.read_spec(mbm_file)
         Ngrid = spec["N"]
         tgrid = spec["t"]
-        kgrid = spec["k"]
+        pgrid = spec["k"]
 
         GaugeModes = {"+":(spec["Ap"], spec["dAp"]), "-":(spec["Am"], spec["dAm"])}
         
@@ -213,10 +148,10 @@ class PowSpecT:
                 for key in PT.keys():
                     PT[key].append(0)
             else:
-                f, _ = self._GetHomSol_(k, tstart, tgrid, atol=atols[0], rtol=rtols[0])
-                Green = self._GreenFunc_(k, f, indend, tstart, tgrid, atol=atols[1], rtol=rtols[1])
+                uk, _ = self.compute_homogeneous(k, tstart, tgrid, atol=atols[0], rtol=rtols[0])
+                Green = self.compute_green(k, uk, tstart, tgrid, indend, atol=atols[1], rtol=rtols[1])
                 
-                PT["vac"].append(self._VacuumPowSpec_(k, f[indend]))
+                PT["vac"].append(self.compute_ptvac(k, uk[indend]))
 
                 for lgrav in GWpols:
                     for mu in gaugepols:
@@ -233,7 +168,7 @@ class PowSpecT:
                             PT[f"ind{lgrav[0]},{mu[0][0]}{mu[1][0]}"].append(0.)
                         else:
                             PT[f"ind{lgrav[0]},{mu[0][0]}{mu[1][0]}"].append(
-                                self._InducedTensorPowerSpec_(k, GWpol, indend, Ngrid, Green, kgrid, lx, Ax, dAx, ly, Ay, dAy, ngrid) )
+                                self.compute_ptind(k, GWpol, Ngrid, indend, Green, pgrid, lx, Ax, dAx, ly, Ay, dAy, momgrid) )
 
         PT["tot"] = np.zeros(ks.shape)
         for key in PT.keys():
@@ -245,77 +180,32 @@ class PowSpecT:
 
         return ks*self._H0, PT
     
-    def _InitialKTN_(self, init : np.ndarray, mode : str ="t", pwr : float=5/2) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Input
-        -----
-        init : array
-           an array of physical time coordinates t, OR of e-Folds N, OR of comoving wavenumbers k (within self.mink and self.maxk)
-        mode : str
-            if init contains physical time coordinates: mode="t"
-            if init contains e-Folds: mode="N"
-            if init contains comoving wavenumbers: mode="k"
+    def compute_homogeneous(self, k : float, tvac : float, teval : np.ndarray|NoneType, atol : float=1e-3, rtol : float=1e-4) -> Tuple[np.ndarray, np.ndarray]:
+        r"""
+        Compute the evolution of a vacuum mode starting from Bunch&ndash;Davies vacuum.
 
-        Return
-        ------
-        k : array
-            an array of comoving wavenumbers k satisfying k=10^(5/2) a(tstart)H(tstart)
-        tstart : array
-            an array of physical time coordinates t satisfying k=10^(5/2) a(tstart)H(tstart)
-        """
+        For a mode $u_0(t,k)$ with momentum $k$, initialise in Bunch&ndash;Davies when $k = 10^{5/2} a(t_{\rm vac})H(t_{\rm vac})$.
+        Its evolution is obtained by solving `tensor_mode_eq` using `scipy.integrate.solve_ivp`.
 
-        t = self._t
-        def logkH(t): return np.log(self._af(t)*self._Hf(t))
-        if mode=="t":
-            tstart = init
-            logks = logkH(tstart)
-            ks = 10**(pwr)*np.exp(logks)
-
-        elif mode=="k":
-            ks = init
-            x0 = np.log(ks[0]) - 5/2*np.log(10)
-            tstart = []
-            for i, k in enumerate(ks):
-                def f(x): return np.log(k) - logkH(x) - pwr*np.log(10)
-                ttmp = fsolve(f, x0)[0]
-                #Update the initial guess based on the previous result
-                if i < len(ks)-1:
-                    x0 = ttmp + np.log(ks[i+1]/k)
-                tstart.append(ttmp)
-            tstart = np.array(tstart)
-
-        elif mode=="N":
-            tstart = CubicSpline(self._N, t)(init)
-            ks = 10**pwr*np.exp(logkH(tstart))
-
-        else:
-            print("not a valid choice")
-            raise KeyError
-
-        return ks, tstart
-        
-    def _GetHomSol_(self, k : float, tstart : float, teval : np.ndarray|list=[], atol : float=1e-3, rtol : float=1e-4) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Input
-        -----
+        Parameters
+        ----------
         k : float
-           the comoving wavenumber k for which the mode function h(t,k) is evolved.
-        tstart : float
-            the time coordinate satisfying k = 10^(5/2)k_h(tstart) needed to ensure that the modes initialised in the Bunch-Davies vacuum
-        teval : array|list
-            physical time points at which the tensor mode function and its derivatives will be returned.
-            If teval=[], the mode functions are evaluated at self._t
+           the momentum $k$.
+        tvac : float
+            the initial time, $t_{\rm init}$
+        teval : NDArray or None
+            time coordinates $t$ of $u_0(t,k)$ (`None`: same as class input `sys`) 
         atol : float
-            the absolute precision of the numerical intergrator
+            the absolute tolerance for `solve_ivp`
         rtol : float
-            the relative precision of the numerical integrator
+            the relative tolerance for `solve_ivp`
 
-        Return
-        ------
-        phik : array
-            the vacuum tensor mode (rescaled), sqrt(2k)*h(teval, k)/2
-        dphik : array
-            the derivative of the vacuum tensor mode (rescaled), sqrt(2/k)*dhdeta(teval, k)/2
+        Returns
+        -------
+        u : NDArray
+            the vacuum tensor modes, $\sqrt{2k}u(t, k)$
+        duk : NDArray
+            the derivative of the vacuum tensor modes, $a\sqrt{2/k}\dot{u}(t, k)$
         """
 
         if len(teval)==0:
@@ -326,60 +216,98 @@ class PowSpecT:
         eta = self._etaf(teval)
 
         istart = 0
-        while teval[istart]<tstart:
+        while teval[istart]<tvac:
             istart+=1
         
         #define the ODE for the GW modes
-        def ode(t, y): return tensor_mode_eq( y, k, self._Hf(t), self._af(t) )
+        def ode(t, y): return self.tensor_mode_eq( y, k, self._Hf(t), self._af(t) )
         
         #Initialise the modes in Bunch Davies
         Zini = np.array([1, -10**(-5/2), 0, -1])
 
-        sol = solve_ivp(ode, [tstart, tend], Zini, t_eval=teval[istart:], method="RK45", atol=atol, rtol=rtol)
+        sol = solve_ivp(ode, [tvac, tend], Zini, t_eval=teval[istart:], method="RK45", atol=atol, rtol=rtol)
         if not(sol.success):
             print("Something went wrong")
 
-        #the mode was in vacuum before tstart
+        #the mode was in vacuum before tvac
         vac = list( np.exp(-1j*eta[:istart]*k) )
         dvac = list( -1j*np.exp(-1j*eta[:istart]*k) )
 
         #Create an array tracking a modes evolution from Bunch Davies to late times. Ensure equal length arrays for every mode k
-        phik = np.array( vac + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )/self._af(teval)
-        dphik = np.array( dvac + list( (sol.y[1,:] + 1j*sol.y[3,:])*np.exp(-1j*k*eta[istart]) ) )/self._af(teval)
+        uk = np.array( vac + list( (sol.y[0,:] + 1j*sol.y[2,:])*np.exp(-1j*k*eta[istart]) ) )/self._af(teval)
+        duk = np.array( dvac + list( (sol.y[1,:] + 1j*sol.y[3,:])*np.exp(-1j*k*eta[istart]) ) )/self._af(teval)
 
-        return phik, dphik
+        return uk, duk
+    
+    @staticmethod
+    def tensor_mode_eq(y : np.ndarray, k : float, H : float, a : float) -> np.ndarray:
+        r"""
+        Mode equation for vacuum tensor modes.
 
-    def _GreenFunc_(self, k : float, phik : np.ndarray, ind : int, tstart : float, teval : np.ndarray|list=[], atol : float=1e-30, rtol : float=1e-4) -> np.ndarray:
-        """
-        Input
-        -----
+        Parameters
+        ----------
+        y : NDArray
+            the vacuum tensor mode and its derivatives.
+            $a \sqrt{2k} u_0(t,k)$ and $ a^2\sqrt{2/k} \dot{u}_0(t, k)$ 
         k : float
-            the comoving wavenumber k for which the retarded Green function G(k, t, t') = Im( h(k, t) h^*(k, t') ) / Im( dhdeta(k, t') h^*(k, t') ) is evolved.
-        phik : array
-            the values of the vacuum tensor mode phi(teval, k) = sqrt(2k)*h(teval, k)/2
-        tstart : float
-            the time coordinate satisfying k = 10^(5/2)k_h(tstart), s.t. phi(t <= tstart, k) is in the Bunch-Davies state.
-        ind : integer
-            The fixed time t in G(k, t, t') is given by t = teval[ind]
-        teval : array|list
-            physical time points at which the Green function is returned.
-            If teval=[], the Green function is evaluated at self._t
-            teval must coincide with the times at which phik is evaluated!
+            comoving momentum $k$
+        H : float
+            Hubble rate, $H(t)$
+        a : float
+            scale factor, $a(t)$
+
+        Returns
+        -------
+        dydt : NDArray
+            an array of time derivatives of y
+
+        """
+        dydt = np.zeros(y.shape)
+
+        #real
+        dydt[0] = (H*y[0] + k/a*y[1])
+        dydt[1] = ( -H*y[1] - k/a*y[0] )
+
+        #imaginary
+        dydt[2] = (H*y[2] + k/a*y[3])
+        dydt[3] = ( -H*y[3] - k/a*y[2] )
+
+        return dydt
+    
+    def compute_green(self, k : float, uk : np.ndarray, tvac : float, teval : np.ndarray|NoneType, ind : int, atol : float=1e-30, rtol : float=1e-4) -> np.ndarray:
+        r"""
+        Compute the evolution of the Green function $G_k(t',t)$ for fixed $t'$.
+
+        The evolution is obtained by solving `green_ode` from $t=t'$ backwards until $t_{\rm vac}$, defined through $k = 10^{5/2} a(t_{\rm end})H(t_{\rm vac})$.
+        From $t_{\rm end}$ onwards, the Green function is instead computed from the mode $u_0(t, k)$. The method uses `scipy.integrate.solve_ivp`.
+
+        Parameters
+        ----------
+        k : float
+           the momentum $k$.
+        uk : NDArray
+            the mode function $u_0(t,k)$
+        tvac : float
+            the final time, $t_{\rm vac}$
+        teval : NDArray or None
+            time coordinates $t$ of $G_k(t',t)$ (`None`: same as class input `sys`) 
+        ind : int
+            index of teval corresponding to $t'$
         atol : float
-            the absolute precision of the numerical intergrator 
+            the absolute tolerance for `solve_ivp`
         rtol : float
-            the relative precision of the numerical integrator
+            the relative tolerance for `solve_ivp`
 
         Return
         ------
-        GreenN : array
-            the values of B(k, teval[ind], teval) = - k G(k, teval[ind], teval) 
+        GreenN : NDArray
+            the Green function $-k G_k(t', t)$ 
         """
         if len(teval)==0:
             teval = self._t
             
         istart = 0
-        while teval[istart]<tstart:
+        while teval[istart]<tvac:
             istart+=1
 
         # G(k, t, t) = 0 by definition
@@ -387,80 +315,184 @@ class PowSpecT:
     
 
         # Solve the EoM for G backwards in time starting from G(k, t, t)
-        def Aode(t, y): return -green_ode(y, k, self._Hf(-t), self._af(-t))
-        solA = solve_ivp(Aode, [-teval[ind], -tstart], Aini, t_eval=-teval[istart:ind+1][::-1],
+        def Aode(t, y): return -self.green_ode(y, k, self._Hf(-t), self._af(-t))
+        solA = solve_ivp(Aode, [-teval[ind], -tvac], Aini, t_eval=-teval[istart:ind+1][::-1],
                          method="RK45", atol=atol, rtol=rtol)
 
-        #For numerical stability, only solve the EoM for the Green function until t' = tstart. Afterwards, compute it directly from the vacuum modes.
+        #For numerical stability, only solve the EoM for the Green function until t' = tvac. Afterwards, compute it directly from the vacuum modes.
         GreenN = np.zeros(teval.shape)
         GreenN[istart:ind+1] = solA.y[0,:][::-1]
-        GreenN[:istart] = ( (phik[ind].conjugate()*phik).imag*self._af(teval)**2 )[:istart]
+        GreenN[:istart] = ( (uk[ind].conjugate()*uk).imag*self._af(teval)**2 )[:istart]
 
         return GreenN
+    
+    @staticmethod
+    def green_ode(y : np.ndarray, k : float, H : float, a : float) -> np.ndarray:
+        r"""
+        Evolve the re-scaled Green function for tensor modes in time.
 
-    def _VacuumPowSpec_(self, k : np.ndarray, phik : np.ndarray) -> np.ndarray:
+        The re-scaled Green function is
+        $$B_{t'}^k(t) = 2 k a(t)^2 \operatorname{Im} \left[ u_0^*(t', k) \, u_0(t,k) \right] = k G_k(t', t) \,.$$
+        
+        whose ODE is coupled to 
+
+        $$C_{t'}^k(t) = 2 a(t)^3 \operatorname{Im} \left[ u_0^*(t', k) \, {\dot{u}_0}(t,k) \right] \,.$$
+
+        Parameters
+        ----------
+        y : NDArray
+            the functions B and C
+        k : float
+            comoving momentum $k$
+        H : float
+            Hubble rate, $H(t)$
+        a : float
+            scale factor, $a(t)$
+
+        Returns
+        -------
+        dydt : NDArray
+            an array of time derivatives of A
+
         """
-        Input
-        -----
-        k : array
-            an array of comoving wavenumbers k for which the vacuum power spectrum is computed
-        phik : array
-            the values of the vacuum tensor mode phi(t, k) = sqrt(2k)*h(teval, k)/2
+        dydt = np.zeros(y.shape)
+        dydt[0] =(2*H*y[0] + k/a*y[1])
+        dydt[1] = -k/a*y[0]
+        return dydt
+
+    
+    def _find_tinit_bd(self, init : np.ndarray, mode : str="k") -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Determines the pair of $k$ and $t$ satisfying $k = 10^(5/2)a(t)H(t)$.
+
+        Depending on `mode`, `init` may be a time coordinate (`mode='t'`), $e$-folds (`mode='N'`) or momentum (`mode='k'`).
+
+        Parameters
+        ----------
+        init : array
+            the input array (t, N, or k)
+        mode : str
+            indicate the type of `init`
+
+        Returns
+        -------
+        ks : NDarray
+            an array of momenta
+        tstart : NDarray
+            an array of times
+
+        Raises
+        ------
+        KeyError
+            if `mode` is not 't, 'k' or 'N'
+        """
+
+        pwr = 5/2
+
+        t = self._t
+        def logkH(t): return np.log(self._af(t)*self._Hf(t))
+        if mode=="t":
+            tstart = init
+            logks = logkH(tstart)
+            ks = 10**(pwr)*np.exp(logks)
+
+        elif mode=="k":
+            ks = init
+
+            tstart = []
+            for k in ks:
+                ttmp  = self.__t[np.where(k >= 10**(pwr)*np.exp(logkH(self.__t)))[0][-1]]
+                tstart.append(ttmp)
+            tstart = np.array(tstart)
+
+        elif mode=="N":
+            tstart = CubicSpline(self._N, t)(init)
+            ks = 10**pwr*np.exp(logkH(tstart))
+
+        else:
+            raise KeyError("'mode' must be 't', 'k' or 'N'")
+
+        return ks, tstart
+        
+    def compute_ptvac(self, k : np.ndarray, uk : np.ndarray) -> np.ndarray:
+        r"""
+        Compute the vacuum power spectrum, $\mathcal{P}_{T,\lambda}^{\mathrm{vac}}(t,k)$.
+
+        Parameters
+        ----------
+        k : NDArray
+            momentum, $k$
+        uk : NDArray
+            vacuum tensor mode $u_0(t,k)$
 
         Return
         ------
-        PTvac : array
-            the vacuum tensor power spectrum PT_vac(t, k) at a fixed time t as a function of comoving wavenumber.
+        PTvac : NDArray
+            the vacuum tensor power spectrum
         """
-        PTvac = 2*(k*self._H0)**2/( np.pi**2 ) * abs(phik)**2
+        PTvac = 2*(k*self._H0)**2/( np.pi**2 ) * abs(uk)**2
         return PTvac
 
-    def _InducedTensorPowerSpec_(self, k : float, lgrav : float, ind: int, Ngrid : np.ndarray, GreenN : np.ndarray, kgrid : np.ndarray,
+    def compute_ptind(self, k : float, lgrav : float, Ngrid : np.ndarray, ind: int, GreenN : np.ndarray, pgrid : np.ndarray,
                                 l1 : float, A1 : np.ndarray, dA1 : np.ndarray, l2 : float, A2 : np.ndarray, dA2 : np.ndarray,
-                                ngrid : int=100) -> float:
-        """
-        Input
-        -----
-        k : float
-            the comoving wavenumber k for which the gauge-field induced power spectrum is computed.
-        lgrav : array
-            the gravitational-wave helicity for which the gauge-field induced power spectrum is computed.
-        ind : integer
-            the power spectrum is computed at a time N = Ngrid[ind] (in e-folds)
-        Ngrid : array
-            an array of e-folds over which the Green function and gauge-mode functions are integrated
-        GreenN : array
-            a 1D-array of Green function values k*G(k, Ngrid[ind], Ngrid)
-        kgrid : array
-            an array of comoving wavenumbers for which the gauge-field mode functions are given.
-        l1, l2 : float
-            the gauge-field helicities of the given mode functions
-        A1, A2 : float
-            the gauge-field mode functions sqrt(2k)*A(Ngrid, kgrid, l1/l2) as obtained from the mode-by-mode code
-        dA1, dA2 : float
-            the derivatives of the gauge-field mode functions sqrt(2/k)*dAdeta(Ngrid, kgrid, l1/l2) as obtained from the mode-by-mode code
-        ngrid : int
-            the internal momentum integral over p and k-p is performed on a grid ngrid x ngrid grid.
+                                momgrid : int=100) -> float:
+        r"""
+        Compute the vacuum power spectrum, $\mathcal{P}_{T,\lambda}^{\mathrm{vac}}(t,k)$.
 
-        Return
-        ------
+        The integral is computed by integrating over the inner integral over the gauge-mode functions $A_\mu(s,p)$ using `scipy.integrate.trapezoid`.
+        The external momentum integrals are also computed using `scipy.integrate.trapezoid` on a grid of momenta momgrid x momgrid. The mode functions
+        are interpolated over momentum to match this grid.
+
+        Parameters
+        ----------
+        k : float
+            momentum $k$
+        lgrav : NDArray
+            helicity $\lambda$
+        Ngrid : NDArray
+            $e$-folds $\log a$
+        ind : integer
+            the power spectrum is computed at $t$ corresponding to `Ngrid[ind]`
+        GreenN : NDArray
+            the Green function $kG_k(t, s)$ with $s$ corresponding to `Ngrid`
+        pgrid : NDArray
+            momenta $p$ for the mode functions $A_\mu(s,p)$
+        l1, l2 : float
+            the gauge-field helicities $\mu_1$, $\mu_2$
+        A1, A2 : float
+            the gauge-field mode functions $\sqrt{2k} A_{\mu_1, \mu_2}(s, p)$
+        dA1, dA2 : float
+            the gauge-field mode function derivatives $a(s)\sqrt{2/k} \dot{A}_{\mu_1, \mu_2}(s, p)$
+        momgrid : int
+            the grid size for the momentum integrals.
+
+        Returns
+        -------
         PTind : float
-            the gauge-field induced tensor power spectrum PT_ind(Ngrid[ind], k, lgrav).
+            the gauge-field induced tensor power spectrum
         """
 
         cutUV = self._khN(Ngrid[ind])/k
-        cutIR = min(kgrid)/k
+        cutIR = min(pgrid)/k
         HN = self._HN(Ngrid)
 
-        logAs = np.linspace(np.log(max(0.5, cutIR)), np.log(cutUV), ngrid)
+        logAs = np.linspace(np.log(max(0.5, cutIR)), np.log(cutUV), momgrid)
 
-        #Alternatives for interpolating mode functions directly? Could be problematic as they are highly oscillatory
-        #It may be better to directly interpolate the integrand...
-        Afuncx = CubicSpline(np.log(kgrid), A1)
-        dAfuncx = CubicSpline(np.log(kgrid), dA1)
-        
-        Afuncy = CubicSpline(np.log(kgrid), A2)
-        dAfuncy = CubicSpline(np.log(kgrid), dA2)
+        Ax_real = PchipInterpolator(np.log(pgrid), A1.real)
+        Ax_imag = PchipInterpolator(np.log(pgrid), A1.imag)
+        dAx_real = PchipInterpolator(np.log(pgrid), dA1.real)
+        dAx_imag = PchipInterpolator(np.log(pgrid), dA1.imag)
+
+        Ay_real = PchipInterpolator(np.log(pgrid), A2.real)
+        Ay_imag = PchipInterpolator(np.log(pgrid), A2.imag)
+        dAy_real = PchipInterpolator(np.log(pgrid), dA2.real)
+        dAy_imag = PchipInterpolator(np.log(pgrid), dA2.imag)
+
+        def Afuncx(x): return Ax_real(x) + 1j*Ax_imag(x)
+        def dAfuncx(x): return dAx_real(x) + 1j*dAx_imag(x)
+
+        def Afuncy(x): return Ay_real(x) + 1j*Ay_imag(x)
+        def dAfuncy(x): return dAy_real(x) + 1j*dAy_imag(x)
 
         IntOuter = []
         for logA in logAs:
@@ -473,7 +505,7 @@ class PowSpecT:
                 if Bhigh>0.5:
                     Blow = -0.5
                     Bhigh = 0.5
-            Bs = np.linspace(Blow, Bhigh, ngrid)[1:-1]
+            Bs = np.linspace(Blow, Bhigh, momgrid)[1:-1]
 
             IntInner = np.zeros(Bs.shape)
 
@@ -503,16 +535,15 @@ class PowSpecT:
         PTind = trapezoid(IntOuter, logAs) / (16*np.pi**4)*(k*self._H0)**4
 
         return PTind
-
     
-    
-    
-    def PTAnalytical(self) -> Tuple[np.ndarray,dict]:
+    def compute_pt_analytic(self) -> Tuple[np.ndarray,dict]:
         """
-        Return
-        ------
+        Compute the analytical estimates for $\mathcal{P}_{T,\lambda}$.
+
+        Returns
+        -------
         PT : dict
-            a dictionary containing the most important contributions to the analytic tensor power spectrum, including the total power spectrum.
+            a dictionary containing the analyitcal estimates
         """
         H = self._H0*self._H
         xi = abs(self._xi)
