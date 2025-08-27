@@ -6,7 +6,7 @@ For more details on this model, see e.g., [2408.16538](https://arxiv.org/abs/240
 import numpy as np
 
 from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVal
-from GEFF.solver import TerminalEvent, ErrorEvent
+from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mode_by_mode import ModeSolver
 
 from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh, drhoChi,
@@ -15,10 +15,19 @@ from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh, drhoChi,
 from GEFF.utility.boundary import boundary_approx
 from GEFF.utility.auxiliary import heaviside
 from GEFF.utility.aux_mode  import bd_classic, mode_equation_SE_scale
+from GEFF._docs.docs_models import DOCS
 
 name = "SE-kh"
+"""The models name."""
 
 settings = {"pic":"mixed"}
+"""The model settings.
+
+Possible settings are "mixed", "electric", "magnetic".
+
+Determines if conductivities are computed assuming collinear E&M fields 
+("electric", "magnetic") or not ("mixed")
+"""
 
 # parse settings
 if settings["pic"]=="mixed":
@@ -32,10 +41,8 @@ elif settings["pic"]=="magnetic":
 else:
     raise KeyError(f"{settings['pic']} is an unknown choice for the setting'pic'")
 
-##### Define Variables #####
-############################
 
-#Define all additional variables (besides default variables)
+#Define additional variables
 sigmaE=BGVal("sigmaE", 1, 0) #electric damping
 sigmaB=BGVal("sigmaB", 1, 0) #magnetic damping 
 xieff=BGVal("xieff", 0, 0) #effective instability parameter
@@ -54,31 +61,53 @@ quantities={
             "function":{V, dV}, #functions of variables such as scalar potentials
             "gauge":{GF1} #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
             }
+r"""Define quantities tracked by the model.
 
-##### Define Input hanlder #####
-################################
+* **time variable**: cosmic time, $t$
+* **dynamical variable**:
+    * $e$-folds, $N$
+    * inflaton amplitude and its velocity, $\varphi$, $\dot{\varphi}$
+    * the instability scale $k_{\rm h}$
+    * fermion energy density, $\rho_{\chi}$
+* **static variables**:
+    * scale factor: $a$
+    * Hubble rate: $H$
+    * instability parameter $\xi$
+    * gauge-field expectation values: $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, $-\langle {\bf E} \cdot {\bf B} \rangle$
+    * inflaton acceleration, $\ddot{\varphi}$
+    * effective instability parameter $\xi_{\rm eff}$
+    * electric and magnetic conductivities $\sigma_{\rm E/B}$
+* **constants**: coupling strength, $\beta$
+* **functions**: inflaton potential and its derivative, $V(\varphi)$, $V_{,\varphi}(\varphi)$
+* **gauge**: tower of re-scales gauge-bilinears, $\mathcal{F}_{\mathcal X}^{(n)}$, $\mathcal{X} = \mathcal{E}, \mathcal{B}, \mathcal{G}$
+"""
 
-#State which variables require input for initialisation
 input = {
         "initial data":{"phi", "dphi", "rhoChi"},
         "constants":{"beta"},
         "functions":{"V", "dV"}
         }
+r"""Define the expected input of the model.
 
-#Define how initial data is used to infer the initial Hubble rate, Planck mass, and other initial conditions
-def define_units(consts, init, funcs):
-    #Compute Hubble rate
-    H0 = friedmann(  0.5*init["dphi"]**2, funcs["V"](init["phi"]), init["rhoChi"] )
+* initial data on the inflaton: $\varphi$, $\dot\varphi$
+* initial data on the fermionic energy density: $\rho_{\chi}$
+* coupling strength: $\beta$
+* potential shape: $V(\varphi)$, $V_{,\varphi}(\varphi)$
+"""
+
+def define_units(input):
+    #compute Hubble rate at t0
+    rhoK = input["init"]["dphi"]**2
+    rhoV = input["funcs"]["V"](input["init"]["phi"])
+    rhochi = input["init"]["rhoChi"]
+    H0 = friedmann( rhoK, rhoV, rhochi )
     
     freq = H0 #Characteristic frequency is the initial Hubble rate
     amp = 1. #Charatcterisic amplitude is the Planck mass
     return freq, amp
 
 
-##### Define Solver #####
-#########################
-
-def initial_conditions(vals, ntr):
+def initial_conditions(vals, ntr):   
     yini = np.zeros((ntr+1)*3+5)
 
     yini[0] = vals.N.value
@@ -131,7 +160,6 @@ def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
     return
 
 def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
-
     dydt = np.zeros(y.shape)
 
     dydt[0] = vals.H.value
@@ -170,7 +198,7 @@ def condition_EndOfInflation(t, y, vals):
     val = np.log(abs((dphi**2 + rhoEB + rhoChi)/V))
     return val
 
-def consequence_EndOfInflation(vals, occurance):
+def consequence_EndOfInflation(vals, occurance):    
     if occurance:
         return "finish", {}
     else:
@@ -182,19 +210,28 @@ def consequence_EndOfInflation(vals, occurance):
         return "proceed", {"tend":tend}
     
 EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, 1, consequence_EndOfInflation)
+"""Defines the 'End of inflation' event."""
 
 #Event 2:
 def condition_NegativeEnergies(t, y, vals):
+    
     return min(y[5], y[6])
     
-NegativeEnergies = ErrorEvent("Negative energies", condition_NegativeEnergies, -1)
+NegativeEnergies = ErrorEvent("Negative energies", condition_NegativeEnergies, -1)#
+"""Defines the 'Negative energy' event."""
+
 
 events = [EndOfInflation, NegativeEnergies]
 
-##### Define Handling of Gauge Fields #####
-###########################################
+solver = GEFSolver(initial_conditions, update_values, compute_timestep, events, quantities)
+"""The solver used by the GEF model."""
 
-#define mode-by-mode solver
 MbM = ModeSolver(mode_equation_SE_scale, ["a", "xi", "H", "sigmaE", "sigmaB", "kS"],
                          bd_classic, [], default_atol=1e-3)
+"""The mode solver used by the GEF model."""
 
+
+#define longer method docs:
+for name, docstring in DOCS.items():
+    if name in globals().keys() and hasattr(globals()[name], "__doc__"):
+        globals()[name].__doc__ = docstring

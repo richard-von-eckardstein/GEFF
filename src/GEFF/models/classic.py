@@ -12,24 +12,21 @@ from GEFF.mode_by_mode import BaseModeSolver
 from GEFF.utility.aux_eom import friedmann, gauge_field_ode, dlnkh, klein_gordon
 from GEFF.utility.boundary import boundary_approx
 from GEFF.utility.auxiliary import heaviside
+from GEFF._docs.docs_models import DOCS
 
 
-name = "classic"
+name : str = "classic"
+"""The models name."""
 
-settings = {}
+settings : dict = {}
+"""The model settings."""
 
-
-##### Define Variables #####
-############################
-
-#Define all additional variables (besides default variables)
 
 # define gauge field by assigning a name, 0th-order quantities and cut-off scale
 GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})
 
 
-#Assign quantities to a dictionary, classifying them by their role:
-quantities={
+quantities : dict={
             "time":{t}, #time coordinate according to which EoMs are expressed
             "dynamical":{N, phi, dphi, kh}, #variables which evolve in time according to an EoM
             "static":{a, H, xi, E, B, G, ddphi}, #variables which are derived from dynamical variables
@@ -37,33 +34,50 @@ quantities={
             "function":{V, dV}, #functions of variables such as scalar potentials
             "gauge":{GF1} #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
             }
+r"""Define quantities tracked by the model.
+
+* **time variable**: cosmic time, $t$
+* **dynamical variable**:
+    * $e$-folds, $N$
+    * inflaton amplitude and its velocity, $\varphi$, $\dot{\varphi}$
+    * the instability scale $k_{\rm h}$
+* **static variables**:
+    * scale factor: $a$
+    * Hubble rate: $H$
+    * instability parameter $\xi$
+    * gauge-field expectation values: $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, $-\langle {\bf E} \cdot {\bf B} \rangle$
+    * inflaton acceleration, $\ddot{\varphi}$
+* **constants**: coupling strength, $\beta$
+* **functions**: inflaton potential and its derivative, $V(\varphi)$, $V_{,\varphi}(\varphi)$
+* **gauge**: tower of re-scales gauge-bilinears, $\mathcal{F}_{\mathcal X}^{(n)}$, $\mathcal{X} = \mathcal{E}, \mathcal{B}, \mathcal{G}$
+"""
 
 
-##### Define Input hanlder #####
-################################
-
-#State which variables require input for initialisation
 input = {
         "initial data":{"phi", "dphi"},
         "constants":{"beta"},
         "functions":{"V", "dV"}
         }
+r"""Define the expected input of the model.
 
-#Define how initial data is used to infer the initial Hubble rate, Planck mass, and other initial conditions
-def define_units(consts, init, funcs):
+* initial data on the inflaton: $\varphi$, $\dot\varphi$
+* coupling strength: $\beta$
+* potential shape: $V(\varphi)$, $V_{,\varphi}(\varphi)$
+"""
+
+#define_units passed to GEF
+def define_units(input):
     #compute Hubble rate at t0
-    H0 = friedmann( 0.5*init["dphi"]**2, funcs["V"](init["phi"]) )
+    rhoK = input["init"]["dphi"]**2
+    rhoV = input["funcs"]["V"](input["init"]["phi"])
+    H0 = friedmann( rhoK, rhoV )
     
     freq = H0 #Characteristic frequency is the initial Hubble rate in Planck units
     amp = 1. #Charatcterisic amplitude is the Planck mass (in Planck units)
 
     return freq, amp
 
-
-##### Define Solver #####
-#########################
-
-#Inform the solver how to compute static variables based on dynamical variables
+#define vals_to_yini for GEFSolver
 def initial_conditions(vals, ntr):
     yini = np.zeros((ntr+1)*3+4)
 
@@ -77,6 +91,7 @@ def initial_conditions(vals, ntr):
     #all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
 
+#define update_vals for GEFSolver
 def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.t.set_value(t)
     vals.N.set_value(y[0])
@@ -99,6 +114,7 @@ def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
 
     return
 
+#define timestep for GEFSolver
 def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
 
     dydt = np.zeros(y.shape)
@@ -125,9 +141,8 @@ def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
 
     return dydt
 
-
-
-#Event 1:
+#Event 1: End of Inflation
+#eventfunc
 def condition_EndOfInflation(t, y, vals):
     dphi = y[2]
     V = vals.V(y[1])
@@ -135,8 +150,9 @@ def condition_EndOfInflation(t, y, vals):
     val = np.log(abs((dphi**2 + rhoEB)/V))
     return val
 
-def consequence_EndOfInflation(vals, occurance):
-    if occurance:
+#consequence
+def consequence_EndOfInflation(vals, occurrence):
+    if occurrence:
         return "finish", {}
     else:
         tdiff = np.round(5/vals.H, 0)
@@ -145,26 +161,30 @@ def consequence_EndOfInflation(vals, occurance):
 
         print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
         return "proceed", {"tend":tend}
-    
-EndOfInflation= TerminalEvent("End of inflation", condition_EndOfInflation, 1, consequence_EndOfInflation)
 
-#Event 2:
+EndOfInflation : TerminalEvent = TerminalEvent("End of inflation", condition_EndOfInflation, 1, consequence_EndOfInflation)
+"""Defines the 'End of inflation' event."""
+
+#Event 1: Negative energies
+#eventfunc
 def condition_NegativeEnergies(t, y, vals):
     return min(y[4], y[5])
     
-NegativeEnergies = ErrorEvent("Negative energies", condition_NegativeEnergies, -1)
+NegativeEnergies : ErrorEvent = ErrorEvent("Negative energies", condition_NegativeEnergies, -1)
+"""Defines the 'Negative energy' event."""
 
 events = [EndOfInflation, NegativeEnergies]
 
 solver = GEFSolver(initial_conditions, update_values, compute_timestep, events, quantities)
+"""The solver used by the GEF model."""
 
-##### Define Handling of Gauge Fields #####
-###########################################
-
-#define mode-by-mode solver
 MbM = BaseModeSolver
+"""The mode solver used by the GEF model."""
 
-
+#define longer method docs:
+for name, docstring in DOCS.items():
+    if name in globals().keys() and hasattr(globals()[name], "__doc__"):
+        globals()[name].__doc__ = docstring
 
 
 

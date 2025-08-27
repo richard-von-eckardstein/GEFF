@@ -50,7 +50,7 @@ def _load_model(name : str, user_settings : dict):
         raise FileNotFoundError(f"No model found under '{modelpath}'")
     
 
-def _define_model(model_name, user_settings):
+def _add_model_specifications(model_name, user_settings):
     """
     Define a GEF subclass based on a module.
 
@@ -87,7 +87,7 @@ def _define_model(model_name, user_settings):
         return cls
     return GEF_decorator
 
-@_define_model("classic", {})
+@_add_model_specifications("classic", {})
 class BaseGEF(BGSystem):
     """
     This class is the primary interface to solve the GEF equations.
@@ -100,46 +100,6 @@ class BaseGEF(BGSystem):
         The mode-by-mode class associated to the current GEF-model
     GEFSolver : GEFSolver
         The GEFSolver-instance used to solve the GEF equations
-        
-    Example 1 (Initialisation)
-    --------------------------
-    >>> import numpy as np
-    ...
-    >>> beta = 20 #Define the axion--gauge field coupling strength
-    >>> m = 6e-6 #inflaton mass in Mpl
-    ...
-    >>> phi = 15.55 #inflaton field value in Mpl
-    >>> dphi = -np.sqrt(2/3)*m #inflaton velocity (slow-roll attractor)
-    >>> init_dict = {"phi":phi, "dphi":dphi}
-    ...
-    >>> V = lambda x: 0.5*m**2*x**2 #define the inflaton potential
-    >>> dV = lambda x: m**2*x #define the potential derivative
-    >>> init_funcs  = {"V":V, "dV":dV}
-    ...
-    >>> G = GEF("Classic", beta=20, init_dict=init_dict, init_funcs=init_funcs)
-
-    Example 2 (Solving the GEF equations)
-    -------------------------------------  
-    >>> ntr = 100 #the desired value for truncating gauge-field bilinear tower
-    ...
-    #Solve the GEF-equations and perform Mode-By-Mode comparison to check convergence
-    >>> sol = G.GEFSolver.RunGEF(tend=120, ntr=ntr, atol=1e-20, rtol=1e-6, nmodes=500) 
-    >>> G.GEFSolver.ParseArrToUnitsSystem(sol.t, sol.y, G) #Store results in GEF-instance
-    ...
-    #store the results of the GEF in a file under "Path/To/Some/Output/Directory/File.dat"
-    >>> G.save_GEFdata("Path/To/Some/Output/Directory/File.dat")
-
-    Example 3 (Accessing GEF results)
-    ---------------------------------
-    >>> import matplotlib.pyplot as plt
-    ...
-    >>> G.load_GEFdata("Path/To/Some/Input/File.dat") #Load data stored under "Path/To/Some/Input/File.dat" 
-    ...
-    #Retrieve a list of all values stored in the current GEF instance
-    >>> print(G.value_names())
-    ...
-    >>> plt.plot(G.N, G.E) #plot the evolution of the electric field expectation value E^2
-    >>> plt.show()
     """
 
     def __init__(
@@ -152,7 +112,7 @@ class BaseGEF(BGSystem):
         for input_type, input_dict  in user_input.items():
             self._check_input(input_dict, input_type)
 
-        H0, MP = self._input_handler(*user_input.values())
+        H0, MP = self._input_handler(user_input)
 
         super().__init__(self._known_objects, H0, MP)
 
@@ -467,7 +427,7 @@ class BaseGEF(BGSystem):
 
 def GEF(modelname, settings):
     """somedoc"""
-    @_define_model(modelname, settings)
+    @_add_model_specifications(modelname, settings)
     class GEF(BaseGEF):
         pass
 
