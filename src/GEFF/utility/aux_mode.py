@@ -1,5 +1,5 @@
 """
-A module defining mode equations and Bunch&ndash;Davies initial conditions for `GEFF.mode_by_mode.ModeSolver`.
+A module defining equations used by `GEFF.mode_by_mode.ModeSolver`.
 """
 import numpy as np
 from typing import Callable
@@ -7,7 +7,9 @@ from typing import Callable
 
 def bd_classic(t: float, k : float) -> np.ndarray:
     r"""
-    Returns gauge-field modes in Bunch&ndash;Davies vacuum.
+    Returns gauge-field modes in Bunch&ndash;Davies vacuum:
+
+    $$A_\lambda(k,t) \sim \frac{1}{\sqrt{2k}}exp{(-i \eta(t) k)}\, , \qquad -\eta(t) k \gg 1 \, .$$
 
     Parameters
     ----------
@@ -27,7 +29,9 @@ def bd_classic(t: float, k : float) -> np.ndarray:
 def mode_equation_classic(t: float, y : np.ndarray, k : float, a : Callable,
                     xi : Callable, H : Callable) -> np.ndarray:
     r"""
-    Mode equation for pure axion inflation.
+    Mode equation for pure axion inflation:
+
+    $$\ddot{A}_\lambda(t,k) + H \dot{A}_\lambda(t,k) + \left[\left(\frac{k}{a}\right)^2  - 2\lambda \left(\frac{k}{a}\right) \xi H \right]A_\lambda(t,k) = 0 \, .$$
 
     Parameters
     ----------
@@ -80,7 +84,9 @@ def mode_equation_classic(t: float, y : np.ndarray, k : float, a : Callable,
 def damped_bd(t : float, k : float, a : Callable, delta : Callable,
               sigmaE : Callable) -> np.ndarray:
     r"""
-    Returns gauge-field modes in damped Bunch&ndash;Davies vaccum.
+    Returns gauge-field modes in damped Bunch&ndash;Davies vaccum:
+
+    $$A_\lambda(k,t) \sim \sqrt{\frac{\Delta(t)}{2k}}exp{(-i \eta(t) k)}\, , \qquad -\eta(t) k \gg 1 \, .$$
 
     Parameters
     ----------
@@ -110,7 +116,9 @@ def mode_equation_SE_no_scale(t: float, y : np.ndarray, k : float,
                     a : Callable, xieff : Callable, H : Callable,
                     sigmaE : Callable) -> np.ndarray:
     r"""
-    Mode equation for scale-dependent fermionic axion inflation.
+    Mode equation for scale-dependent fermionic axion inflation:
+
+    $$\ddot{A}_\lambda(t, k)  + \big( H + \sigma_{\rm E} \big) \dot{A}_\lambda(t, k) + \left[ \left(\frac{k}{a}\right)^2 - \lambda \frac{k}{a} \big( 2 \xi H + \sigma_{\rm B} \big) \right] A_\lambda(t, k) = 0\, .$$
 
     Parameters
     ----------
@@ -168,7 +176,9 @@ def mode_equation_SE_scale(t: float, y : np.ndarray, k : float,
                     sigmaE : Callable, sigmaB : Callable,
                       kS : Callable) -> np.ndarray:
     r"""
-    Mode equation for scale-independent fermionic axion inflation.
+    Mode equation for scale-independent fermionic axion inflation:
+
+    $$\ddot{A}_\lambda(t, k)  + \big( H + \sigma_{\rm E} \Theta(t, k) \big) \dot{A}_\lambda(t, k) + \left[ \left(\frac{k}{a}\right)^2 - \lambda \frac{k}{a} \big( 2 \xi H + \sigma_{\rm B}\Theta(t, k) \big) \right] A_\lambda(t, k) = 0\, .$$
 
     Parameters
     ----------
@@ -189,7 +199,7 @@ def mode_equation_SE_scale(t: float, y : np.ndarray, k : float,
     sigmaB : Callable
         magnetic damping, $\sigma_{\rm B}(t)$
     kS : Callable
-        no damping for $k > k_{\rm S}(t)$
+        no damping for $k > k_{\rm S}(t)$ from $\Theta(t, k)$
         
     Returns
     -------

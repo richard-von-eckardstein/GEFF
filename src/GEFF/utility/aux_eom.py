@@ -6,7 +6,7 @@ import math
 from typing import Tuple
 
 def friedmann(*rhos) -> float:
-    """
+    r"""
     Calculate the Hubble rate $H$ from the Friedmann equation.
 
     Parameters

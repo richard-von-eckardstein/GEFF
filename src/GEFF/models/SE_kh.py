@@ -1,5 +1,7 @@
 r"""
-Module defining the GEF model "SE:kh" corresponding to fermionic axion inflation with a heuristic scale dependence given by the instability scale $k_{\rm h}$.
+Module defining the GEF model "SE-kh" corresponding to fermionic axion inflation with a heuristic scale dependence given by the instability scale $k_{\rm h}$.
+
+For more details on this model, see e.g., [2408.16538](https://arxiv.org/abs/2408.16538).
 """
 import numpy as np
 
@@ -14,7 +16,7 @@ from GEFF.utility.boundary import boundary_approx
 from GEFF.utility.auxiliary import heaviside
 from GEFF.utility.aux_mode  import bd_classic, mode_equation_SE_scale
 
-name = "SE:kh"
+name = "SE-kh"
 
 settings = {"pic":"mixed"}
 

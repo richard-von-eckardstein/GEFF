@@ -466,6 +466,7 @@ class BaseGEF(BGSystem):
 
 
 def GEF(modelname, settings):
+    """somedoc"""
     @_define_model(modelname, settings)
     class GEF(BaseGEF):
         pass

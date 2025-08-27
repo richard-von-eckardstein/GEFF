@@ -1,5 +1,7 @@
 """
 Module defining the GEF model "classic" corresponding to pure axion inflation.
+
+For more details on this model, see e.g., [2109.01651](https://arxiv.org/abs/2109.01651).
 """
 import numpy as np
 

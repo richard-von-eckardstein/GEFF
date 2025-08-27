@@ -1,5 +1,5 @@
 r"""
-This module defines several classes which allow to compute and analyse the spectrum of gauge-field modes.
+This module is used to compute and analyse spectra of gauge-field modes.
 
 Throughout this module, any gauge-field mode functions are represented by dimensionless variables
 
@@ -972,7 +972,7 @@ class BaseModeSolver:
         
 
     def _create_k_array(self, nvals : int, t_interval : tuple) -> np.ndarray:
-        """
+        r"""
         Create an array of $n$ momenta
 
         The $n$ modes are generated between $k_{\rm UV}(t_{\rm min})$ and $k_{\rm UV}(t_{\rm max})$.

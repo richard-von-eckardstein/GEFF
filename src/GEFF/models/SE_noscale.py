@@ -1,5 +1,7 @@
 r"""
-Module defining the GEF model "SE:no-scale" corresponding to fermionic axion inflation without a heuristic scale dependence.
+Module defining the GEF model "SE no-scale" corresponding to fermionic axion inflation without a heuristic scale dependence.
+
+For more details on this model, see e.g., [2109.01651](https://arxiv.org/abs/2109.01651).
 """
 import numpy as np
 
@@ -14,7 +16,7 @@ from GEFF.utility.boundary import boundary_approx_schwinger
 from GEFF.utility.auxiliary import heaviside
 from GEFF.utility.aux_mode import mode_equation_SE_scale, damped_bd
 
-name = "SE:no-scale"
+name = "SE no-scale"
 
 settings = {"pic":"mixed"}
 

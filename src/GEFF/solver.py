@@ -1,3 +1,14 @@
+"""
+This module defines the internal ODE solver used by the GEF.
+
+The `BaseGEFSolver` is the the primary class supplied by this module. It defines an algorithm by which the equations of motion for a GEF model are solved.
+This makes use of the `GEFF.bgtypes.BGSystem` module to simplify conversions between numerical and physical units.
+
+While the `BaseGEFSolver`is solving the ODE's it can track one or multiple `Event` objects. These events correspond to certain conditions, for example, the end of inflation.
+Occurrences of these events can be designed to influence the solver. For example, an 'end of inflation' `Event` may demand that the solver reach the end of inflation.
+
+The `BaseGEFSolver` class can be used to configure customized solvers using the class factory `GEFSolver` to adapt it to a specific GEF model.
+"""
 import numpy as np
 
 from GEFF.bgtypes import BGSystem, t, N, a, H
