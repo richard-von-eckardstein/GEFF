@@ -1,3 +1,32 @@
+r"""
+This module defines several classes which allow to compute and analyse the spectrum of gauge-field modes.
+
+Throughout this module, any gauge-field mode functions are represented by dimensionless variables
+
+$$\sqrt{2k} A_\lambda(t,k), \quad \sqrt{\frac{2}{k}}\, a(t)\dot{A}_\lambda(k, t), \quad \lambda = \pm 1$$
+
+where $A_\lambda(t,k)$ are the mode functions for a canonically quantized Abelian gauge-field $A_\mu(t, {\bf x})$ in Coulomb & Weyl gauge.
+The momentum variables $k$ are always returned in numerical units, i.e., $k_{\rm phys} = k_{\rm num} H_0$.
+
+The class `BaseModeSolver` is designed to solve the second order mode equation
+
+$$\ddot{A}_\lambda(t,k) + P(t,k)\dot{A}_\lambda(t,k) + Q(t,k)A_\lambda(t,k) = 0 \, .$$
+
+The base class in particular is set to solve the mode equation of pure axion inflation,
+$$P(t,k) = H \, \qquad Q(t,k) = \left(\frac{k}{a}\right)^2  - 2\lambda \left(\frac{k}{a}\right) \xi H \, ,$$
+with Hubble rate $H$, scale factor $a$ and instability scale $\xi$.
+
+To create a mode solver with custom values for $P(t,k)$ and $Q(t,k)$, use the class factory `ModeSolver`.
+
+The module also contains a class `GaugeSpec` designed for directly working on the spectrum of modes $A_\lambda(t,k)$.
+In particular, it is used to integrate the spectrum to obtain the quantities
+
+$$ \mathcal{F}_\mathcal{E}^{(n)}(t) = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{{\rm UV}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2\,,$$
+$$ \mathcal{F}_\mathcal{G}^{(n)}(t) = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{a k^{n+4}}{2 \pi^2 k_{{\rm UV}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)]\,,$$
+$$ \mathcal{F}_\mathcal{B}^{(n)}(t) = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm UV}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2\,,$$
+
+which may be used to estimate the error of a GEF solution.
+"""
 import os
 
 import numpy as np
@@ -200,22 +229,16 @@ class GaugeSpec(dict):
     
     def integrate(self, BG : BGSystem, n : int=0, cutoff="kh", **IntegratorKwargs) -> np.ndarray:
         r"""
-        Compute the three integrals
+        Compute the three integrals $\mathcal{F}_\mathcal{X}^{(n)}(t)$ for $\mathcal{X} = \mathcal{E}, \mathcal{B},\mathcal{G}$ for fixed $n$ and each time $t$ in the spectrum.
 
-        $$ \mathcal{F}_\mathcal{E}^{(n)}(t) = \int\limits_{0}^{k_{{\rm h}}(t)}\frac{{\rm d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{{\rm h}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2\,,$$
-        $$ \mathcal{F}_\mathcal{G}^{(n)}(t) = \int\limits_{0}^{k_{{\rm h}}(t)}\frac{a k^{n+4}}{2 \pi^2 k_{{\rm h}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)]\,,$$
-        $$ \mathcal{F}_\mathcal{B}^{(n)}(t) = \int\limits_{0}^{k_{{\rm h}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm h}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2\,,$$
-
-        for a given $n$ and each time coordinate $t$ in the spectrum.
-
-        If the time coordinates stored in `BG` do not match those stored in the spectrum, $k_{\rm h}(t)$ is evaluated using interpolation.
+        If the time coordinates stored in `BG` do not match those stored in the spectrum, $k_{\rm UV}(t)$ is evaluated using interpolation.
 
         Parameters
         ----------
         BG : BGSystem
-            a system containing the UV cut-off, $k_{\rm h}(t)$
+            a system containing the UV cut-off, $k_{\rm UV}(t)$
         n : int
-            the integer $n$ in $\mathcal{F}_\mathcal{X}^{(n)}(t)$ for $\mathcal{X} = \mathcal{E}, \mathcal{B},\mathcal{G}$
+            the integer $n$
         cutoff : str
             the name under which the UV-cutoff is stored in `BG`
         **IntegratorKwargs :  kwargs
@@ -248,8 +271,8 @@ class GaugeSpec(dict):
 
         $$\varepsilon_\mathcal{X} = \left|1 - \frac{\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm MbM}}{\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}}\right|$$
 
-        for $\mathcal{X} = \mathcal{E},\,\mathcal{B},\,\mathcal{G}$. Here, $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm MbM}$ are the integrals computed by `integrate`, $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ refer
-          to the same quantity stored in `BG`.
+        for $\mathcal{X} = \mathcal{E},\,\mathcal{B},\,\mathcal{G}$. Here, $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm MbM}$ are the integrals computed by `integrate`, 
+        $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ refer to the same quantity stored in `BG`.
         If the time coordinate of `BG` does not align with the spectrum, its values are interpolated.
 
         Because $k_{\rm h}(t)$ increases monotonically, the spectrum contains only few relevant modes $k < k_{\rm h}(t)$ at early times.
@@ -529,13 +552,7 @@ class SpecSlice(dict):
 
     def integrate_slice(self, n : int=0, integrator="simpson", modethr : int=100, epsabs : float=1e-20, epsrel : float=1e-4, interpolator=PchipInterpolator) -> Tuple[np.ndarray, np.ndarray]:
         r"""
-        Compute the three integrals
-
-        $$ \mathcal{F}_\mathcal{E}^{(n)}(t) = \int\limits_{0}^{k_{{\rm h}}(t)}\frac{{\rm d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{{\rm h}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2,$$
-        $$ \mathcal{F}_\mathcal{G}^{(n)}(t) = \int\limits_{0}^{k_{{\rm h}}(t)}\frac{a k^{n+4}}{2 \pi^2 k_{{\rm h}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)]$$
-        $$ \mathcal{F}_\mathcal{B}^{(n)}(t) = \int\limits_{0}^{k_{{\rm h}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm h}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2$$
-
-        for a fixed time $t$ and index $n$.
+        Compute the three integrals $\mathcal{F}_\mathcal{X}^{(n)}(t)$ for $\mathcal{X} = \mathcal{E}, \mathcal{B},\mathcal{G}$ for a fixed time $t$ and index $n$.
 
         The integrals can either be computed directly using `simpson` or `quad` from `scipy.interpolate`. When using `quad` the data for $\sqrt{2 k} A_\pm(k, t)$, $\sqrt{2/k} \, e^{N(t)}\dot{A}_\pm(k, t)$
           are interpolated to obtain smooth functions. To avoid this, it is recommended to use `simpson`.
@@ -627,19 +644,12 @@ class BaseModeSolver:
     r"""
     A class used to compute gauge-field modes evolving on a time-dependent background.
 
-    This class is used to evolve the gauge-field modes $A_\pm(t,k)$ and their derivatives in time by using the
-    evolution of the time-dependent background obtained from a GEF solution (in numerical units).
-    
-    The evolution is determined by an ODE for the four (complex) variables 
-    $$\sqrt{2k} A_\lambda(t,k), \quad a(t) \sqrt{\frac{2}{k}}\dot{A}_\lambda(k, t), \quad \lambda = \pm 1$$
-    in terms of their real and imaginary parts. By default, the evolution equation is
-    $$ \ddot{A}_\lambda(t,k) + H \dot{A}_\lambda(t,k) +  \left[ \left(\frac{k}{a}\right)^2  - 2\lambda \left(\frac{k}{a}\right) \xi H\right] A_\lambda(t,k) = 0$$
-    with the evolution for $H(t)$, $a(t)$, $\xi(t)$ obtained from the GEF solution.
+    This class is used to evolve the gauge-field modes $A_\pm(t,k)$ as defined by `mode_equation`.
+     To do so, the evolution of the time-dependent background is obtained from a GEF solution.
 
-    The modes are initialized deep inside the Bunch&ndash;Davies vacuum
-    $$ \sqrt{2k} A_\lambda(t,k) \sim e^{-i \eta k}, \quad  a(t) \sqrt{\frac{2}{k}}\dot{A}_\lambda(k, t) \sim -i e^{-i \eta k}, \quad -k\eta \ll 1 $$ 
-    at a time implicitly defined by the condition $k = 10^{5/2} k_{\rm UV}(t_{\rm ini})$, with the default $k_{\rm UV}(t) = k_{\rm h}(t)$ obtained from the GEF solution.
-    At times $t < t_{\rm ini}$ the mode is assumed to be in Bunch&ndash;Davies. The phase $ e^{-i \eta k}$ is computed separately.
+    The modes are initialized deep inside the Bunch&ndash;Davies vacuum as given by `initialise_in_bd`. 
+    Numerically, the initialization time is implicitly defined by the condition $k = 10^{5/2} k_{\rm UV}(t_{\rm ini})$, with $k_{\rm UV}(t)$ obtained from the GEF solution.
+    At times $t < t_{\rm ini}$ the mode is assumed to be in Bunch&ndash;Davies.
 
     The mode equations are solved with an explicit Runge&ndash;Kutta of order 5(4), which is implemented in `scipy.integrate.solve_ivp`.
 
@@ -1000,7 +1010,7 @@ class BaseModeSolver:
     
     def _find_tinit_bd(self, init : np.ndarray, mode : str="k") -> Tuple[np.ndarray, np.ndarray]:
         """
-        Determines the pair of $k$ and $t$ satisfying $k = 10^(5/2)*k_h(t)$.
+        Determines the pair of $k$ and $t$ satisfying $k = 10^(5/2)k_h(t)$.
 
         Depending on `mode`, `init` may be a time coordinate (`mode='t'`), $e$-folds (`mode='N'`) or momentum (`mode='k'`).
 
@@ -1059,8 +1069,8 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
     1. The call signature is `f(t,y,k,**kwargs)`
     2. The arguments `t` / `k` expect floats representing time / momentum
     3. The argument `y` expects a `numpy.ndarrray` of shape (8,) with indices
-        -  0 & 2 / 4 & 6: real & imaginary part of $\sqrt{2k} A_\lambda(t_{\rm init},k)$ for $\lambda = 1 \, / -1$
-        -  1 & 3 / 5 & 7: real & imaginary part of $a\sqrt{2/k} \dot{A}_\lambda(t_{\rm init},k)$ for $\lambda = 1 \, / -1$
+        -  0 & 2 / 4 & 6: real & imaginary part of $\sqrt{2k} A_\lambda(t,k)$ for $\lambda = 1 \, / -1$
+        -  1 & 3 / 5 & 7: real & imaginary part of $\sqrt{2/k}\, a \dot{A}_\lambda(t,k)$ for $\lambda = 1 \, / -1$
     4. The kwargs are functions of the argument `t`.
     5. The return is the time derivative of `y`
 
@@ -1070,7 +1080,7 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
     3. The kwargs are functions of the argument `t`.
     4. The return is a `numpy.ndarrray` of shape (8,)  with indices
         -  0 & 2 / 4 & 6: real & imaginary part of $\sqrt{2k} A_\lambda(t_{\rm init},k)$ for $\lambda = 1 \, / -1$
-        -  1 & 3 / 5 & 7: real & imaginary part of $a\sqrt{2/k} \dot{A}_\lambda(t_{\rm init},k)$ for $\lambda = 1 \, / -1$
+        -  1 & 3 / 5 & 7: real & imaginary part of $\sqrt{2/k}\, a \dot{A}_\lambda(t_{\rm init},k)$ for $\lambda = 1 \, / -1$
     
     The lists `ode_keys` and `init_keys` are handled as follows:
     - `ode_keys` and `init_keys` need to contain the keys associated to the respective kwargs of `new_mode_eq` and `new_bd_init`.
