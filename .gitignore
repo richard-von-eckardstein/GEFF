@@ -13,9 +13,10 @@ __pycache__
 GEFF.egg-info/
 Debug/*.py
 
-!src/Data/EffDoF.dat
-!src/Data/strains/*
-!src/Data/power-law-integrated_sensitivities/*
+!src/GEFF/data/*
+!src/GEFF/data/plis/*
+!src/GEFF/data/strains/*
+
 !Debug/DebugData.zip
 
 
