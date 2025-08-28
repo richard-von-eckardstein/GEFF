@@ -534,8 +534,8 @@ class BaseGEFSolver:
     
     
 def GEFSolver(new_init : Callable, new_update_vals : Callable, new_timestep : Callable, new_events : list['Event'], new_variables : dict):
-    
     class GEFSolver(BaseGEFSolver):
+        """some docs"""
         vals_to_yini = staticmethod(new_init)
         update_vals = staticmethod(new_update_vals)
         timestep = staticmethod(new_timestep)

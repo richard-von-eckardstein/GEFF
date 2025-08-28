@@ -11,7 +11,7 @@ from types import NoneType
 
 __doc__ = DOCS["module"]
 
-class PowSpecT:
+class PT:
     r"""
     A class used to compute the tensor power spectrum including vacuum and gauge-field induced contributions.
 

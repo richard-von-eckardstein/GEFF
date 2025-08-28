@@ -1,18 +1,22 @@
+from ._docs import gef_docs, generate_docs
 import pandas as pd
 import numpy as np
-
-from GEFF.bgtypes import BGSystem
+from .bgtypes import BGSystem
 
 import importlib.util as util
 import os
 
+from .solver import BaseGEFSolver
+from .mode_by_mode import BaseModeSolver
+from .models import classic
 from numbers import Number
 from types import NoneType
+from typing import ClassVar
 
 class MissingInputError(Exception):
     pass
 
-def _load_model(name : str, user_settings : dict):
+def _load_model(name : str, user_settings : dict={}):
     """
     Import and execute a module defining a GEF model.
 
@@ -70,9 +74,6 @@ def _add_model_specifications(model_name, user_settings):
         #load the model file
         model = _load_model(model_name, user_settings)
 
-        #import quantities dictionary
-        q_dict = model.quantities
-
         #import information on input and how to handle it
         cls._input_signature = model.input
         cls._input_handler = staticmethod(model.define_units)
@@ -82,37 +83,70 @@ def _add_model_specifications(model_name, user_settings):
         #import Mode-By-Mode class:
         cls.ModeSolver = model.MbM
 
-        cls._object_classification = { key:{i.name for i in item} for key, item in q_dict.items()}
+        cls._object_classification = { key:{i.name for i in item} for key, item in model.solver.known_variables.items()}
 
         return cls
     return GEF_decorator
 
-@_add_model_specifications("classic", {})
+
 class BaseGEF(BGSystem):
     """
-    This class is the primary interface to solve the GEF equations.
-     
-    
-    
-    Attributes
-    ----------
-    ModeSolver : ModeByMode subclass
-        The mode-by-mode class associated to the current GEF-model
-    GEFSolver : GEFSolver
-        The GEFSolver-instance used to solve the GEF equations
+    This class is the primary interface of a GEF model.
+
+    The class contains a `GEFSolver` and a `ModeSolver` that are used to solve GEF equations in `run`.
+
+    The class also stores the evolution of the GEF-model variables as obtained from `run` or `load_GEFdata`.
+    You can access these variables like a `GEFF.bgtypes.BGSystem`. E.g., you can access the $e$-folds variable through the attribute `N`.
+
+    As a child of `BGSystem`, the GEFF can be passed to other tools initialised by `BGSystem`'s. For example, to compute the tensor power spectrum from your GEF solution,
+    you can pass it to `GEFF.tools.pt.PT`.
+
+    The `BaseGEF` contains the model `GEFF.models.classic`. To create a custom GEF model from a model file, use the class factory `GEF`.
     """
 
+    GEFSolver : ClassVar[BaseGEFSolver] = classic.solver
+    """
+    The solver used to compute the GEF evolution.
+    """
+    ModeSolver : ClassVar[BaseModeSolver] = classic.MbM
+    """
+    The mode solver used for mode-by-mode cross checks.
+    """
+    
+    _input_signature = classic.input
+    define_units = staticmethod(classic.define_units)
+    _object_classification = { key:{i.name for i in item} for key, item in classic.quantities.items()}
+
     def __init__(
-                self, consts : dict, init_dict : dict, init_funcs : dict, 
+                self, consts : dict, init_data : dict, funcs : dict, 
                 GEFdata: NoneType|str = None, MbMdata: NoneType|str = None
                 ):
-        
-        user_input = {"constants":consts, "initial data":init_dict, "functions":init_funcs}
+        """
+        Define values for input constants, initial data, and functions used by the GEF.
+
+        This also initializes the underlying `BGSystem` class using `define_units`.
+
+        Parameters
+        ----------
+        consts : dict
+            user specified values for constants
+        init_data : dict
+            user specified initial data for the GEF
+        funcs : dict
+            user specified functions of GEF variables
+        GEFdata : None or str:
+            file to path where to load and save GEF data
+        MbMdata : None or str:
+            file to path where to load and save mode by mode data
+
+        """    
+        user_input = {"constants":consts, "initial data":init_data, "functions":funcs}
+
         #Check that all necessary input is present and that its data type is correct
         for input_type, input_dict  in user_input.items():
             self._check_input(input_dict, input_type)
 
-        H0, MP = self._input_handler(user_input)
+        H0, MP = self.define_units(user_input)
 
         super().__init__(self._known_objects, H0, MP)
 
@@ -131,7 +165,9 @@ class BaseGEF(BGSystem):
 
         #Add information about file paths
         self.GEFdata = GEFdata
+        """Path to GEF data used by `load_GEFdata` and `save_GEFdata`."""
         self.MbMdata = MbMdata
+        """Path to mode data. Load using `GEFF.mode_by_mode.GaugeSpec.read_spec`"""
 
     @classmethod
     def print_input(cls):
@@ -434,3 +470,4 @@ def GEF(modelname, settings):
     return GEF
 
 
+#generate_docs(gef_docs.DOCS)

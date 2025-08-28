@@ -7,9 +7,10 @@ import numpy as np
 
 from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
-from GEFF.mode_by_mode import BaseModeSolver
+from GEFF.mode_by_mode import ModeSolver
 
 from GEFF.utility.aux_eom import friedmann, gauge_field_ode, dlnkh, klein_gordon
+from GEFF.utility.aux_mode import bd_classic, mode_equation_classic
 from GEFF.utility.boundary import boundary_approx
 from GEFF.utility.auxiliary import heaviside
 from GEFF._docs import generate_docs, docs_models
@@ -185,7 +186,8 @@ solver = GEFSolver(initial_conditions, update_values, compute_timestep, events, 
 """The solver used by the GEF model."""
 
 #define mode-by-mode solver
-MbM = BaseModeSolver
+MbM = ModeSolver(mode_equation_classic, ["a", "xi", "H"],
+                 bd_classic, [])
 """The mode solver used by the GEF model."""
 
 

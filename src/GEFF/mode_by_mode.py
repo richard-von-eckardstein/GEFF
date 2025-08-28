@@ -892,8 +892,6 @@ class BaseModeSolver:
         
     
 def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Callable, init_keys : list[str], new_cutoff : str="kh", default_atol : float=1e-3):
-   
-    
     class ModeSolver(BaseModeSolver):
         """
         A subclass of `BaseModeSolver` new mode equation and initial condition adapted to a new GEF model
