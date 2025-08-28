@@ -1,5 +1,5 @@
 """
-A module defining equations used by `GEFF.mode_by_mode.ModeSolver`.
+A module defining equations used by `GEFF.mbm.ModeSolver`.
 """
 import numpy as np
 from typing import Callable
