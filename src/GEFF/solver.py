@@ -11,11 +11,12 @@ class BaseGEFSolver:
     known_variables : ClassVar[dict] = {"time":{t}, "dynamical":{N}, "static":{a}, "constant":{H}, "function":{}, "gauge":{}}
     """
     Classifies variables used by the solver according to:
+    * 'time': the name of the time parameter of the ODE's (should be "t") 
     * 'dynamical': variables evolved by the EoM (not 'gauge')
     * 'gauge': tower of gauge-field expectation values evolved by the EoM
     * 'static': variables computed from 'dynamical' and 'gauge'
-    * 'constants': constant variables
-    * 'functions': functions of the above variables.
+    * 'constant': constant variables
+    * 'function': functions of the above variables.
     """
 
     known_events : ClassVar[dict] = {}

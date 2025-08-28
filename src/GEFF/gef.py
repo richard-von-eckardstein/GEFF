@@ -1,82 +1,18 @@
-from ._docs import gef_docs, generate_docs
 import pandas as pd
 import numpy as np
-
+from ._docs import generate_docs, docs_gef
 from .bgtypes import BGSystem
 from .models import classic
 
 import importlib
 import os
 
-from .solver import BaseGEFSolver
-from .mode_by_mode import BaseModeSolver
-from .models import classic
 from numbers import Number
 from types import NoneType
-from typing import ClassVar
-
-
-def _load_model(model : str, user_settings : dict):
-    """
-    Import and execute a module defining a GEF model.
-
-    Parameters
-    ----------
-    model : str
-        The name of the GEF model or a full dotted import path (e.g., "path.to.module").
-    settings : dict
-        A dictionary containing updated settings for the module.
-
-    Returns
-    -------
-    ModuleType
-        The configured module.
-    """
-
-    # Case 1: Bare name, resolve to ./models/{name}.py
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    modelpath = os.path.join(current_dir, f"models/{model}.py")
-
-    if os.path.exists(modelpath):
-        spec = importlib.util.spec_from_file_location(model, modelpath)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-
-    else:
-        # Case 2: Try treating it as a dotted import path
-        try:
-            mod = importlib.import_module(model)
-        except ImportError as e:
-            raise FileNotFoundError(
-                f"No model file found at '{modelpath}' and failed to import '{model}'"
-                ) from e
-        
-    if hasattr(mod, "settings") and isinstance(user_settings, dict):
-        for key, item in user_settings.items():
-            if key in mod.settings:
-                mod.settings[key] = item
-                print(f"Updating '{key}' to '{item}'.")
-            else:
-                print(f"Ignoring unknown model setting '{key}'.")
-        mod.update_settings()
-
-    return mod
 
 
 class BaseGEF(BGSystem):
-    """
-    This class is the primary interface of a GEF model.
-
-    The class contains a `GEFSolver` and a `ModeSolver` that are used to solve GEF equations in `run`.
-
-    The class also stores the evolution of the GEF-model variables as obtained from `run` or `load_GEFdata`.
-    You can access these variables like a `GEFF.bgtypes.BGSystem`. E.g., you can access the $e$-folds variable through the attribute `N`.
-
-    As a child of `BGSystem`, the GEFF can be passed to other tools initialised by `BGSystem`'s. For example, to compute the tensor power spectrum from your GEF solution,
-    you can pass it to `GEFF.tools.pt.PT`.
-
-    The `BaseGEF` contains the model `GEFF.models.classic`. To create a custom GEF model from a model file, use the class factory `GEF`.
-    """
+    
 
     GEFSolver = classic.solver
     """The solver used to solve the GEF equations in `run`."""
@@ -107,10 +43,16 @@ class BaseGEF(BGSystem):
         funcs : dict
             user specified functions of GEF variables
         GEFdata : None or str:
-            file to path where to load and save GEF data
+            file to path for GEF data
         MbMdata : None or str:
-            file to path where to load and save mode by mode data
+            file to path for mode data
 
+        Raises
+        ------
+        KeyError
+            if a necessary input is missing.
+        TypeError
+            if the input is of the wrong type.
         """    
         user_input = {"constants":consts, "initial data":init_data, "functions":funcs}
 
@@ -139,7 +81,7 @@ class BaseGEF(BGSystem):
         self.GEFdata = GEFdata
         """Path to GEF data used by `load_GEFdata` and `save_GEFdata`."""
         self.MbMdata = MbMdata
-        """Path to mode data. Load using `GEFF.mode_by_mode.GaugeSpec.read_spec`"""
+        """Path to mode data. Load using `.mbm.GaugeSpec.read_spec`"""
 
         self._completed=False
 
@@ -158,7 +100,7 @@ class BaseGEF(BGSystem):
             try:
                 assert key in input_data.keys()
             except AssertionError:
-                raise MissingInputError(f"Missing input in '{input_type}': '{key}'")
+                raise KeyError(f"Missing input in '{input_type}': '{key}'")
 
             if input_type == "functions":
                 try:
@@ -172,14 +114,16 @@ class BaseGEF(BGSystem):
                     raise TypeError(f"Input '{input_type}' is '{type(input_data[key])}' but should be 'Number' type.")
         return
     
-    def run(self, ntr=150, tend=120, nmodes=500, mbm_attempts=5,  resume_mbm=True,  err_tol = 0.1, err_thr = 0.025, binning=5, integrator="simpson", print_stats=True, **solver_kwargs):
+    def run(self, ntr:int=150, tend:float=120, nmodes:int=500, mbm_attempts:int=5,  resume_mbm:bool=True,
+              err_tol:float=0.1, err_thr:float=0.025, binning:int=5, integrator:str="simpson", print_stats:bool=True, **solver_kwargs):
         """
         Solve the ODE's of the GEF using `GEFSolver`. Cross check the solution using `ModeSolver`.
 
-        The `GEFSolver` is initialized using the initial conditions defined by the GEF.
-        After a successful GEF solution is returned by the solver, a mode-by-mode cross check is performed with `ModeSolver.compute_spectrum` (unless `nmodes=None`).
-        If the mode-by-mode cross-check is successful, the solution is parsed to the underlying `BGSystem` of the class.
-        Otherwise, the `GEFSolver` tries to re-initialize the informed by the `ModeSolver`. This is attempted for `mbm_attempts` or until successful.
+        The `GEFSolver` is initialized using the initial conditions defined by the class.
+        If the solver returns a succesful solution, `ModeSolver.compute_spectrum` computes a gauge field spectrum
+         to perform a mode-by-mode cross check (unless `nmodes=None`).
+        If the mode-by-mode cross check is a success, the solution is stored in the underlying `BGSystem` of the class.
+        Otherwise, the `GEFSolver` tries to self correct using the gauge field spectrum. This is attempted for `mbm_attempts` or until successful.
 
         Parameters
         ----------
@@ -187,8 +131,10 @@ class BaseGEF(BGSystem):
             initial truncation number `GEFSolver.ntr`
         tend : float
             initial target time for `GEFSolver.tend`
-        nmodes : float or None
+        nmodes : int or None
             The number of modes computed by `ModeSolver`. If None, no cross-check is performed.
+        mbm_attempts : int
+            number of mode-by-mode self correction attempts
         resume_mbm : bool
             If `True` use `ModeSolver.update_spectrum` in case multiple mode-by-mode comparisons are needed.
         err_tol : float
@@ -337,7 +283,7 @@ class BaseGEF(BGSystem):
         
      #move to GEF
     @staticmethod
-    def mbm_crosscheck(spec, vals, err_tol, err_thr, binning, **integrator_kwargs):
+    def mbm_crosscheck(spec, vals:BGSystem, err_tol:float, err_thr:float, binning:int, **integrator_kwargs):
         """
         Estimate the error of a GEF solution using `.mbm.GaugeSpec.estimate_GEF_error`.
 
@@ -455,12 +401,12 @@ class BaseGEF(BGSystem):
         Parameters
         ----------
         path : str
-            If None, stores data in ``GEFdata`. Else, stores data in the specified file.
+            If None, stores data in `GEFdata`. Else, stores data in the specified file.
 
         Raises
         ------
         Exception
-            if 'path' is None but self.GEFdata is also None.
+            if 'path' is None but `GEFdata` is also None.
         
         """
         if path is None:
@@ -506,10 +452,72 @@ class BaseGEF(BGSystem):
 
 
 
-def GEF(modelname, settings):
-    """somedoc"""
+def _load_model(model : str, user_settings : dict):
+    """
+    Import and execute a module defining a GEF model.
+
+    Parameters
+    ----------
+    model : str
+        The name of the GEF model or a full dotted import path (e.g., "path.to.module").
+    settings : dict
+        A dictionary containing updated settings for the module.
+
+    Returns
+    -------
+    ModuleType
+        The configured module.
+    """
+
+    # Case 1: Bare name, resolve to ./models/{name}.py
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    modelpath = os.path.join(current_dir, f"models/{model}.py")
+
+    if os.path.exists(modelpath):
+        spec = importlib.util.spec_from_file_location(model, modelpath)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+    else:
+        # Case 2: Try treating it as a dotted import path
+        try:
+            mod = importlib.import_module(model)
+        except ImportError as e:
+            raise FileNotFoundError(
+                f"No model file found at '{modelpath}' and failed to import '{model}'"
+                ) from e
+        
+    if hasattr(mod, "settings") and isinstance(user_settings, dict):
+        for key, item in user_settings.items():
+            if key in mod.settings:
+                mod.settings[key] = item
+                print(f"Updating '{key}' to '{item}'.")
+            else:
+                print(f"Ignoring unknown model setting '{key}'.")
+        mod.update_settings()
+
+    return mod
+
+
+def GEF(modelname:str, settings:dict):
+    """
+    Define a custom subclass of BaseGEF adapted to a new GEF model.
+
+    Parameters
+    ----------
+    modelname : str
+        The name of the GEF model or a full dotted import path (e.g., "path.to.module").
+    settings : dict
+        a dictionary of settings used by the model
+
+    Returns
+    -------
+    CustomGEF
+        a custom subclass of BaseGEF
+        
+    """
     model = _load_model(modelname, settings)
-    class GEF(BaseGEF):
+    class CustomGEF(BaseGEF):
         GEFSolver = model.solver
         """The solver used to solve the GEF equations in `run`."""
         ModeSolver = model.MbM
@@ -520,9 +528,9 @@ def GEF(modelname, settings):
         _object_classification = { key:{i.name for i in item} for key, item in GEFSolver.known_variables.items()}
         _known_objects = set().union(*[item for key, item in GEFSolver.known_variables.items() if key!="gauge"] )
 
-    return GEF
+    CustomGEF.__qualname__ = model.name
+    CustomGEF.__module__ = __name__
 
-class MissingInputError(Exception):
-    pass
+    return CustomGEF
 
-#generate_docs(gef_docs.DOCS)
+generate_docs(docs_gef.DOCS)
