@@ -7,14 +7,14 @@ import numpy as np
 
 from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVal
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
-from GEFF.mode_by_mode import ModeSolver
+from GEFF.mbm import ModeSolver
 
 from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh_schwinger,
                                       ddelta, drhoChi, gauge_field_ode_schwinger,
                                         conductivities_collinear, conductivities_mixed)
 from GEFF.utility.boundary import boundary_approx_schwinger
 from GEFF.utility.auxiliary import heaviside
-from GEFF.utility.aux_mode import mode_equation_SE_scale, damped_bd
+from GEFF.utility.aux_mode import mode_equation_SE_no_scale, damped_bd
 from GEFF._docs import generate_docs, docs_models
 
 name = "SE no-scale"
@@ -30,16 +30,23 @@ Determines if conductivities are computed assuming collinear E&M fields
 """
 
 # parse settings
-if settings["pic"]=="mixed":
-    conductivity = conductivities_mixed
-elif settings["pic"]=="electric":
-    def conductivity(a, H, E, B, G, H0):
-        return conductivities_collinear(a, H, E, B, G, -1, H0)
-elif settings["pic"]=="magnetic":
-    def conductivity(a, H, E, B, G, H0):
-        return conductivities_collinear(a, H, E, B, G, 1, H0)
-else:
-    raise KeyError(f"{settings['pic']} is an unknown choice for the setting'pic'")
+def define_conductivity():
+    if settings["pic"]=="mixed":
+        conductivity = conductivities_mixed
+    elif settings["pic"]=="electric":
+        def conductivity(a, H, E, B, G, H0):
+            return conductivities_collinear(a, H, E, B, G, -1, H0)
+    elif settings["pic"]=="magnetic":
+        def conductivity(a, H, E, B, G, H0):
+            return conductivities_collinear(a, H, E, B, G, 1, H0)
+    else:
+        raise KeyError(f"{settings['pic']} is an unknown choice for the setting'pic'")
+    return np.vectorize(conductivity)
+
+def update_settings():
+    global conductivity
+    conductivity = define_conductivity()
+    return
 
 #Define all additional variables
 sigmaE=BGVal("sigmaE", 1, 0) #electric damping
@@ -99,11 +106,11 @@ r"""Define the expected input of the model.
 """
 
 #this functions is called upon initialisation of the GEF class
-def define_units(input):
+def define_units(consts, init, funcs):
     #compute Hubble rate at t0
-    rhoK = input["init"]["dphi"]**2
-    rhoV = input["funcs"]["V"](input["init"]["phi"])
-    rhochi = input["init"]["rhoChi"]
+    rhoK = 0.5*init["dphi"]**2
+    rhoV = funcs["V"](init["phi"])
+    rhochi = init["rhoChi"]
     H0 = friedmann( rhoK, rhoV, rhochi )
     
     freq = H0 #Characteristic frequency is the initial Hubble rate
@@ -168,7 +175,7 @@ def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.xieff.set_value(vals.xi + vals.sigmaB/(2*vals.H))
 
     #acceleration for convenience
-    vals.ddphi.set_value( klein_gordon(vals.dphi, vals.dV(vals.phi), -vals.G*vals.beta*vals.H0**2) )
+    vals.ddphi.set_value( klein_gordon(vals.dphi, vals.dV(vals.phi), vals.H, -vals.G*vals.beta*vals.H0**2) )
     return
 
 def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
@@ -250,8 +257,8 @@ solver = GEFSolver(initial_conditions, update_values, compute_timestep, events, 
 """The solver used by the GEF model."""
 
 #define mode-by-mode solver
-MbM = ModeSolver(mode_equation_SE_scale, ["a", "xieff", "H", "sigmaE"],
-                         damped_bd, ["a", "sigmaE", "delta"], default_atol=1e-3)
+MbM = ModeSolver(mode_equation_SE_no_scale, ["a", "xieff", "H", "sigmaE"],
+                         damped_bd, ["a", "sigmaE", "delta"], default_atol=1e-5)
 """The mode solver used by the GEF model."""
 
 
