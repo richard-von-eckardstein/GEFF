@@ -6,15 +6,15 @@ DOCS = {
 
     $$\sqrt{2k} A_\lambda(t,k), \quad \sqrt{\frac{2}{k}}\, a(t)\dot{A}_\lambda(k, t), \quad \lambda = \pm 1$$
 
-    where $A_\lambda(t,k)$ are the mode functions for a canonically quantized Abelian gauge-field $A_\mu(t, {\bf x})$ in Coulomb & Weyl gauge.
+    where $A_\lambda(t,k)$ are the mode functions of helicity $\lambda$ and momentum $k$ for a canonically quantized Abelian gauge-field $A_\mu(t, {\bf x})$ in Coulomb & Weyl gauge.
     The momentum variables $k$ are always returned in numerical units, i.e., $k_{\rm phys} = k_{\rm num} H_0$.
 
     The class `BaseModeSolver` is designed to solve the second order mode equation
 
-    $$\ddot{A}_\lambda(t,k) + P(t,k)\dot{A}_\lambda(t,k) + Q(t,k)A_\lambda(t,k) = 0 \, .$$
+    $$\ddot{A}_\lambda(t,k) + P_\lambda(t,k)\dot{A}_\lambda(t,k) + Q_\lambda(t,k)A_\lambda(t,k) = 0 \, .$$
 
     The base class in particular is set to solve the mode equation of pure axion inflation,
-    $$P(t,k) = H \, \qquad Q(t,k) = \left(\frac{k}{a}\right)^2  - 2\lambda \left(\frac{k}{a}\right) \xi H \, ,$$
+    $$P_\lambda(t,k) = H \, \qquad Q_\lambda(t,k) = \left(\frac{k}{a}\right)^2  - 2\lambda \left(\frac{k}{a}\right) \xi H \, ,$$
     with Hubble rate $H$, scale factor $a$ and instability scale $\xi$.
 
     To create a mode solver with custom values for $P(t,k)$ and $Q(t,k)$, use the class factory `ModeSolver`.
@@ -23,7 +23,7 @@ DOCS = {
     In particular, it is used to integrate the spectrum to obtain the quantities
 
     $$ \mathcal{F}_\mathcal{E}^{(n)}(t) = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{{\rm UV}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2\,,$$
-    $$ \mathcal{F}_\mathcal{G}^{(n)}(t) = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{a k^{n+4}}{2 \pi^2 k_{{\rm UV}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)]\,,$$
+    $$ \mathcal{F}_\mathcal{G}^{(n)}(t) = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{a k^{n+4}}{2 \pi^2 k_{{\rm UV}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)]\,,$$
     $$ \mathcal{F}_\mathcal{B}^{(n)}(t) = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm UV}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2\,,$$
 
     which may be used to estimate the error of a GEF solution.
@@ -61,15 +61,15 @@ DOCS = {
         $$\varepsilon_\mathcal{X} = \left|1 - \frac{\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm MbM}}{\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}}\right|$$
 
         for $\mathcal{X} = \mathcal{E},\,\mathcal{B},\,\mathcal{G}$. Here, $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm MbM}$ are the integrals computed by `integrate`, 
-        $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ refer to the same quantity stored in `BG`.
+        $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ refer to the same quantity in `BG`.
         If the time coordinate of `BG` does not align with the spectrum, its values are interpolated.
 
-        Because $k_{\rm h}(t)$ increases monotonically, the spectrum contains only few relevant modes $k < k_{\rm h}(t)$ at early times.
+        Because $k_{\rm UV}(t)$ increases monotonically, the spectrum contains only few relevant modes $k < k_{\rm UV}(t)$ at early times.
         This poses a problem for the numerical integration of $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm MbM}$.
         To avoid claiming a disagreement between $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm MbM}$ and $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ due to this effect,
         errors with $\varepsilon_\mathcal{X} > \varepsilon_{\rm thr}$ are discarded until the first time when $\varepsilon_\mathcal{X} < \varepsilon_{\rm thr}$.
 
-        As the integration result fluctuates significantly for few momenta $k < k_{\rm h}(t)$ when using `simpson`,
+        As the integration result fluctuates significantly for few momenta $k < k_{\rm UV}(t)$ when using `simpson`,
         the errors can be binned by setting `binning`. The reported error is the average over a bin of width $(t_{i}, t_{i+\Delta})$ with $\Delta$ set by `binning`.
         This binned error is then associated to the time $(t_{i} + t_{i+\Delta})/2$. For `quad`, `binning` can also be set to `None`.
         For details on the integration methods `simpson` and `quad`, see `SpecSlice.integrate_slice`.
@@ -77,11 +77,11 @@ DOCS = {
         Parameters
         ----------
         BG : BGSystem
-            the system where $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ is stored
+            the system where $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ are stored
         references : list of str
-            the names where $\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ are stored in `BG`
+            the names where $(k_{\rm UV}/a)^4 \big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}$ are stored in `BG`
         cutoff : str
-            the name where the UV-cutoff, $k_{\rm h}$, is stored in `BG`
+            the name where the UV-cutoff, $k_{\rm UV}$, is stored in `BG`
         err_thr : float
             the error threshold $\varepsilon_{\rm thr}$
         binning : int or None
@@ -126,7 +126,7 @@ DOCS = {
         The integrals can either be computed directly using `simpson` or `quad` from `scipy.interpolate`. When using `quad` the data for $\sqrt{2 k} A_\pm(k, t)$, $\sqrt{2/k} \, e^{N(t)}\dot{A}_\pm(k, t)$
           are interpolated to obtain smooth functions. To avoid this, it is recommended to use `simpson`.
 
-        When using `simpson`, the integral is only computed if $m > m_{\rm thr}$ momenta $k_i$ satisfy $k < k_{\rm h}$. Otherwise, the integral is set to zero.
+        When using `simpson`, the integral is only computed if $m > m_{\rm thr}$ momenta $k_i$ satisfy $k < k_{\rm UV}$. Otherwise, the integral is set to zero.
 
         When using `quad`, the absolute and relative tolerances of the integrator are set by `epsabs` and `epsrel`. The interpolation method is defined by `interpolator`.
         Currently, only `CubicSpline` and `PchipInterpolator` from `scipy.interpolate` are supported. The later is preferred as interpolating the oscillatory mode functions can be subject to "overshooting".

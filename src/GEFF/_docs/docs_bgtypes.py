@@ -132,15 +132,15 @@ DOCS = {
 
     # define a new Func: rhoE, the electric-field energy density
     rhoE = U.add_BGFunc("rhoE", func_args=[U.E0], H0=2, MP=2) # since 3 * M_pl^2 * H^2 = rho
-    #Note how E0 is passed for creation, to indicate the scaling of the argument
+    #Note how E0 is passed for creation to indicate the scaling of the argument
 
-    # define the rhoE as a function of E0:
+    # define rhoE as a function of E0:
     def func(x): return 0.5*x
     U.initialise("rhoE")( func )
     # U.rhoE is now a Callable function with a single argument
     ```
 
-    2. Calling the `Func` with a `Val`
+    2. Calling a `Func` with a `Val`
 
     ```python
     # Calling rhoE in physical units is straight forwards:
@@ -162,7 +162,7 @@ DOCS = {
     print( U.rhoE(U.E0) ) # gives 3. = 3e-10 / (U.H0*U.MP)**2 (in numerical units)
     ```
 
-    3: Calling the `Func` with a `float`
+    3: Calling a `Func` with a `float`
 
     ```python
     # instead of calling rhoE by E0, we can call it by a float:
@@ -180,6 +180,9 @@ DOCS = {
     # Therefore, it is always assumed to be in the units of rhoE
     # If you want to get the correct result, you would need to convert val by hand:
     print( U.rhoE(val/U.H0**4) ) # gives 3., the expected result in numerical units.
+
+    # Overall, its safer to just keep everything in the same units:
+    U.set_units(True)
     ```
     """,
 
