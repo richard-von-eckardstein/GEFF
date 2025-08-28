@@ -18,7 +18,7 @@ def Benchmark(model, setting={}, loadGEF=True) -> BaseGEF:
     indic = {"phi":phi, "dphi":dphi}
     funcdic = {"V":V, "dV":dV}
 
-    if model=="Classic":
+    if model=="classic":
         GEFPath = os.path.join(basepath, "Data/GEF+Classic_b25+m6e-6.dat")
 
     elif "SE" in model:
@@ -32,7 +32,7 @@ def Benchmark(model, setting={}, loadGEF=True) -> BaseGEF:
 
         indic.update({"rhoChi":0.})
     
-    if model=="SEOld":
+    if model=="SE_noscale":
         indic.update({"delta":1})
 
     G = GEF(model, setting)( {"beta":beta}, indic, funcdic, GEFdata=GEFPath)
