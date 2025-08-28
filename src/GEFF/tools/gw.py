@@ -1,3 +1,4 @@
+"""TODO"""
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,6 +15,9 @@ from numpy.typing import ArrayLike
 from typing import Tuple
 
 class OmegaGW:
+    """
+    TODO
+    """
     def __init__(self, values):
         #Set GEF results to Hubble units.
         values.set_units(False)
@@ -37,6 +41,8 @@ class OmegaGW:
     
     def ktofreq(self, k : ArrayLike, Nend : float|None=None, Trh : None|float=None) -> ArrayLike:
         """
+        TODO
+
         Input
         -----
         k : array
@@ -73,6 +79,8 @@ class OmegaGW:
     
     def PTtoOmega(self, PT : ArrayLike, k : ArrayLike, Nend : float|None=None, Trh : None|float=None) -> Tuple[ArrayLike, ArrayLike]:
         """
+        TODO
+
         Input
         -----
         PT : array
@@ -112,6 +120,7 @@ class OmegaGW:
 basepath = os.path.dirname(os.path.abspath(__file__))
 
 def IntegrateGW(f, h2OmegaGW):
+    """TODO"""
     h2OmegaGW = np.where(np.log(f/1e-12) > 0, h2OmegaGW, 0)
     val = simpson(h2OmegaGW, np.log(f))
     return val
@@ -141,7 +150,6 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
         the updated plot.
     """
     #the path to the sensitivity curve data
-    print(basepath)
     path = os.path.join(basepath, "../data/power-law-integrated_sensitivities/")
     arr = os.listdir(path)
     
@@ -205,6 +213,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
     return ax
 
 def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
+    """TODO"""
     path = os.path.join(basepath, "../data/strains/")
     arr = os.listdir(path)
 
