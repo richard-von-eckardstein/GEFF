@@ -1,13 +1,17 @@
 DOCS = {
-    "define_units":r"""Define how the initial data is used to define th reference frequency and energy scale.
+    "define_units":r"""Define how initial data is used to define the reference frequency and energy scale.
     
     * energy scale: $M_{\rm P}$ in Planck units
     * frequency scale: initial Hubble rate, $H$ (in Planck units)
 
     Parameters
     ----------
-    input : dict
-        the input passed by the user
+    consts : dict
+        "constants" passed by the user
+    init : dict
+        "initial data" passed by the user
+    funcs : dict
+        "functions" passed by the user
     """,
 
     "initial_conditions":"""Define how to create an array of initial data to solve the ODE's.
