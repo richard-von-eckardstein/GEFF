@@ -7,7 +7,7 @@ import numpy as np
 
 from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
-from GEFF.mode_by_mode import ModeSolver
+from GEFF.mbm import ModeSolver
 
 from GEFF.utility.aux_eom import friedmann, gauge_field_ode, dlnkh, klein_gordon
 from GEFF.utility.aux_mode import bd_classic, mode_equation_classic
@@ -18,9 +18,6 @@ from GEFF._docs import generate_docs, docs_models
 
 name : str = "classic"
 """The models name."""
-
-settings : dict = {}
-"""The model settings."""
 
 # define gauge field by assigning a name, 0th-order quantities and cut-off scale
 GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})
@@ -65,10 +62,10 @@ r"""Define the expected input of the model.
 """
 
 #this functions is called upon initialisation of the GEF class
-def define_units(input):
+def define_units(consts, init, funcs):
     #compute Hubble rate at t0
-    rhoK = input["init"]["dphi"]**2
-    rhoV = input["funcs"]["V"](input["init"]["phi"])
+    rhoK = 0.5*init["dphi"]**2
+    rhoV = funcs["V"](init["phi"])
     H0 = friedmann( rhoK, rhoV )
     
     freq = H0 #Characteristic frequency is the initial Hubble rate in Planck units
@@ -87,7 +84,6 @@ def initial_conditions(vals, ntr):
 
     #needs to be computed
     vals.initialise("kh")( abs(vals.dphi)*vals.beta )
-    yini[3] = np.log(vals.kh.value)
 
     #all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
@@ -116,7 +112,7 @@ def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
     vals.xi.set_value( vals.beta*(vals.dphi/(2*vals.H)))
 
     #acceleration for convenience
-    vals.ddphi.set_value( klein_gordon(vals.dphi, vals.dV(vals.phi), -vals.G*vals.beta*vals.H0**2)  )
+    vals.ddphi.set_value( klein_gordon(vals.dphi, vals.dV(vals.phi), vals.H, -vals.G*vals.beta*vals.H0**2)  )
     return
 
 #define timestep for GEFSolver
@@ -186,8 +182,7 @@ solver = GEFSolver(initial_conditions, update_values, compute_timestep, events, 
 """The solver used by the GEF model."""
 
 #define mode-by-mode solver
-MbM = ModeSolver(mode_equation_classic, ["a", "xi", "H"],
-                 bd_classic, [])
+MbM = ModeSolver(mode_equation_classic, ["a","xi", "H"], bd_classic, [])
 """The mode solver used by the GEF model."""
 
 

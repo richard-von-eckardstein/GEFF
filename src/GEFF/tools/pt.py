@@ -3,7 +3,7 @@ from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.integrate import solve_ivp, trapezoid
 
 from GEFF._docs.docs_pt import DOCS
-from GEFF.mode_by_mode import GaugeSpec
+from GEFF.mbm import GaugeSpec
 from GEFF.bgtypes import BGSystem
 
 from typing import Tuple

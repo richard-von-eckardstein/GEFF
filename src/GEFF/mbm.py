@@ -4,11 +4,11 @@ import pandas as pd
 from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.integrate import solve_ivp
 from scipy.integrate import quad, simpson
-from GEFF.bgtypes import Val, BGSystem
-from GEFF.utility.aux_mode  import mode_equation_classic, bd_classic
+from .bgtypes import Val, BGSystem
+from .utility.aux_mode  import mode_equation_classic, bd_classic
 from typing import Tuple, Callable, ClassVar
 from types import NoneType
-from GEFF._docs import generate_docs, docs_mbm
+from ._docs import generate_docs, docs_mbm
 
 
 class GaugeSpec(dict):
@@ -501,7 +501,7 @@ class BaseModeSolver:
     """The default absolute tolerance used in `scipy.integrate.solve_ivp`"""
 
     necessary_keys : ClassVar[set] = (["t", "N"] + list(_ode_kwargs.keys()) + list(_bd_kwargs.keys()) + [cutoff])
-    """The class expects these attributes in the `GEFF.bgtypes.BGSystem` passed on initialisation."""
+    """The class expects these attributes in the `.bgtypes.BGSystem` passed on initialisation."""
 
     mode_equation = staticmethod(mode_equation_classic)
     initialise_in_bd = staticmethod(bd_classic)
@@ -892,7 +892,13 @@ class BaseModeSolver:
         
     
 def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Callable, init_keys : list[str], new_cutoff : str="kh", default_atol : float=1e-3):
+<<<<<<< HEAD:src/GEFF/mode_by_mode.py
     class ModeSolver(BaseModeSolver):
+=======
+   
+    
+    class CustomModeSolver(BaseModeSolver):
+>>>>>>> 4ed28e07152b6be5f71903ace20bc1de7646c47f:src/GEFF/mbm.py
         """
         A subclass of `BaseModeSolver` new mode equation and initial condition adapted to a new GEF model
 
@@ -912,10 +918,13 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
 
         initialise_in_bd = staticmethod(new_bd_init)
         _bd_kwargs = dict(zip(init_keys, [None for x in init_keys]))
+        cutoff = new_cutoff
 
         atol=default_atol
-    
-    return ModeSolver
+
+    CustomModeSolver.__qualname__ = "ModeSolver"
+    CustomModeSolver.__module__ = __name__
+    return CustomModeSolver
 
 
 #define longer method docs from docs_mbm:
