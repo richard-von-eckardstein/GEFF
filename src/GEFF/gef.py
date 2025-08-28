@@ -1,118 +1,96 @@
 import pandas as pd
 import numpy as np
 
-from GEFF.bgtypes import BGSystem
+from .bgtypes import BGSystem
+from .models import classic
 
-import importlib.util as util
+import importlib
 import os
 
 from numbers import Number
 from types import NoneType
 
-class MissingInputError(Exception):
-    pass
 
-def _load_model(name : str, user_settings : dict):
+def _load_model(model : str, user_settings : dict):
     """
     Import and execute a module defining a GEF model.
 
     Parameters
     ----------
-    modelname : str
-        the name of the GEF model
+    model : str
+        The name of the GEF model or a full dotted import path (e.g., "path.to.module").
     settings : dict
-        a dictionary containing updated settings for the module
+        A dictionary containing updated settings for the module.
 
     Returns
     -------
     ModuleType
-        the executed module
+        The configured module.
     """
 
+    # Case 1: Bare name, resolve to ./models/{name}.py
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    modelpath = os.path.join(current_dir, f"models/{name}.py")
-    #Check if Model exists
-    try:
-        #Load ModelAttributes from GEFFile
-        spec = util.spec_from_file_location(name, modelpath)
-        mod  = util.module_from_spec(spec)
-        #update the settings according to the user input
-        for key, item in user_settings.items():
-            try:
-                mod.settings[key] = item
-            except AttributeError:
-                print(f"Ignoring unknown model setting '{key}'.")
-        #execute the module.
+    modelpath = os.path.join(current_dir, f"models/{model}.py")
+
+    if os.path.exists(modelpath):
+        spec = importlib.util.spec_from_file_location(model, modelpath)
+        mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        return mod
-    
-    except FileNotFoundError:
-        raise FileNotFoundError(f"No model found under '{modelpath}'")
-    
 
-def _add_model_specifications(model_name, user_settings):
-    """
-    Define a GEF subclass based on a module.
+    else:
+        # Case 2: Try treating it as a dotted import path
+        try:
+            mod = importlib.import_module(model)
+        except ImportError as e:
+            raise FileNotFoundError(
+                f"No model file found at '{modelpath}' and failed to import '{model}'"
+                ) from e
+        
+    if hasattr(mod, "settings") and isinstance(user_settings, dict):
+        for key, item in user_settings.items():
+            if key in mod.settings:
+                mod.settings[key] = item
+                print(f"Updating '{key}' to '{item}'.")
+            else:
+                print(f"Ignoring unknown model setting '{key}'.")
+        mod.update_settings()
 
-    Parameters
-    ----------
-    modelname : str
-        the name of the GEF model
-    settings : dict
-        a dictionary containing updated settings for the module
+    return mod
 
-    Returns
-    -------
-    ModuleType
-        the executed module
-    """
-    def GEF_decorator(cls):
-        #load the model file
-        model = _load_model(model_name, user_settings)
 
-        #import quantities dictionary
-        q_dict = model.quantities
 
-        #import information on input and how to handle it
-        cls._input_signature = model.input
-        cls._input_handler = staticmethod(model.define_units)
-
-        #import information for solver:
-        cls.GEFSolver = model.solver
-        #import Mode-By-Mode class:
-        cls.ModeSolver = model.MbM
-
-        cls._object_classification = { key:{i.name for i in item} for key, item in q_dict.items()}
-
-        return cls
-    return GEF_decorator
-
-@_add_model_specifications("classic", {})
 class BaseGEF(BGSystem):
     """
     This class is the primary interface to solve the GEF equations.
-     
-    
-    
-    Attributes
-    ----------
-    ModeSolver : ModeByMode subclass
-        The mode-by-mode class associated to the current GEF-model
-    GEFSolver : GEFSolver
-        The GEFSolver-instance used to solve the GEF equations
+
+    ...
     """
+
+    GEFSolver = classic.solver
+    """The solver used to solve the GEF equations in `run`."""
+    ModeSolver = classic.MbM
+    """The mode solver used for mode-by-mode cross checks."""
+    _input_signature = classic.input
+    define_units = staticmethod(classic.define_units)
+
+    _object_classification = { key:{i.name for i in item} for key, item in GEFSolver.known_variables.items()}
+    _known_objects = set().union(*[item for key, item in GEFSolver.known_variables.items() if key!="gauge"] )
+
 
     def __init__(
                 self, consts : dict, init_dict : dict, init_funcs : dict, 
                 GEFdata: NoneType|str = None, MbMdata: NoneType|str = None
                 ):
+        """
+        ...
+        """
         
         user_input = {"constants":consts, "initial data":init_dict, "functions":init_funcs}
         #Check that all necessary input is present and that its data type is correct
         for input_type, input_dict  in user_input.items():
             self._check_input(input_dict, input_type)
 
-        H0, MP = self._input_handler(user_input)
+        H0, MP = self.define_units(*user_input.values())
 
         super().__init__(self._known_objects, H0, MP)
 
@@ -133,8 +111,13 @@ class BaseGEF(BGSystem):
         self.GEFdata = GEFdata
         self.MbMdata = MbMdata
 
+        self._completed=False
+
     @classmethod
     def print_input(cls):
+        """
+        Print the input required to initialize the class.
+        """
         print("This GEF model requires the following input:")
         for key, item in cls._input_signature.items():
             print(f"\t {key.capitalize()}: {item}")
@@ -159,25 +142,62 @@ class BaseGEF(BGSystem):
                     raise TypeError(f"Input '{input_type}' is '{type(input_data[key])}' but should be 'Number' type.")
         return
     
-    def run(self, ntr, tend, nmodes=500, print_stats=True, **kwargs):
-        self.set_units(False)
+    def run(self, ntr=150, tend=120, nmodes=500, mbm_attempts=5,  resume_mbm=True,  err_tol = 0.1, err_thr = 0.025, binning=5, integrator="simpson", print_stats=True, **solver_kwargs):
+        """
+        Solve the ODE's of the GEF using `GEFSolver`. Cross check the solution using `ModeSolver`.
 
+        The `GEFSolver` is initialized using the initial conditions defined by the GEF.
+        After a successful GEF solution is returned by the solver, a mode-by-mode cross check is performed with `ModeSolver.compute_spectrum` (unless `nmodes=None`).
+        If the mode-by-mode cross-check is successful, the solution is parsed to the underlying `BGSystem` of the class.
+        Otherwise, the `GEFSolver` tries to re-initialize the informed by the `ModeSolver`. This is attempted for `mbm_attempts` or until successful.
+
+        Parameters
+        ----------
+        ntr : int
+            initial truncation number `GEFSolver.ntr`
+        tend : float
+            initial target time for `GEFSolver.tend`
+        nmodes : float or None
+            The number of modes computed by `ModeSolver`. If None, no cross-check is performed.
+        resume_mbm : bool
+            If `True` use `ModeSolver.update_spectrum` in case multiple mode-by-mode comparisons are needed.
+        err_tol : float
+            Passed to `mbm_crosscheck`.
+        err_thr : float
+            Passed to `mbm_crosscheck`.
+        binning : int
+            Passed to `mbm_crosscheck`.
+        integrator : str
+            integrator for `mbm_crosscheck` ('simpson' is advised)
+        print_stats : bool
+            If `True`, a summary report is printed for the returned solution.
+        solver_kwargs
+            he `settings` of `GEFSolver` (see `GEFSolver.settings`)
+
+        Returns
+        -------
+        sol
+            the result of `GEFSolver.compute_GEF_solution`
+        spec : GaugeSpec or None
+            the result of `ModeSolver.compute_spectrum`
+
+        Raises
+        ------
+        RuntimeError
+            if no successful solution was obtained.
+        """
+        if self._completed:
+            print("GEF data already computed.")
+            return None, None
         solver = self.GEFSolver(self)
 
         #Configuring GEFSolver
         solver.ntr=ntr
         solver.tend=tend
-        solver_kwargs = {setting : kwargs[setting] for setting in solver.settings if setting in kwargs}        
         solver.update_settings(**solver_kwargs)
 
-        #Configuring ModeSolver
-        MbMattempts = kwargs.get("MbMattempts", 5)
-        binning = kwargs.get("binning", 5)
-        err_thr = kwargs.get("err_thr", 0.025)
-        resumeMbM = kwargs.get("resumeMbM", True)
-        int_method = kwargs.get("integrator", "simpson")
 
-        integrator_kwargs = {"integrator":int_method, "epsabs":solver.settings["atol"], "epsrel":solver.settings["rtol"]}
+        integrator_kwargs = {"integrator":integrator, "epsabs":solver.settings["atol"], "epsrel":solver.settings["rtol"]}
 
         done=False
         vals = BGSystem.from_system(self, copy=True)
@@ -186,7 +206,7 @@ class BaseGEF(BGSystem):
         t_reinit = 0.
         attempt=0
 
-        while not(done) and attempt<MbMattempts:
+        while not(done) and attempt<mbm_attempts:
             attempt +=1
             #This can be taken care of internally. The GEF should not need to get sol objects...
             sol_new = solver.compute_GEF_solution()
@@ -199,13 +219,13 @@ class BaseGEF(BGSystem):
 
                 rtol = solver.settings["rtol"]
 
-                if resumeMbM and attempt > 1:
+                if resume_mbm and attempt > 1:
                     spec = MbM.update_spectrum(spec, t_reinit, rtol=rtol)
                 else:
                     spec = MbM.compute_spectrum(nmodes, rtol=rtol)
                 print("Performing mode-by-mode comparison with GEF results.")
 
-                agreement, reinit_spec = self.MbMcrosscheck(spec, vals, err_thr=err_thr, binning=binning,
+                agreement, reinit_spec = self.mbm_crosscheck(spec, vals, err_tol= err_tol, err_thr=err_thr, binning=binning,
                                                              **integrator_kwargs)
 
                 if agreement:
@@ -223,17 +243,19 @@ class BaseGEF(BGSystem):
                 done=True
         
         if done:
-            
             if print_stats:
                 self._print_summary(sol)
             if sol.success:
                 print("\nStoring results in GEF instance.")
+                self.set_units(False)
                 for obj in self.value_list():
                     obj.set_value(getattr(vals, obj.name).value)
+                self.set_units(True)
+                self._completed = True
             else:
                 print("The run terminated on with an error, check output for details.")
 
-            self.set_units(True)
+            
             return sol, spec
         
         else:
@@ -285,14 +307,39 @@ class BaseGEF(BGSystem):
         
      #move to GEF
     @staticmethod
-    def MbMcrosscheck(spec, vals, err_thr, binning, **MbMkwargs):
-        errs, terr, _ = spec.estimate_GEF_error(vals, err_thr=err_thr, binning=binning, **MbMkwargs)
+    def mbm_crosscheck(spec, vals, err_tol, err_thr, binning, **integrator_kwargs):
+        """
+        Estimate the error of a GEF solution using `.mbm.GaugeSpec.estimate_GEF_error`.
+
+        If either the RMS error or the final error exceeds `err_tol`, the solution is rejected.
+        
+        Parameters
+        ----------
+        vals : BGSystem
+            contains the GEF solution.
+        err_tol : float
+            the tolerance on the RMS and final error.
+        err_thr : float
+            passed to `estimate_GEF_error`.
+        binning : int
+            passed to `estimate_GEF_error`.
+        integratorkwargs:
+            passed to kwargs of `estimate_GEF_error`.
+
+        Returns
+        -------
+        agreement : bool
+            indicates if the solution is accepted or rejected.
+        reinit_slice : SpecSlice
+            the spectrum with which the GEF solver is re-initialized.
+        """
+        errs, terr, _ = spec.estimate_GEF_error(vals, err_thr=err_thr, binning=binning, **integrator_kwargs)
 
         reinit_inds = []
         agreement=True
         for err in errs:
             rmserr = np.sqrt(np.sum(err**2)/len(err))
-            if max(err[-1], rmserr) > 0.10:
+            if max(err[-1], rmserr) > err_tol:
                 agreement=False
                 #find where the error is above 5%, take the earliest occurrence, reduce by 1
                 inds = np.where(err > err_thr)
@@ -313,17 +360,19 @@ class BaseGEF(BGSystem):
         """
         Load data and store its results in the current GEF instance.
 
+        Note, data is always loaded assuming numerical units.
+
         Parameters
         ----------
         path : None or str
-            if None, loads data from self.GEFdata, otherwise loads data from the specified path.
+            If None, loads data from `GEFdata`. Otherwise, loads data from the specified path.
 
         Raises
         ------
         Exception
-            if 'path' is None but self.GEFdata is also None
+            if `path` is None but `GEFdata` is also None.
         FileNotFoundError
-            if no file is found at 'path'
+            if no file is found at `path`.
         AttributeError
             if the file contains a column labeled by a key which does not match any GEF-value name.
         """
@@ -352,7 +401,7 @@ class BaseGEF(BGSystem):
         names = self.quantity_names()
         for key in data.keys():
             if key not in names:
-                raise AttributeError(f"The data table you tried to load contains an unkown quantity: '{key}'")
+                raise AttributeError(f"The data table you tried to load contains an unknown quantity: '{key}'")
         
         #Store current units to switch back to later
         units=self.get_units()
@@ -363,23 +412,25 @@ class BaseGEF(BGSystem):
         for key, values in data.items():
             self.initialise(key)(values)
         self.set_units(units)
-        self.completed=True
+        self._completed=True
 
         return
 
     def save_GEFdata(self, path : NoneType|str=None):
         """
-        Save the data in the current GEF instance in an ouput file.
+        Save the data in the current GEF instance in an output file.
+
+        Note, data is always stored in numerical units.
 
         Parameters
         ----------
         path : str
-            if None, stores data in self.GEFdata, else, stores data in the specified file.
+            If None, stores data in ``GEFdata`. Else, stores data in the specified file.
 
         Raises
         ------
         Exception
-            if 'path' is None but self.GEFdata is also None
+            if 'path' is None but self.GEFdata is also None.
         
         """
         if path is None:
@@ -427,10 +478,20 @@ class BaseGEF(BGSystem):
 
 def GEF(modelname, settings):
     """somedoc"""
-    @_add_model_specifications(modelname, settings)
+    model = _load_model(modelname, settings)
     class GEF(BaseGEF):
-        pass
+        GEFSolver = model.solver
+        """The solver used to solve the GEF equations in `run`."""
+        ModeSolver = model.MbM
+        """The mode solver used for mode-by-mode cross checks."""
+        _input_signature = model.input
+        define_units = staticmethod(classic.define_units)
+
+        _object_classification = { key:{i.name for i in item} for key, item in GEFSolver.known_variables.items()}
+        _known_objects = set().union(*[item for key, item in GEFSolver.known_variables.items() if key!="gauge"] )
 
     return GEF
 
+class MissingInputError(Exception):
+    pass
 
