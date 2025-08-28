@@ -1,14 +1,14 @@
 
 import numpy as np
-from GEFF.bgtypes import BGSystem, t, N, a, H
-from GEFF.mode_by_mode import SpecSlice
+from .bgtypes import BGSystem, t, N, a, H
+from .mbm import SpecSlice
 from scipy.integrate import solve_ivp
 from copy import deepcopy
 from typing import Callable, Tuple, ClassVar
-from GEFF._docs import generate_docs, docs_solver
+from ._docs import generate_docs, docs_solver
 
 class BaseGEFSolver:
-    known_variables : ClassVar[dict] = {"time":{t}, "dynamical":{N}, "static":{a}, "constant":{H}, "function":{}, "ode tower":{}}
+    known_variables : ClassVar[dict] = {"time":{t}, "dynamical":{N}, "static":{a}, "constant":{H}, "function":{}, "gauge":{}}
     """
     Classifies variables used by the solver according to:
     * 'dynamical': variables evolved by the EoM (not 'gauge')
@@ -30,8 +30,11 @@ class BaseGEFSolver:
         init_sys : BGSystem
             initial data used by the solver
         """
+
         self.init_vals : BGSystem = BGSystem.from_system(init_sys, copy=True)
         """Initial data for the EoM's defined at $t_0 = 0$."""
+
+        self.init_vals.set_units(False)
 
         self.settings : dict ={"atol":1e-20, "rtol":1e-6, "attempts":5, "solvermethod":"RK45", "ntrstep":10}
         """
@@ -44,10 +47,10 @@ class BaseGEFSolver:
         """
 
         self.ntr : int = 100
-        r"""Truncation number $n_{\rm tr}$, for truncated towers of ODE's"""
+        r"""Truncation number $n_{\rm tr}$, for truncated towers of ODE's."""
 
         self.tend : float = 120.
-        r"""The time $t_{\rm end}$ up to which the EoMs are solved"""
+        r"""The time $t_{\rm end}$ up to which the EoMs are solved."""
 
         #initial conditions on initialisation
         self.set_initial_conditions_to_default()
@@ -64,7 +67,7 @@ class BaseGEFSolver:
         Returns
         -------
         sol
-            Bunch object returned by `solve_ivp` containing the solution
+            a bunch object returned by `solve_ivp` containing the solution
 
         Raises
         ------
@@ -116,14 +119,14 @@ class BaseGEFSolver:
         Parameters
         ----------
         vals : BGSystem
-            unit system with initial data
+            a unit system with initial data
         ntr : int
             truncation number (relevant for dynamical gauge-fields)
 
         Returns
         -------
         yini : NDarray
-            array of initial data
+            an array of initial data
         """
         vals.set_units(False) #ensure the system is in numerical units
 
@@ -155,12 +158,12 @@ class BaseGEFSolver:
         Configure the solver to initialise data from a mode-by-mode solution.
 
         Used for mode-by-mode self correction. 
-        Gauge-bilinears, $F_{\mathcal X}^{(n>1)}$ are re-initialized using `GEFF.mode_by_mode.SpecSlice.integrate_slice`.
+        Gauge-bilinears, $F_{\mathcal X}^{(n>1)}$ are re-initialized using `.mbm.SpecSlice.integrate_slice`.
         
         Parameters
         ----------
         sol
-            Bunch object returned by `solve_ivp` containing the solution
+            a bunch object returned by `solve_ivp` containing the solution
         reinit_spec : SpecSlice
             spectrum at time of reinitialization
         """
@@ -232,9 +235,9 @@ class BaseGEFSolver:
         Parameters
         ----------
         t : float
-            time coordinate
+            a time coordinate
         y : NDArray:
-            array of data at time t
+            an array of data at time t
         vals : BGSystem
             the system used to compute the derivative
         atol : float
@@ -245,7 +248,7 @@ class BaseGEFSolver:
         Returns
         -------
         dydt : NDArray
-            time derivative of y
+            the time derivative of y
         """
         dydt = np.zeros_like(y)
 
@@ -259,16 +262,16 @@ class BaseGEFSolver:
         Parameters
         ----------
         t : float
-            time coordinate
+            a time coordinate
         y : NDArray:
-            array of data at time t
+            an array of data at time t
         vals : BGSystem
             the system passed to `update_vals` and `timestep` and 
 
         Returns
         -------
         dydt : NDArray
-            time derivative of y
+            the time derivative of y
         """
         atol = self.settings["atol"]
         rtol = self.settings["rtol"]
@@ -300,7 +303,7 @@ class BaseGEFSolver:
         Returns
         -------
         sol
-            Bunch object returned by `solve_ivp` containing the solution
+            a bunch object returned by `solve_ivp` containing the solution
 
         Raises
         ------
@@ -535,13 +538,16 @@ class BaseGEFSolver:
     
 def GEFSolver(new_init : Callable, new_update_vals : Callable, new_timestep : Callable, new_events : list['Event'], new_variables : dict):
     
-    class GEFSolver(BaseGEFSolver):
+    class CustomGEFSolver(BaseGEFSolver):
         vals_to_yini = staticmethod(new_init)
         update_vals = staticmethod(new_update_vals)
         timestep = staticmethod(new_timestep)
         known_variables = new_variables
         known_events = {event.name : event for event in new_events}
-    return GEFSolver
+    
+    CustomGEFSolver.__qualname__ = "GEFSolver"
+    CustomGEFSolver.__module__ = __name__
+    return CustomGEFSolver
         
     
 class Event:

@@ -1,4 +1,4 @@
-from GEFF._docs import generate_docs, docs_bgtypes
+from ._docs import generate_docs, docs_bgtypes
 import numpy as np
 from copy import deepcopy
 from typing import Callable, ClassVar
@@ -509,7 +509,6 @@ class Val(Quantity):
         #self.__Compatible(self, other, ">=")
         return  self.value >= other
     
-#CONTINUE FROM HERE!
 class Func(Quantity):
     args : ClassVar[list[Val]] = []
     """Indicates the argument signature for the class."""
@@ -593,7 +592,7 @@ class Func(Quantity):
 
         return self._basefunc(*args)/self._conversion**(1-units)
     
-def BGVal(q_name : str, H0 : int, MP : int, q_dtype : np.floating=np.float64):
+def BGVal(qname : str, H0 : int, MP : int, q_dtype : np.floating=np.float64):
     """
     Creates a subclass of `Val` with custom `Val.name`, `Val.u_H0` and `Val.u_MP`.
 
@@ -610,7 +609,7 @@ def BGVal(q_name : str, H0 : int, MP : int, q_dtype : np.floating=np.float64):
         
     Returns
     -------
-    NewVal : class
+    CustomVal : class
         the custom subclass
 
     Raises
@@ -622,16 +621,18 @@ def BGVal(q_name : str, H0 : int, MP : int, q_dtype : np.floating=np.float64):
     if not( np.issubdtype(q_dtype, np.floating) ):
         raise TypeError("BGVal's data-type must be a subtype of 'numpy.floating'.")
 
-    class BGVal(Val):
+    class CustomVal(Val):
         __doc__ = docs_bgtypes.DOCS["BGVal.BGVal"]
-        name=q_name
+        name=qname
         u_H0 = H0
         u_MP = MP
         dtype = q_dtype
         def __init__(self, value, sys):
             super().__init__(value, sys)
+    CustomVal.__qualname__ = f"Val_{qname}"
+    CustomVal.__module__ = __name__
 
-    return BGVal
+    return CustomVal
 
 
 
@@ -652,7 +653,7 @@ def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_dtype : np.
 
     Returns
     -------
-    NewFunc : class
+    CustomFunc : class
         the custom subclass
 
     Raises
@@ -664,7 +665,7 @@ def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_dtype : np.
     if not( np.issubdtype(q_dtype, np.floating) ):
         raise TypeError("BGFunc's data-type must be a subtype of 'np.floating'.")
     
-    class BGFunc(Func):
+    class CustomFunc(Func):
         __doc__ = docs_bgtypes.DOCS["BGVal.BGVal"]
         name=qname
         u_H0 = H0
@@ -674,7 +675,10 @@ def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_dtype : np.
         def __init__(self, func, sys):
             super().__init__(func, sys)
 
-    return BGFunc
+    CustomFunc.__qualname__ = f"Func_{qname}"
+    CustomFunc.__module__ = __name__
+
+    return CustomFunc
 
 
 #Add docstrings
