@@ -1,14 +1,9 @@
-from GEFF._docs.docs_bgtypes import (module_docs, bgsystem_docs, quantity_docs, val_docs, val_addendum,
-                                        bgval_addendum, func_docs, func_addendum, bgfunc_addendum)
+from GEFF._docs import generate_docs, docs_bgtypes
 import numpy as np
 from copy import deepcopy
 from typing import Callable, ClassVar
 
-__doc__ = module_docs
-
 class BGSystem:
-    __doc__ = bgsystem_docs
-
     def __init__(self, quantity_set : set, H0 : float, MP : float):
         """
         Create a new BGSystem in physical units.
@@ -282,8 +277,6 @@ class BGSystem:
         return
     
 class Quantity:
-    __doc__ = quantity_docs
-
     name : ClassVar[str]= ""
     """The objects name"""
     u_H0 : ClassVar[int] = 0
@@ -371,8 +364,6 @@ class Quantity:
 
     
 class Val(Quantity):
-    __doc__ = val_docs + val_addendum
-
     dtype : ClassVar[np.floating] = np.float64
     """The data type of `value`."""
 
@@ -520,7 +511,6 @@ class Val(Quantity):
     
 #CONTINUE FROM HERE!
 class Func(Quantity):
-    __doc__ = func_docs + func_addendum
     args : ClassVar[list[Val]] = []
     """Indicates the argument signature for the class."""
     dtype : ClassVar[np.floating] = np.float64
@@ -633,8 +623,7 @@ def BGVal(q_name : str, H0 : int, MP : int, q_dtype : np.floating=np.float64):
         raise TypeError("BGVal's data-type must be a subtype of 'numpy.floating'.")
 
     class BGVal(Val):
-        __doc__ = val_docs + bgval_addendum
-
+        __doc__ = docs_bgtypes.DOCS["BGVal.BGVal"]
         name=q_name
         u_H0 = H0
         u_MP = MP
@@ -676,8 +665,7 @@ def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_dtype : np.
         raise TypeError("BGFunc's data-type must be a subtype of 'np.floating'.")
     
     class BGFunc(Func):
-        __doc__ = func_docs + bgfunc_addendum
-
+        __doc__ = docs_bgtypes.DOCS["BGVal.BGVal"]
         name=qname
         u_H0 = H0
         u_MP = MP
@@ -687,7 +675,12 @@ def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_dtype : np.
             super().__init__(func, sys)
 
     return BGFunc
+
+
+#Add docstrings
+generate_docs(docs_bgtypes.DOCS)
     
+#Some usful pre-defined quantities
 #Space--time variables:
 t=BGVal("t", -1, 0) #physical time
 N=BGVal("N", 0, 0) #e-folds

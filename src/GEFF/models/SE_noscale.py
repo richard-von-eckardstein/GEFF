@@ -15,7 +15,7 @@ from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh_schwinger,
 from GEFF.utility.boundary import boundary_approx_schwinger
 from GEFF.utility.auxiliary import heaviside
 from GEFF.utility.aux_mode import mode_equation_SE_scale, damped_bd
-from GEFF._docs.docs_models import DOCS
+from GEFF._docs import generate_docs, docs_models
 
 name = "SE no-scale"
 """The models name."""
@@ -54,14 +54,14 @@ GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})
 
 #Assign quantities to a dictionary, classifying them by their role:
 quantities={
-            "time":{t}, #time coordinate according to which EoMs are expressed
-            "dynamical":{N, phi, dphi, kh, delta, rhoChi}, #variables which evolve in time according to an EoM
-            "static":{a, H, xi, E, B, G, ddphi, sigmaE, sigmaB, xieff, s}, #variables which are derived from dynamical variables
-            "constant":{beta}, #constant quantities in the model
-            "function":{V, dV}, #functions of variables such as scalar potentials
-            "gauge":{GF1} #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
+            "time":{t},
+            "dynamical":{N, phi, dphi, kh, delta, rhoChi},
+            "static":{a, H, xi, E, B, G, ddphi, sigmaE, sigmaB, xieff, s},
+            "constant":{beta},
+            "function":{V, dV},
+            "gauge":{GF1}
             }
-r"""Define quantities tracked by the model.
+r"""The following variables are tracked by the model:
 
 * **time variable**: cosmic time, $t$
 * **dynamical variable**:
@@ -84,9 +84,6 @@ r"""Define quantities tracked by the model.
 * **gauge**: tower of re-scales gauge-bilinears, $\mathcal{F}_{\mathcal X}^{(n)}$, $\mathcal{X} = \mathcal{E}, \mathcal{B}, \mathcal{G}$
 """
 
-##### Define Input hanlder #####
-################################
-
 #State which variables require input for initialisation
 input = {
         "initial data":{"phi", "dphi", "rhoChi"},
@@ -101,6 +98,7 @@ r"""Define the expected input of the model.
 * potential shape: $V(\varphi)$, $V_{,\varphi}(\varphi)$
 """
 
+#this functions is called upon initialisation of the GEF class
 def define_units(input):
     #compute Hubble rate at t0
     rhoK = input["init"]["dphi"]**2
@@ -113,13 +111,16 @@ def define_units(input):
 
     return freq, amp
 
+#the new function for vals_to_yini in GEFSolver
 def initial_conditions(vals, ntr):
     yini = np.zeros((ntr+1)*3+6)
 
+    #from the 'input' dictionary
     yini[0] = vals.N.value
     yini[1] = vals.phi.value
     yini[2] = vals.dphi.value
 
+    #needs to be computed
     vals.initialise("kh")( abs(vals.dphi)*vals.beta )
     yini[3] = np.log(vals.kh.value)
 
@@ -130,54 +131,58 @@ def initial_conditions(vals, ntr):
     #all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
 
+#define update_vals for GEFSolver
 def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
+    #spacetime variables
     vals.t.set_value(t)
     vals.N.set_value(y[0])
     vals.a.set_value(np.exp(y[0]))
 
+    #parse for convenience
     vals.phi.set_value(y[1])
     vals.dphi.set_value(y[2])
-
     vals.kh.set_value(np.exp(y[3]))
-
     vals.delta.set_value(y[4])
     vals.rhoChi.set_value(y[5])
 
+    #the gauge-field terms in y are not stored, save these values here
     vals.E.set_value( y[6]*np.exp(4*(y[3]-y[0])))
     vals.B.set_value( y[7]*np.exp(4*(y[3]-y[0])))
     vals.G.set_value( y[8]*np.exp(4*(y[3]-y[0])))
 
+    #Hubble rate
     vals.H.set_value( friedmann(0.5*vals.dphi**2, vals.V(vals.phi), 
                                 0.5*(vals.E+vals.B)*vals.H0**2, vals.rhoChi*vals.H0**2) )
 
-    sigmaE, sigmaB, ks = conductivity(
-        vals.a.value, vals.H.value,
-          vals.E.value, vals.B.value, vals.G.value
-          , vals.H0)
-
+    #conductivities
+    sigmaE, sigmaB, ks = conductivity(vals.a.value, vals.H.value, vals.E.value,
+                                       vals.B.value, vals.G.value, vals.H0)
     eps = np.maximum(abs(y[0])*rtol, atol)
     GlobalFerm = heaviside(np.log(ks/(vals.a*vals.H)), eps)
     vals.sigmaE.set_value(GlobalFerm*sigmaE)
     vals.sigmaB.set_value(GlobalFerm*sigmaB)
 
+    #boundary term parameters
     vals.s.set_value(vals.sigmaE/(2*vals.H))
     vals.xi.set_value( vals.beta*(vals.dphi/(2*vals.H)) )
     vals.xieff.set_value(vals.xi + vals.sigmaB/(2*vals.H))
 
+    #acceleration for convenience
     vals.ddphi.set_value( klein_gordon(vals.dphi, vals.dV(vals.phi), -vals.G*vals.beta*vals.H0**2) )
     return
 
 def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
     dydt = np.zeros(y.shape)
 
+    #odes for N and phi
     dydt[0] = vals.H.value
     dydt[1] = vals.dphi.value
     dydt[2] = vals.ddphi.value
 
+    #achieving dlnkhdt is monotonous requires some care
     eps = max(abs(y[3])*rtol, atol)
     dlnkhdt = dlnkh_schwinger( vals.kh, vals.dphi, vals.ddphi, vals.beta,
                                         0., vals.xieff, vals.s, vals.a, vals.H )
-
     xieff = vals.xieff.value
     s = vals.s.value
     sqrtterm = np.sqrt(xieff**2 + s**2 + s)
@@ -186,22 +191,25 @@ def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
     dlnkhdt *= heaviside(dlnkhdt, eps)*heaviside(logfc-y[3]+10*eps, eps)
     dydt[3] = dlnkhdt
 
+    #the other derivatives are straight forwards
     dydt[4] = ddelta( vals.delta, vals.sigmaE )
     dydt[5] = drhoChi( vals.rhoChi, vals.E, vals.G, vals.sigmaE, vals.sigmaB, vals.H )
 
+    #compute boundary terms and then the gauge-field bilinear ODEs
     Fcol = y[6:].shape[0]//3
     F = y[6:].reshape(Fcol,3)
     W = boundary_approx_schwinger(vals.xieff.value, vals.s.value)
     dFdt = gauge_field_ode_schwinger( F, vals.a, vals.kh, 2*vals.H*vals.xieff,
                                             vals.sigmaE, vals.delta,
                                                 W, dlnkhdt )
+    #reshape to fit dydt
     dydt[6:] = dFdt.reshape(Fcol*3)
 
     return dydt
 
 
 
-#Event 1:
+#Event 1: Track the end of inflation:
 def condition_EndOfInflation(t, y, vals):
     ratio = vals.H0/vals.MP
     dphi = y[2]
@@ -213,8 +221,10 @@ def condition_EndOfInflation(t, y, vals):
 
 def consequence_EndOfInflation(vals, occurance):
     if occurance:
+        #stop solving once the end of inflation is reached
         return "finish", {}
     else:
+        #increase tend given the current Hubble rate
         tdiff = np.round(5/vals.H, 0)
         #round again, sometimes floats cause problems in t_span and t_eval.
         tend  = np.round(vals.t + tdiff, 0)
@@ -225,7 +235,7 @@ def consequence_EndOfInflation(vals, occurance):
 EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, 1, consequence_EndOfInflation)
 """Defines the 'End of inflation' event."""
 
-#Event 2:
+#Event 2: ensure energy densities that are positive definite do not become negative
 def condition_NegativeEnergies(t, y, vals):
     return min(y[6], y[7])
     
@@ -234,18 +244,16 @@ NegativeEnergies = ErrorEvent("Negative energies", condition_NegativeEnergies, -
 
 events = [EndOfInflation, NegativeEnergies]
 
+
+#gather all information in the solver
 solver = GEFSolver(initial_conditions, update_values, compute_timestep, events, quantities)
 """The solver used by the GEF model."""
-
-##### Define Handling of Gauge Fields #####
-###########################################
 
 #define mode-by-mode solver
 MbM = ModeSolver(mode_equation_SE_scale, ["a", "xieff", "H", "sigmaE"],
                          damped_bd, ["a", "sigmaE", "delta"], default_atol=1e-3)
 """The mode solver used by the GEF model."""
 
-#define longer method docs:
-for name, docstring in DOCS.items():
-    if name in globals().keys() and hasattr(globals()[name], "__doc__"):
-        globals()[name].__doc__ = docstring
+
+#define default docs for the above functions
+generate_docs(docs_models.DOCS)

@@ -1,4 +1,5 @@
-module_docs = r"""
+DOCS = {
+    "module": r"""
     This module is used to compute and analyse spectra of gauge-field modes.
 
     Throughout this module, any gauge-field mode functions are represented by dimensionless variables
@@ -26,9 +27,9 @@ module_docs = r"""
     $$ \mathcal{F}_\mathcal{B}^{(n)}(t) = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm UV}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2\,,$$
 
     which may be used to estimate the error of a GEF solution.
-    """
+    """,
 
-gaugespec_docs = r"""
+    "GaugeSpec":r"""
     A class representing a spectrum of gauge-field modes as a function of time.
 
     This class inherits from `dict` and needs the following keys:  
@@ -52,33 +53,9 @@ gaugespec_docs = r"""
         the mode functions, $\sqrt{2 k} A_\pm(k, t)$
     dAp, dAm : NDarray
         the mode-function derivatives, $\sqrt{2/k} \, e^{N(t)}\dot{A}_\pm(k, t)$
-    """
+    """,
 
-integrate_docs = r"""
-        Compute the three integrals $\mathcal{F}_\mathcal{X}^{(n)}(t)$ for $\mathcal{X} = \mathcal{E}, \mathcal{B},\mathcal{G}$ for fixed $n$ and each time $t$ in the spectrum.
-
-        If the time coordinates stored in `BG` do not match those stored in the spectrum, $k_{\rm UV}(t)$ is evaluated using interpolation.
-
-        Parameters
-        ----------
-        BG : BGSystem
-            a system containing the UV cut-off, $k_{\rm UV}(t)$
-        n : int
-            the integer $n$
-        cutoff : str
-            the name under which the UV-cutoff is stored in `BG`
-        **IntegratorKwargs :  kwargs
-            passed to `SpecSlice.integrate_slice`
-        
-
-        Returns
-        -------
-        FMbM : NDArray
-            $\mathcal{F}_\mathcal{E}^{(n)}(t)$, $\mathcal{F}_\mathcal{B}^{(n)}(t)$, $\mathcal{F}_\mathcal{B}^{(n)}(t)$ stored in a shape (N, 3, 2).
-            The first index corresponds to time $t$, the second index to $\mathcal{X}$, the third index is the integral result (at 0) and its error (at 1).
-        """
-
-estimate_GEF_error_docs = r"""
+    "GaugeSpec.estimate_GEF_error": r"""
         Estimate the relative deviation between a GEF solution and the mode spectrum by computing
 
         $$\varepsilon_\mathcal{X} = \left|1 - \frac{\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm MbM}}{\big(\mathcal{F}_\mathcal{X}^{(0)}\big)_{\rm GEF}}\right|$$
@@ -122,9 +99,9 @@ estimate_GEF_error_docs = r"""
             the time coordinates corresponding to `errs`
         og_errs : list of NDArray
             the same as `errs` but without binning
-        """
+        """,
 
-specslice_docs = r"""
+    "SpecSlice": r"""
     A class representing a spectrum of gauge-field modes at a time $t$.
 
     Instances of this class are created by `GaugeSpec.tslice`. The main purpose of this class is to integrate the spectrum at time $t$ using `integrate_slice`.
@@ -141,9 +118,9 @@ specslice_docs = r"""
         the mode functions, $\sqrt{2 k} A_\pm(k, t)$
     dAp, dAm : NDarray
         the mode-function derivatives, $\sqrt{2/k} \, e^{N(t)}\dot{A}_\pm(k, t)$
-    """
+    """,
 
-integrate_slice_docs = r"""
+    "SpecSlice.integrate_slice":r"""
         Compute the three integrals $\mathcal{F}_\mathcal{X}^{(n)}(t)$ for $\mathcal{X} = \mathcal{E}, \mathcal{B},\mathcal{G}$ for a fixed time $t$ and index $n$.
 
         The integrals can either be computed directly using `simpson` or `quad` from `scipy.interpolate`. When using `quad` the data for $\sqrt{2 k} A_\pm(k, t)$, $\sqrt{2/k} \, e^{N(t)}\dot{A}_\pm(k, t)$
@@ -176,9 +153,9 @@ integrate_slice_docs = r"""
         FMbM : NDArray
             contains [$\mathcal{F}_\mathcal{E}^{(n)}(t)$, $\mathcal{F}_\mathcal{B}^{(n)}(t)$, $\mathcal{F}_\mathcal{B}^{(n)}(t)$] and the error estimated by `quad`.
              When using `simpson` the error is a dummy output. The shape of the result is (3, 2) with the second index indicating the integral (at 0), or the error (at 1).
-        """
+        """,
 
-basemodesolver_docs = r"""
+    "BaseModeSolver":r"""
     A class used to compute gauge-field modes evolving on a time-dependent background.
 
     This class is used to evolve the gauge-field modes $A_\pm(t,k)$ as defined by `mode_equation`.
@@ -191,9 +168,9 @@ basemodesolver_docs = r"""
     The mode equations are solved with an explicit Runge&ndash;Kutta of order 5(4), which is implemented in `scipy.integrate.solve_ivp`.
 
     For creating a custom subclass of `BaseModeSolver` with user-specified  mode equation and initial conditions, you can use the class factory `ModeSolver`.
-    """
+    """,
 
-modesolver_docs = r"""
+    "ModeSolver":r"""
     Create a subclass of `BaseModeSolver` with custom mode equation and initial conditions.
 
     In case your GEF model does not follow the pre-defined gauge-field mode equation `BaseModeSolver.mode_equation`,
@@ -313,3 +290,4 @@ modesolver_docs = r"""
         MbM.compute_spectrum(100)
         ```
     """
+}

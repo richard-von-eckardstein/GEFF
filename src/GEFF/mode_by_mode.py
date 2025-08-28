@@ -8,15 +8,10 @@ from GEFF.bgtypes import Val, BGSystem
 from GEFF.utility.aux_mode  import mode_equation_classic, bd_classic
 from typing import Tuple, Callable, ClassVar
 from types import NoneType
-from GEFF._docs.docs_mbm import (module_docs, gaugespec_docs, integrate_docs, estimate_GEF_error_docs,
-                                  specslice_docs, integrate_slice_docs, basemodesolver_docs, modesolver_docs)
+from GEFF._docs import generate_docs, docs_mbm
 
-
-__doc__ = module_docs
 
 class GaugeSpec(dict):
-    __doc__ = gaugespec_docs
-
     def __init__(self, in_dict : dict):
         """
         Initialise the spectrum from a dictionary.
@@ -177,6 +172,29 @@ class GaugeSpec(dict):
         return spec_slice
     
     def integrate(self, BG : BGSystem, n : int=0, cutoff="kh", **IntegratorKwargs) -> np.ndarray:
+        r"""
+        Compute the three integrals $\mathcal{F}_\mathcal{X}^{(n)}(t)$ for $\mathcal{X} = \mathcal{E}, \mathcal{B},\mathcal{G}$ for fixed $n$ and each time $t$ in the spectrum.
+
+        If the time coordinates stored in `BG` do not match those stored in the spectrum, $k_{\rm UV}(t)$ is evaluated using interpolation.
+
+        Parameters
+        ----------
+        BG : BGSystem
+            a system containing the UV cut-off, $k_{\rm UV}(t)$
+        n : int
+            the integer $n$
+        cutoff : str
+            the name under which the UV-cutoff is stored in `BG`
+        **IntegratorKwargs :  kwargs
+            passed to `SpecSlice.integrate_slice`
+        
+
+        Returns
+        -------
+        FMbM : NDArray
+            $\mathcal{F}_\mathcal{E}^{(n)}(t)$, $\mathcal{F}_\mathcal{B}^{(n)}(t)$, $\mathcal{F}_\mathcal{B}^{(n)}(t)$ stored in a shape (N, 3, 2).
+            The first index corresponds to time $t$, the second index to $\mathcal{X}$, the third index is the integral result (at 0) and its error (at 1).
+        """
         
         self._add_cutoff(BG, cutoff)
 
@@ -406,16 +424,10 @@ class GaugeSpec(dict):
             print(f"final: {errend}% at t={terrend}")
             print(f"RMS: {rmserr}%")
         return
-    
-#define the docstrings for GaugeSpec.integrate and GaugeSpec.estimate_GEF_error
-GaugeSpec.integrate.__doc__ = integrate_docs
-GaugeSpec.estimate_GEF_error.__doc__ = estimate_GEF_error_docs
 
    
 # continue from here next time
-class SpecSlice(dict):
-    __doc__ = specslice_docs
-    
+class SpecSlice(dict):    
 
     def __init__(self, in_dict):
         super().__init__(in_dict)
@@ -478,9 +490,7 @@ class SpecSlice(dict):
         else:
             return np.nan*np.ones((2))
 
-class BaseModeSolver:
-    __doc__ = basemodesolver_docs
-    
+class BaseModeSolver:    
     _ode_kwargs : dict = {"a": None, "H":None, "xi":None}
     _bd_kwargs = {}
 
@@ -910,13 +920,8 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
     return ModeSolver
 
 
-#elaborate docs for methods:
-GaugeSpec.integrate.__doc__ = integrate_docs
-GaugeSpec.estimate_GEF_error.__doc__ = estimate_GEF_error_docs
-
-SpecSlice.integrate_slice.__doc__ = integrate_slice_docs
-
-ModeSolver.__doc__ = modesolver_docs
+#define longer method docs from docs_mbm:
+generate_docs(docs_mbm.DOCS)
 
 
 

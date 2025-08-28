@@ -5,9 +5,7 @@ from GEFF.mode_by_mode import SpecSlice
 from scipy.integrate import solve_ivp
 from copy import deepcopy
 from typing import Callable, Tuple, ClassVar
-from GEFF._docs.docs_solver import module_docs, DOCS
-
-__doc__ = module_docs
+from GEFF._docs import generate_docs, docs_solver
 
 class BaseGEFSolver:
     known_variables : ClassVar[dict] = {"time":{t}, "dynamical":{N}, "static":{a}, "constant":{H}, "function":{}, "ode tower":{}}
@@ -688,7 +686,5 @@ class TruncationError(Exception):
     """
     pass
 
-#define longer method docs:
-for name, docstring in DOCS.items():
-    if name in globals().keys() and hasattr(globals()[name], "__doc__"):
-        globals()[name].__doc__ = docstring
+#define longer method docs from docs_solver:
+generate_docs(docs_solver.DOCS)

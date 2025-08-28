@@ -1,5 +1,51 @@
-# module level docstrings
-module_docs = r"""
+val_docs = r"""
+    A `Quantity` subclass representing real-valued variables like cosmic time or Hubble rate.
+     
+    Instances of this class can be used like a 1-D Numpy-Array for mathematical operations and indexing.
+    This class defines basic arithmetic operations for its instances as operations on their underlying 1-D Numpy-Array, `value`.  
+
+    As a subclass of `Quantity` it inherits all its attributes and methods, but re-defines the `set_units` method
+    such that changing units converts `value` according to `Quantity.get_conversion`.
+    """
+
+val_addendum = r"""
+    A typical object is the scalar field velocity, $\dot\varphi \sim HM$    
+
+    To define a custom `Val` object use the class factory `BGVal`.
+    """
+
+
+bgval_addendum = """
+    This is a subclass of `Val` with a custom name and scaling.
+    """
+
+
+func_docs = r"""
+    A `Quantity` subclass representing real functions of variables like the inflaton potential.
+    
+    An instance of this class can be used as a function,
+    evaluating the underlying method, `f(*args)` depending on the current units.
+    In physical units, the call returns the result of the underlying function, `f(*args)`.
+    In numerical units, the call instead returns `f(*args)/conversion_factor`, 
+    with `conversion_factor` defined by `Quantity.get_conversion`.  
+    If called by a `Val` object, the argument is also converted according to the units of the `Val` instance
+    (generically, identical to the ones of the `Func` instance).
+    If instead called by a regular arithmetic data type (e.g., `float`),
+      it is assumed that the argument is in the same unit system as the `Func` instance.
+    """
+func_addendum = r"""
+    A typical object is the scalar potential, $V(\varphi) \sim (H M)^2$
+
+    To define a custom `Func` object, use the class factory `BGFunc`.
+    """
+
+bgfunc_addendum = """
+    This is a subclass of `Func` with a custom name and scaling.
+    """
+
+
+DOCS = {
+    "module":r"""
     This module defines base classes used throughout the `GEFF` module.
 
     The main purpose of this module is to address the following situation:
@@ -135,10 +181,9 @@ module_docs = r"""
     # If you want to get the correct result, you would need to convert val by hand:
     print( U.rhoE(val/U.H0**4) ) # gives 3., the expected result in numerical units.
     ```
-    """
+    """,
 
-# BGSystem docstring:
-bgsystem_docs = """
+    "BGSystem":"""
     A collection of cosmological variables sharing a system of units.
 
     Instances of this class define two base unit systems,
@@ -149,9 +194,9 @@ bgsystem_docs = """
     Instances of these objects can be collectively converted between units by using the scales `H0` and `MP`. 
 
     This class is the fundamental building block of the GEF-code. 
-    """
+    """,
 
-quantity_docs = r"""
+    "Quantity":r"""
     An object representing a cosmological quantity. 
 
     A cosmological quantity has a characteristic scaling with respect to a frequency scale (e.g., the Hubble rate at some reference time), and energy scale (e.g. the Planck mass).
@@ -166,48 +211,13 @@ quantity_docs = r"""
     `Quantity` objects are initialized as part of a `BGSystem`, which defines a common frequency scale and energy scale for all its `quantities`.
 
     This class serves as a parent for `Val` and `Func`.
-    """
+    """,
 
-val_docs = r"""
-    A `Quantity` subclass representing real-valued variables like cosmic time or Hubble rate.
-     
-    Instances of this class can be used like a 1-D Numpy-Array for mathematical operations and indexing.
-    This class defines basic arithmetic operations for its instances as operations on their underlying 1-D Numpy-Array, `value`.  
+    "Val":val_docs+ val_addendum,
+    "BGVal.BGVal":val_docs+bgval_addendum,
 
-    As a subclass of `Quantity` it inherits all its attributes and methods, but re-defines the `set_units` method
-    such that changing units converts `value` according to `Quantity.get_conversion`.
-    """
+    "Func":val_docs+ val_addendum,
+    "BGFunc.BGFunc":val_docs+bgfunc_addendum
 
-val_addendum = r"""
-    A typical object is the scalar field velocity, $\dot\varphi \sim HM$    
+}
 
-    To define a custom `Val` object use the class factory `BGVal`.
-    """
-
-bgval_addendum = """
-    This is a subclass of `Val` with a custom name and scaling.
-    """
-
-
-func_docs = r"""
-    A `Quantity` subclass representing real functions of variables like the inflaton potential.
-    
-    An instance of this class can be used as a function,
-    evaluating the underlying method, `f(*args)` depending on the current units.
-    In physical units, the call returns the result of the underlying function, `f(*args)`.
-    In numerical units, the call instead returns `f(*args)/conversion_factor`, 
-    with `conversion_factor` defined by `Quantity.get_conversion`.  
-    If called by a `Val` object, the argument is also converted according to the units of the `Val` instance
-    (generically, identical to the ones of the `Func` instance).
-    If instead called by a regular arithmetic data type (e.g., `float`),
-      it is assumed that the argument is in the same unit system as the `Func` instance.
-    """
-func_addendum = r"""
-    A typical object is the scalar potential, $V(\varphi) \sim (H M)^2$
-
-    To define a custom `Func` object, use the class factory `BGFunc`.
-    """
-
-bgfunc_addendum = """
-    This is a subclass of `Func` with a custom name and scaling.
-    """

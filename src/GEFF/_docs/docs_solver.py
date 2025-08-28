@@ -1,4 +1,18 @@
-module_docs = """
+
+
+CustomGEFSolver_docs = """
+        A modified subclass of `BaseGEFSolver` for a custom GEF model.
+
+        This class overwrites the following class members:
+        - `vals_to_yini`
+        - `update_vals`
+        - `timestep`
+        - `known_variables`
+        - `known_events`
+        """
+
+DOCS = {
+    "module":"""
     This module defines the internal ODE solver used by the GEF.
 
     The `BaseGEFSolver` is the the primary class supplied by this module. It defines an algorithm by which the equations of motion for a GEF model are solved.
@@ -8,9 +22,8 @@ module_docs = """
     Occurrences of these events can be designed to influence the solver. For example, an 'end of inflation' `Event` may demand that the solver reach the end of inflation.
 
     The `BaseGEFSolver` class can be used to configure customized solvers using the class factory `GEFSolver` to adapt it to a specific GEF model.
-    """
-
-DOCS = {
+    """,
+    
     "BaseGEFSolver":r"""
     A class used to solve the equations of motion defined by a GEF model.
 
@@ -91,6 +104,7 @@ DOCS = {
     1. `TerminalEvent`
     2. `ErrorEvent`
     3. `ObserverEvent` 
-    """
+    """,
 
+    "GEFSolver.GEFSolver":CustomGEFSolver_docs
 }
