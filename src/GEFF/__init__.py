@@ -30,7 +30,7 @@ If this is the first time you encounter the GEF, here are some useful articles o
 
 Summarized, the strategy is to take the (charge-free) Maxwell's equations in an expanding spacetime,
 
-$$\operatorname{div} {\bf E} = 0\, , \qquad \operatorname{div} {\bf B} = 0\, ,$$
+<a name="max">$$\operatorname{div} {\bf E} = 0\, , \qquad \operatorname{div} {\bf B} = 0\, ,$$</a>
 $$\dot{{\bf E}} + 2 H {\bf E} - \frac{1}{a}\operatorname{rot} {\bf B} + {\bf J} = 0 \, ,$$
 $$\dot{{\bf B}}  + 2 H {\bf B} + \frac{1}{a}\operatorname{rot} {\bf E} = 0 \,$$
 and reformulate them into an infinite tower of ODE's for the variables
@@ -152,7 +152,23 @@ We specified the particular variety py passing a `settings` dictionary upon crea
 You can get all GEF flavours at your disposal by using `GEFF.visit_the_GEFF()`.
  
 # Create your own flavour
-**TODO**
+
+Having explored the potential of the GEFF code, you may be inclined to make your own GEF flavour.
+To help you along this process, let us delve into an example model.
+
+Let us consider the case of Abelian gauge-field production in de Sitter space by some time-dependent coupling function $\alpha$
+The Lagrangian density for this model would be
+$$\mathcal{L} = -\frac{1}{4} \alpha F_{\mu \nu} F^{\mu \nu}$$
+such that the current in [Maxwell's equations](#max) is given by $J=\dot{f}/f {\bf E}$.
+The ODE tower for the gauge-field bilinears are then neatly closed:
+$$\frac{\rm d}{{\rm d} t} \mathcal{F}_{E}^{(n)} + \left[(4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} + 2 \frac{\dot{f}}{f}\right] \mathcal{F}_{E}^{(n)}  + 2\frac{k_{\rm UV}}{a}\mathcal{F}_{G}^{(n+1)}  =  S_{\mathcal{E}}^{(n)}\, , $$
+$$\frac{\rm d}{{\rm d} t} \mathcal{F}_{G}^{(n)} + \left[(4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} +\frac{\dot{f}}{f}\right]  \mathcal{F}_{G}^{(n)} - \frac{k_{\rm UV}}{a}\left(\mathcal{F}_{E}^{(n+1)} - \mathcal{F}_{B}^{(n+1)}\right)= S_{\mathcal{G}}^{(n)}\, , $$
+$$\frac{\rm d}{{\rm d} t} \mathcal{F}_{B}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_{B}^{(n)} - 2\frac{k_{\rm UV}}{a}\mathcal{F}_{G}^{(n+1)}  =  S_{\mathcal{B}}^{(n)}\, .$$
+One can determine that a sensible regularization scale for this model could be 
+$$k_{\rm UV} \equiv k_{\rm f} = \frac{a}{2} \left[\left(\frac{\dot{f}}{f}\right)^2 - 2 \frac{\ddot{f}}{f} - 2H\frac{\dot{f}}{f} \right]$$.
+and the
+
+
 
 """
 
