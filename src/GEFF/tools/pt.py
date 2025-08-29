@@ -33,10 +33,9 @@ class PT:
         sys.set_units(False)
         
         #import the background evolution
-        a = sys.a.value
-        H = sys.H.value
-        
         N = sys.N.value
+        a = np.exp(N)
+        H = sys.H.value
 
         self._H0 = sys.H0
             

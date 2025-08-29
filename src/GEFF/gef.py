@@ -21,8 +21,8 @@ class BaseGEF(BGSystem):
     _input_signature = classic.input
     define_units = staticmethod(classic.define_units)
 
-    _object_classification = { key:{i.name for i in item} for key, item in GEFSolver.known_variables.items()}
-    _known_objects = set().union(*[item for key, item in GEFSolver.known_variables.items() if key!="gauge"] )
+    _object_classification = { key:{i for i in item} for key, item in GEFSolver.known_variables.items()}
+
 
 
     def __init__(
@@ -62,7 +62,9 @@ class BaseGEF(BGSystem):
 
         H0, MP = self.define_units(*user_input.values())
 
-        super().__init__(self._known_objects, H0, MP)
+        known_objects = set().union(*[item for key, item in self._object_classification.items() if key!="gauge"] )
+        print(known_objects)
+        super().__init__(known_objects, H0, MP)
 
         #Add initial data to BGSystem
         for name, constant in user_input["constants"].items():
@@ -249,10 +251,9 @@ class BaseGEF(BGSystem):
         else:
             print("The following events occured during the run:")
             for event in events.keys():
-                time = events[event]["t"]
-                efold = events[event]["N"]
+                time = events[event]
                 if len(time > 0):
-                    print(f"  - {event} at t={time} or N={efold}")
+                    print(f"  - {event} at t={time}")
         return
         
     @staticmethod
@@ -387,6 +388,11 @@ class BaseGEF(BGSystem):
         #Load data into background-value attributes
         for key, values in data.items():
             self.initialise(key)(values)
+
+        if "H" in [const.name for const in self._object_classification["constant"]]:
+            #make sure H is always an array, even if constant.
+            self.set_value("H")(np.ones_likes(self.t.value)*self.H.value)
+
         self.set_units(units)
         self._completed=True
 
@@ -422,7 +428,8 @@ class BaseGEF(BGSystem):
                                      self._object_classification["time"],
                                      self._object_classification["dynamical"],
                                      self._object_classification["static"]
-                                    )           
+                                    )    
+            storeables = {obj.name for obj in storeables}       
             #Check that all dynamic and derived quantities are initialised in this GEF instance
             if not( storeables.issubset(set( self.value_names() )) ):
                 print("No data to store.")
@@ -494,7 +501,7 @@ def _load_model(model : str, user_settings : dict):
                 print(f"Updating '{key}' to '{item}'.")
             else:
                 print(f"Ignoring unknown model setting '{key}'.")
-        mod.update_settings()
+        mod.interpret_settings()
 
     return mod
 
@@ -525,8 +532,7 @@ def GEF(modelname:str, settings:dict):
         _input_signature = model.input
         define_units = staticmethod(classic.define_units)
 
-        _object_classification = { key:{i.name for i in item} for key, item in GEFSolver.known_variables.items()}
-        _known_objects = set().union(*[item for key, item in GEFSolver.known_variables.items() if key!="gauge"] )
+        _object_classification = { key:{i for i in item} for key, item in GEFSolver.known_variables.items()}
 
     CustomGEF.__qualname__ = model.name
     CustomGEF.__module__ = __name__

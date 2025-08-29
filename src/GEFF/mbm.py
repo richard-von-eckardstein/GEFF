@@ -4,7 +4,7 @@ import pandas as pd
 from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.integrate import solve_ivp
 from scipy.integrate import quad, simpson
-from .bgtypes import Val, BGSystem
+from .bgtypes import Val, Func, BGSystem
 from .utility.aux_mode  import mode_equation_classic, bd_classic
 from typing import Tuple, Callable, ClassVar
 from types import NoneType
@@ -357,7 +357,7 @@ class GaugeSpec(dict):
 
         Fref = []
         for val in references: 
-            val_arr = (getattr(BG, val)*(BG.a/scale)**4)
+            val_arr = (getattr(BG, val)*(np.exp(BG.N)/scale)**4)
             if bl:
                 Fref.append( val_arr[mask] )
             else:
@@ -500,7 +500,7 @@ class BaseModeSolver:
     atol : ClassVar[float] = 1e-3
     """The default absolute tolerance used in `scipy.integrate.solve_ivp`"""
 
-    necessary_keys : ClassVar[set] = (["t", "N"] + list(_ode_kwargs.keys()) + list(_bd_kwargs.keys()) + [cutoff])
+    necessary_keys : ClassVar[set] = (["t", "N", "a", "H", "xi"] + [cutoff])
     """The class expects these attributes in the `.bgtypes.BGSystem` passed on initialisation."""
 
     mode_equation = staticmethod(mode_equation_classic)
@@ -541,16 +541,22 @@ class BaseModeSolver:
         self.__khf = CubicSpline(self.__t, kh)
 
         #import the values for the mode equation and interpolate
-        for key in self._ode_kwargs.keys(): 
-            val = getattr(sys, key)
-            if isinstance(val, Val):
-                self._ode_kwargs[key] = CubicSpline(self.__t, val)
-        
-        #import the values for the mode equation and interpolate
-        for key in self._bd_kwargs.keys(): 
-            val = getattr(sys, key)
-            if isinstance(val, Val):
-                self._bd_kwargs[key] = CubicSpline(self.__t, val)
+        for key in self.necessary_keys:
+            if key not in ["t", "N", self.cutoff]: 
+                obj = getattr(sys, key)
+                if isinstance(obj, Val):
+                    value = getattr(sys, key).value
+                elif isinstance(obj, Func):
+                    arg_vals = []
+                    for arg in Func.args:
+                        arg_vals.append(getattr(sys, arg.name))
+                    value = obj(*arg_vals)
+                else:
+                    raise ValueError(f"'{key}' should refer to either a 'Val' or 'Func' subclass.")
+                if len(value)==1:
+                    #deal with constants
+                    value = np.ones_like(self.__t)*value
+                self._ode_kwargs[key] = CubicSpline(self.__t, value)
         
         #compute the evolution of conformal time for the phases
         self.__af = CubicSpline(self.__t, a)
@@ -913,6 +919,8 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
         initialise_in_bd = staticmethod(new_bd_init)
         _bd_kwargs = dict(zip(init_keys, [None for x in init_keys]))
         cutoff = new_cutoff
+
+        necessary_keys = list( {"t", "N", new_cutoff}.union(set(ode_keys)).union(set(init_keys)) )
 
         atol=default_atol
 

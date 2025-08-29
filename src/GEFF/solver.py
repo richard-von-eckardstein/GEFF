@@ -348,8 +348,7 @@ class BaseGEFSolver:
                 event_dict_new, command, terminal_event = self._assess_event_occurrences(sol.t_events, sol.y_events, vals)
 
                 for key in event_dict_new.keys():
-                    event_dict[key]["t"].append(event_dict_new[key]["t"])
-                    event_dict[key]["N"].append(event_dict_new[key]["N"])
+                    event_dict[key].append(event_dict_new[key]["t"])
 
                 if command in ["finish", "error"]:
                     done=True
@@ -385,7 +384,7 @@ class BaseGEFSolver:
         for name, event in self.known_events.items():
             if event.active:
                 event_funcs.append(event.event_func)
-                event_dict[name] = {"t":[], "N":[]}
+                event_dict[name] = []
         
         return event_dict, event_funcs
     
@@ -403,8 +402,8 @@ class BaseGEFSolver:
 
             #Add the event occurrence to the event dictionary:
             if occurrence:
-                event_dict.update({event.name:{"t":t_events[i], "N": y_events[i][:,0]}})
-                print(f"{event.name} at t={np.round(t_events[i], 1)} and N={np.round(y_events[i][:,0],1)}.")
+                event_dict.update({event.name:t_events[i]})
+                print(f"{event.name} at t={np.round(t_events[i], 1)}")
 
             if event.type == "error" and occurrence:
                 commands["primary"].append( ("error", event.name) )
@@ -463,11 +462,9 @@ class BaseGEFSolver:
 
         for event_name in (event_dict.keys()):
             try:
-                event_dict[event_name]["t"] = np.round(np.concatenate(event_dict[event_name]["t"]), 1)
-                event_dict[event_name]["N"] = np.round(np.concatenate(event_dict[event_name]["N"]), 3)
+                event_dict[event_name] = np.round(np.concatenate(event_dict[event_name]), 1)
             except ValueError:
-                event_dict[event_name]["t"] = np.array(event_dict[event_name]["t"])
-                event_dict[event_name]["N"] = np.array(event_dict[event_name]["N"])
+                event_dict[event_name] = np.array(event_dict[event_name])
 
         solution.events = event_dict
         return solution
@@ -537,7 +534,7 @@ class BaseGEFSolver:
     
     
     
-def GEFSolver(new_init : Callable, new_update_vals : Callable, new_timestep : Callable, new_events : list['Event'], new_variables : dict):
+def GEFSolver(new_init : Callable, new_update_vals : Callable, new_timestep : Callable, new_variables : dict, new_events : list['Event'] = []):
     
     class CustomGEFSolver(BaseGEFSolver):
         vals_to_yini = staticmethod(new_init)

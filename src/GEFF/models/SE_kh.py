@@ -43,7 +43,7 @@ def define_conductivity():
         raise KeyError(f"{settings['pic']} is an unknown choice for the setting'pic'")
     return np.vectorize(conductivity)
 
-def update_settings():
+def interpret_settings():
     global conductivity
     conductivity = define_conductivity()
     return
@@ -120,91 +120,91 @@ def define_units(consts, init, funcs):
     
     return freq, amp
 
-#the new function for vals_to_yini in GEFSolver
-def initial_conditions(vals, ntr):   
+#the new function for sys_to_yini in GEFSolver
+def initial_conditions(sys, ntr):   
     yini = np.zeros((ntr+1)*3+5)
 
     #from the 'input' dictionary
-    yini[0] = vals.N.value
-    yini[1] = vals.phi.value
-    yini[2] = vals.dphi.value
+    yini[0] = sys.N.value
+    yini[1] = sys.phi.value
+    yini[2] = sys.dphi.value
 
     #needs to be computed
-    vals.initialise("kh")( abs(vals.dphi)*vals.beta )
-    yini[3] = np.log(vals.kh.value)
+    sys.initialise("kh")( abs(sys.dphi)*sys.beta )
+    yini[3] = np.log(sys.kh.value)
 
     #initialise rhoChi
-    yini[4] = vals.rhoChi.value
+    yini[4] = sys.rhoChi.value
 
     #all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
 
-#define update_vals for GEFSolver
-def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
+#define update_sys for GEFSolver
+def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
     #spacetime variables
-    vals.t.set_value(t)
-    vals.N.set_value(y[0])
-    vals.a.set_value(np.exp(y[0]))
+    sys.t.set_value(t)
+    sys.N.set_value(y[0])
+    sys.a.set_value(np.exp(y[0]))
 
     #parse for convenience
-    vals.phi.set_value(y[1])
-    vals.dphi.set_value(y[2])
-    vals.kh.set_value(np.exp(y[3]))
-    vals.kS.set_value(np.exp(y[3]))
-    vals.rhoChi.set_value(y[4])
+    sys.phi.set_value(y[1])
+    sys.dphi.set_value(y[2])
+    sys.kh.set_value(np.exp(y[3]))
+    sys.kS.set_value(np.exp(y[3]))
+    sys.rhoChi.set_value(y[4])
 
     #the gauge-field terms in y are not stored, save these values here
-    vals.E.set_value( y[5]*np.exp(4*(y[3]-y[0])))
-    vals.B.set_value( y[6]*np.exp(4*(y[3]-y[0])))
-    vals.G.set_value( y[7]*np.exp(4*(y[3]-y[0])))
+    sys.E.set_value( y[5]*np.exp(4*(y[3]-y[0])))
+    sys.B.set_value( y[6]*np.exp(4*(y[3]-y[0])))
+    sys.G.set_value( y[7]*np.exp(4*(y[3]-y[0])))
 
     #Hubble rate
-    vals.H.set_value( friedmann(0.5*vals.dphi**2, vals.V(vals.phi), 
-                                0.5*(vals.E+vals.B)*vals.H0**2, vals.rhoChi*vals.H0**2) )
+    sys.H.set_value( friedmann(0.5*sys.dphi**2, sys.V(sys.phi), 
+                                0.5*(sys.E+sys.B)*sys.H0**2, sys.rhoChi*sys.H0**2) )
     
     #conductivities
-    sigmaE, sigmaB, ks = conductivity(vals.a.value, vals.H.value, vals.E.value,
-                                       vals.B.value, vals.G.value, vals.H0) 
+    sigmaE, sigmaB, ks = conductivity(sys.a.value, sys.H.value, sys.E.value,
+                                       sys.B.value, sys.G.value, sys.H0) 
     eps = np.vectorize(max)(abs(y[0])*rtol, atol)
-    GlobalFerm = heaviside(np.log(ks/(vals.a*vals.H)), eps)
-    vals.sigmaE.set_value(GlobalFerm*sigmaE)
-    vals.sigmaB.set_value(GlobalFerm*sigmaB)
+    GlobalFerm = heaviside(np.log(ks/(sys.a*sys.H)), eps)
+    sys.sigmaE.set_value(GlobalFerm*sigmaE)
+    sys.sigmaB.set_value(GlobalFerm*sigmaB)
 
     #boundary term parameters
-    vals.xi.set_value( vals.beta*(vals.dphi/(2*vals.H)))
-    vals.xieff.set_value(vals.xi + vals.sigmaB/(2*vals.H))
+    sys.xi.set_value( sys.beta*(sys.dphi/(2*sys.H)))
+    sys.xieff.set_value(sys.xi + sys.sigmaB/(2*sys.H))
 
     #acceleration for convenience
-    vals.ddphi.set_value( klein_gordon(vals.dphi, vals.dV(vals.phi),  vals.H, -vals.G*vals.beta*vals.H0**2) )
+    sys.ddphi.set_value( klein_gordon(sys.dphi, sys.dV(sys.phi),  sys.H, -sys.G*sys.beta*sys.H0**2) )
     return
 
-def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
+def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     dydt = np.zeros(y.shape)
 
     #odes for N and phi
-    dydt[0] = vals.H.value
-    dydt[1] = vals.dphi.value
-    dydt[2] = vals.ddphi.value
+    dydt[0] = sys.H.value
+    dydt[1] = sys.dphi.value
+    dydt[2] = sys.ddphi.value
 
     #achieving dlnkhdt is monotonous requires some care
     eps = max(abs(y[3])*rtol, atol)
-    dlnkhdt = dlnkh( vals.kh, vals.dphi, vals.ddphi, vals.beta,
-                       0., vals.xi, vals.a, vals.H )
-    r = 2*abs(vals.xi)
+    dlnkhdt = dlnkh( sys.kh, sys.dphi, sys.ddphi, sys.beta,
+                       0., sys.xi, sys.a, sys.H )
+    r = 2*abs(sys.xi)
     logfc = y[0] + np.log(r*dydt[0]) 
     dlnkhdt *= heaviside(dlnkhdt, eps)*heaviside(logfc-y[3]+10*eps, eps)
     dydt[3] = dlnkhdt
 
     #ode for rhoChi
-    dydt[4] = drhoChi( vals.rhoChi, vals.E, vals.G,
-                         vals.sigmaE, vals.sigmaB, vals.H )
+    dydt[4] = drhoChi( sys.rhoChi, sys.E, sys.G,
+                         sys.sigmaE, sys.sigmaB, sys.H )
 
     #compute boundary terms and then the gauge-field bilinear ODEs
     Fcol = y[5:].shape[0]//3
     F = y[5:].reshape(Fcol,3)
-    W = boundary_approx(vals.xi)
-    dFdt = gauge_field_ode_schwinger( F, vals.a, vals.kh, 2*vals.H*vals.xieff,
-                    vals.sigmaE, 1.0,
+    W = boundary_approx(sys.xi)
+    dFdt = gauge_field_ode_schwinger( F, sys.a, sys.kh, 2*sys.H*sys.xieff,
+                    sys.sigmaE, 1.0,
                         W, dlnkhdt )
     #reshape to fit dydt
     dydt[5:] = dFdt.reshape(Fcol*3)
@@ -213,24 +213,24 @@ def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
 
 
 #Event 1: Track the end of inflation:
-def condition_EndOfInflation(t, y, vals):
-    ratio = vals.H0/vals.MP
+def condition_EndOfInflation(t, y, sys):
+    ratio = sys.H0/sys.MP
     dphi = y[2]
-    V = vals.V(y[1])
+    V = sys.V(y[1])
     rhoEB = 0.5*(y[5]+y[6])*ratio**2*np.exp(4*(y[3]-y[0]))
     rhoChi = y[4]*ratio**2
     val = np.log(abs((dphi**2 + rhoEB + rhoChi)/V))
     return val
 
-def consequence_EndOfInflation(vals, occurance):    
+def consequence_EndOfInflation(sys, occurance):    
     if occurance:
         #stop solving once the end of inflation is reached
         return "finish", {}
     else:
         #increase tend given the current Hubble rate
-        tdiff = np.round(5/vals.H, 0)
+        tdiff = np.round(5/sys.H, 0)
         #round again, sometimes floats cause problems in t_span and t_eval.
-        tend  = np.round(vals.t + tdiff, 0)
+        tend  = np.round(sys.t + tdiff, 0)
 
         print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
         return "proceed", {"tend":tend}
@@ -239,7 +239,7 @@ EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, 1, 
 """Defines the 'End of inflation' event."""
 
 #Event 2: ensure energy densities that are positive definite do not become negative
-def condition_NegativeEnergies(t, y, vals):
+def condition_NegativeEnergies(t, y, sys):
     
     return min(y[5], y[6])
     
@@ -251,7 +251,7 @@ events = [EndOfInflation, NegativeEnergies]
 
 
 #gather all information in the solver
-solver = GEFSolver(initial_conditions, update_values, compute_timestep, events, quantities)
+solver = GEFSolver(initial_conditions, update_values, compute_timestep, quantities, events)
 """The solver used by the GEF model."""
 
 #define mode-by-mode solver

@@ -73,63 +73,63 @@ def define_units(consts, init, funcs):
 
     return freq, amp
 
-#define vals_to_yini for GEFSolver
-def initial_conditions(vals, ntr):
+#define sys_to_yini for GEFSolver
+def initial_conditions(sys, ntr):
     yini = np.zeros((ntr+1)*3+4)
 
     #from the 'input' dictionary
-    yini[0] = vals.N.value
-    yini[1] = vals.phi.value
-    yini[2] = vals.dphi.value
+    yini[0] = sys.N.value
+    yini[1] = sys.phi.value
+    yini[2] = sys.dphi.value
 
     #needs to be computed
-    vals.initialise("kh")( abs(vals.dphi)*vals.beta )
+    sys.initialise("kh")( abs(sys.dphi)*sys.beta )
 
     #all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
 
-#define update_vals for GEFSolver
-def update_values(t, y, vals, atol=1e-20, rtol=1e-6):
+#define update_sys for GEFSolver
+def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
     #spacetime variables
-    vals.t.set_value(t)
-    vals.N.set_value(y[0])
-    vals.a.set_value(np.exp(y[0]))
+    sys.t.set_value(t)
+    sys.N.set_value(y[0])
+    sys.a.set_value(np.exp(y[0]))
 
     #parse for convenience
-    vals.phi.set_value(y[1])
-    vals.dphi.set_value(y[2])
-    vals.kh.set_value(np.exp(y[3]))
+    sys.phi.set_value(y[1])
+    sys.dphi.set_value(y[2])
+    sys.kh.set_value(np.exp(y[3]))
 
     #the gauge-field terms in y are not stored, save these values here
-    vals.E.set_value( y[4]*np.exp(4*(y[3]-y[0])))
-    vals.B.set_value( y[5]*np.exp(4*(y[3]-y[0])))
-    vals.G.set_value( y[6]*np.exp(4*(y[3]-y[0])))
+    sys.E.set_value( y[4]*np.exp(4*(y[3]-y[0])))
+    sys.B.set_value( y[5]*np.exp(4*(y[3]-y[0])))
+    sys.G.set_value( y[6]*np.exp(4*(y[3]-y[0])))
 
     #Hubble rate
-    vals.H.set_value( friedmann(0.5*vals.dphi**2, vals.V(vals.phi), 0.5*(vals.E+vals.B)*vals.H0**2) )
+    sys.H.set_value( friedmann(0.5*sys.dphi**2, sys.V(sys.phi), 0.5*(sys.E+sys.B)*sys.H0**2) )
 
     #boundary term parameter
-    vals.xi.set_value( vals.beta*(vals.dphi/(2*vals.H)))
+    sys.xi.set_value( sys.beta*(sys.dphi/(2*sys.H)))
 
     #acceleration for convenience
-    vals.ddphi.set_value( klein_gordon(vals.dphi, vals.dV(vals.phi), vals.H, -vals.G*vals.beta*vals.H0**2)  )
+    sys.ddphi.set_value( klein_gordon(sys.dphi, sys.dV(sys.phi), sys.H, -sys.G*sys.beta*sys.H0**2)  )
     return
 
 #define timestep for GEFSolver
-def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
+def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
 
     dydt = np.zeros(y.shape)
 
     #odes for N and phi
-    dydt[0] = vals.H.value
-    dydt[1] = vals.dphi.value
-    dydt[2] = vals.ddphi.value
+    dydt[0] = sys.H.value
+    dydt[1] = sys.dphi.value
+    dydt[2] = sys.ddphi.value
 
     #achieving dlnkhdt is monotonous requires some care
-    dlnkhdt = dlnkh( vals.kh, vals.dphi, vals.ddphi, vals.beta,
-                       0., vals.xi, vals.a, vals.H )
+    dlnkhdt = dlnkh( sys.kh, sys.dphi, sys.ddphi, sys.beta,
+                       0., sys.xi, sys.a, sys.H )
     
-    logfc = y[0] + np.log( 2*abs(vals.xi)*dydt[0])
+    logfc = y[0] + np.log( 2*abs(sys.xi)*dydt[0])
     eps = max(abs(y[3])*rtol, atol) 
     dlnkhdt *= heaviside(dlnkhdt, eps)*heaviside(logfc-y[3]+10*eps, eps)
     dydt[3] = dlnkhdt
@@ -137,30 +137,30 @@ def compute_timestep(t, y, vals, atol=1e-20, rtol=1e-6):
     #compute boundary terms and then the gauge-field bilinear ODEs
     Fcol = y[4:].shape[0]//3
     F = y[4:].reshape(Fcol,3)
-    W = boundary_approx(vals.xi.value)
-    dFdt = gauge_field_ode(F, vals.a, vals.kh, 2*vals.H*vals.xi, W, dlnkhdt, L=20)
+    W = boundary_approx(sys.xi.value)
+    dFdt = gauge_field_ode(F, sys.a, sys.kh, 2*sys.H*sys.xi, W, dlnkhdt, L=20)
     #reshape to fit dydt
     dydt[4:] = dFdt.reshape(Fcol*3)
 
     return dydt
 
 #Event 1: Track the end of inflation:
-def condition_EndOfInflation(t, y, vals):
+def condition_EndOfInflation(t, y, sys):
     dphi = y[2]
-    V = vals.V(y[1])
-    rhoEB = 0.5*(y[4]+y[5])*(vals.H0/vals.MP)**2*np.exp(4*(y[3]-y[0]))
+    V = sys.V(y[1])
+    rhoEB = 0.5*(y[4]+y[5])*(sys.H0/sys.MP)**2*np.exp(4*(y[3]-y[0]))
     val = np.log(abs((dphi**2 + rhoEB)/V))
     return val
 
-def consequence_EndOfInflation(vals, occurrence):
+def consequence_EndOfInflation(sys, occurrence):
     if occurrence:
         #stop solving once the end of inflation is reached
         return "finish", {}
     else:
         #increase tend given the current Hubble rate
-        tdiff = np.round(5/vals.H, 0)
+        tdiff = np.round(5/sys.H, 0)
         #round again, sometimes floats cause problems in t_span and t_eval.
-        tend  = np.round(vals.t + tdiff, 0)
+        tend  = np.round(sys.t + tdiff, 0)
 
         print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
         return "proceed", {"tend":tend}
@@ -169,7 +169,7 @@ EndOfInflation : TerminalEvent = TerminalEvent("End of inflation", condition_End
 """Defines the 'End of inflation' event."""
 
 #Event 2: ensure energy densities that are positive definite do not become negative
-def condition_NegativeEnergies(t, y, vals):
+def condition_NegativeEnergies(t, y, sys):
     return min(y[4], y[5])
     
 NegativeEnergies : ErrorEvent = ErrorEvent("Negative energies", condition_NegativeEnergies, -1)
@@ -178,7 +178,7 @@ NegativeEnergies : ErrorEvent = ErrorEvent("Negative energies", condition_Negati
 events = [EndOfInflation, NegativeEnergies]
 
 #gather all information in the solver
-solver = GEFSolver(initial_conditions, update_values, compute_timestep, events, quantities)
+solver = GEFSolver(initial_conditions, update_values, compute_timestep, quantities, events)
 """The solver used by the GEF model."""
 
 #define mode-by-mode solver
