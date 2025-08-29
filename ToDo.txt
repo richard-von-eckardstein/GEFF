@@ -25,11 +25,7 @@ General:
 
 For release
 -----------
-- Add class factories (GEF, MbM, Solver) to Utility directory
-- Make Solver class into "BaseSolver", use class factories to customize
-- Documentation:
-    * GEFClass
-    * GEFSolver
-    * Tools 
+- Better approach to "heaviside"?
+- Parse models before creation?
 - Write arxiv manual
 - write read me
