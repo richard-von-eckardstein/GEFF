@@ -27,5 +27,6 @@ For release
 -----------
 - Better approach to "heaviside"?
 - Parse models before creation?
+- What to do about output? SQL Datenbanken?... Es gibt "eval" in python: str -> function. Reverse?
 - Write arxiv manual
 - write read me
