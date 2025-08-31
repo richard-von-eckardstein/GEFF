@@ -26,7 +26,11 @@ General:
 For release
 -----------
 - Better approach to "heaviside"?
-- Parse models before creation?
+- Parse models before creation? 
 - What to do about output? SQL Datenbanken?... Es gibt "eval" in python: str -> function. Reverse?
+- gauge field class
+- add "description" to Val and function
+- rename H0 and MP in BGSys etc.
+- rework input to not need dictionaries
 - Write arxiv manual
 - write read me
