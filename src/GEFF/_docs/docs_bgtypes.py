@@ -52,11 +52,12 @@ DOCS = {
     Most cosmological variables will scale according to an inverse-time scale, $H$, and an energy scale, $M$.
     In typical inflationary contexts, these scales are some constant Hubble rate, and the Planck mass.
     For example, a time derivative scales with inverse time, $\partial_t \sim H$, and therefore also a gauge field, $A_\mu \sim H_0$, as it appears in covariant derivatives.
-    On the other hand, the amplitude of a scalar field scales with the energy, $\varphi \sim M$.
+    On the other hand, the amplitude of a scalar field scales with energy, $\varphi \sim M$.
 
-    For numerical purposes it is useful to rescale cosmological variables according to these scales to avoid variations over many orders of magnitude.
+    For numerical purposes it is useful to work with dimensionless variables.
     For example, it is useful to define the dimensionless scalar amplitude $\bar{\varphi} = \varphi/M$, and gauge field $\bar{A}_\mu = A_\mu / H$.
     Ultimately however, the quantities we are interested in are the actual dimensionful quantities $\varphi$, $A_\mu$, etc.
+    We refer to the dimensionless variable, $\bar{X}$, as being in "numerical units", while $X$ is in "physical units". 
 
     To facilitate switching between these two unit systems throughout the code, this module provides the classes `BGSystem`, `Val` and `Func`.
     The user may define several variables of interests, e.g., cosmic time, Hubble rate, scalar field amplitude etc. using the `BGVal` class factory, which creates subclasses of `Val`.
