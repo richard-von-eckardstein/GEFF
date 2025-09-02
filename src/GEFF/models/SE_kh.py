@@ -256,7 +256,7 @@ solver = GEFSolver(initial_conditions, update_values, compute_timestep, quantiti
 
 #define mode-by-mode solver
 MbM = ModeSolver(mode_equation_SE_scale, ["a", "xi", "H", "sigmaE", "sigmaB", "kS"],
-                         bd_classic, [], default_atol=1e-3)
+                         bd_classic, [], default_atol=1e-5)
 """The mode solver used by the GEF model."""
 
 
