@@ -5,7 +5,7 @@ For more details on this model, see e.g., [2109.01651](https://arxiv.org/abs/210
 """
 import numpy as np
 
-from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVal
+from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVal, BGFunc
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
@@ -17,7 +17,7 @@ from GEFF.utility.auxiliary import heaviside
 from GEFF.utility.aux_mode import mode_equation_SE_no_scale, damped_bd
 from GEFF._docs import generate_docs, docs_models
 
-name = "SE no-scale"
+name = "SE-kS"
 """The models name."""
 
 settings = {"pic":"mixed"}
@@ -51,22 +51,27 @@ def interpret_settings():
 #Define all additional variables
 sigmaE=BGVal("sigmaE", 1, 0) #electric damping
 sigmaB=BGVal("sigmaB", 1, 0) #magnetic damping 
-delta=BGVal("delta", 0, 0) #integrated electric damping
+deltaF=BGFunc("deltaF", [t], 0, 0) #integrated electric damping, func not par
 xieff=BGVal("xieff", 0, 0) #effective instability parameter
 s=BGVal("s", 0, 0) #electric damping parameter,
 rhoChi=BGVal("rhoChi", 4, 0)#Fermion energy density 
+kS = BGVal("kS", 1, 0) # pair creation scale
+EBar = BGVal("EBar", 4, 0)
+BBar = BGVal("BBar", 4, 0)
+GBar = BGVal("GBar", 4, 0)
 
 # define gauge field by assigning a name, 0th-order quantities and cut-off scale
 GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})
+GFBar = type("GF", (object,), {"name":"GF","0thOrder":{EBar, BBar, GBar}, "UV":kS})
 
 #Assign quantities to a dictionary, classifying them by their role:
 quantities={
             "time":{t},
-            "dynamical":{N, phi, dphi, kh, delta, rhoChi},
-            "static":{a, H, xi, E, B, G, ddphi, sigmaE, sigmaB, xieff, s},
+            "dynamical":{N, phi, dphi, kh, rhoChi},
+            "static":{a, H, xi, kS, E, B, G, ddphi, sigmaE, sigmaB, xieff, s},
             "constant":{beta},
-            "function":{V, dV},
-            "gauge":{GF1}
+            "function":{V, dV, deltaF},
+            "gauge":{GF1, GFBar}
             }
 r"""The following variables are tracked by the model:
 
@@ -120,7 +125,7 @@ def define_units(consts, init, funcs):
 
 #the new function for sys_to_yini in GEFSolver
 def initial_conditions(sys, ntr):
-    yini = np.zeros((ntr+1)*3+6)
+    yini = np.zeros((ntr+1)*6+5)
 
     #from the 'input' dictionary
     yini[0] = sys.N.value
@@ -132,9 +137,8 @@ def initial_conditions(sys, ntr):
     yini[3] = np.log(sys.kh.value)
 
     #initialise delta and rhoChi
-    sys.initialise("delta")(1.)
-    yini[4] = sys.delta.value
-    yini[5] = sys.rhoChi.value
+    sys.initialise("deltaF")( lambda x: 1.0 )
+    yini[4] = sys.rhoChi.value
 
     #all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
@@ -150,8 +154,7 @@ def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
     sys.phi.set_value(y[1])
     sys.dphi.set_value(y[2])
     sys.kh.set_value(np.exp(y[3]))
-    sys.delta.set_value(y[4])
-    sys.rhoChi.set_value(y[5])
+    sys.rhoChi.set_value(y[4])
 
     #the gauge-field terms in y are not stored, save these values here
     sys.E.set_value( y[6]*np.exp(4*(y[3]-y[0])))
@@ -163,12 +166,18 @@ def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
                                 0.5*(sys.E+sys.B)*sys.H0**2, sys.rhoChi*sys.H0**2) )
 
     #conductivities
-    sigmaE, sigmaB, ks = conductivity(sys.a.value, sys.H.value, sys.E.value,
+    sigmaE, sigmaB, kF = conductivity(sys.a.value, sys.H.value, sys.E.value,
                                        sys.B.value, sys.G.value, sys.H0)
     eps = np.maximum(abs(y[0])*rtol, atol)
-    GlobalFerm = heaviside(np.log(ks/(sys.a*sys.H)), eps)
+    GlobalFerm = heaviside(np.log(kF/(sys.a*sys.H)), eps)
     sys.sigmaE.set_value(GlobalFerm*sigmaE)
     sys.sigmaB.set_value(GlobalFerm*sigmaB)
+    sys.kS.set_value(kF)
+
+    sys.Ebar.set_value( np.sign(y[9])*min(abs(y[9]*(kF/sys.a)**4), abs(sys.E.value*(kF/sys.kh.value)**4)))
+    sys.Bbar.set_value( np.sign(y[10])*min(abs(y[10]*(kF/sys.a)**4), abs(sys.B.value*(kF/sys.kh.value)**4)))
+    sys.Gbar.set_value( np.sign(y[11])*min(abs(y[11]*(kF/sys.a)**4), abs(sys.G.value*(kF/sys.kh.value)**4)))
+
 
     #boundary term parameters
     sys.s.set_value(sys.sigmaE/(2*sys.H))
@@ -200,13 +209,13 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     dydt[3] = dlnkhdt
 
     #the other derivatives are straight forwards
-    dydt[4] = ddelta( sys.delta, sys.sigmaE )
-    dydt[5] = drhoChi( sys.rhoChi, sys.E, sys.G, sys.sigmaE, sys.sigmaB, sys.H )
+    dydt[4] = drhoChi( sys.rhoChi, sys.EBar, sys.GBar, sys.sigmaE, sys.sigmaB, sys.H )
 
     #compute boundary terms and then the gauge-field bilinear ODEs
-    Fcol = y[6:].shape[0]//3
-    F = y[6:].reshape(Fcol,3)
+    Fcol = y[5:].shape[0]//3
+    F = y[5:].reshape(Fcol,3)
     W = boundary_approx_schwinger(sys.xieff.value, sys.s.value)
+    #TODO
     dFdt = gauge_field_ode_schwinger( F, sys.a, sys.kh, 2*sys.H*sys.xieff,
                                             sys.sigmaE, sys.delta,
                                                 W, dlnkhdt )
@@ -214,6 +223,9 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     dydt[6:] = dFdt.reshape(Fcol*3)
 
     return dydt
+
+def compute_timestep_Cross(t, y, sys, atol=1e-20, rtoL=1e-6):
+    return
 
 
 

@@ -186,3 +186,27 @@ def boundary_approx_schwinger(xi :float, s : float) -> np.ndarray:
     else:
         Fterm = boundary_exact(xi, s)
     return Fterm
+
+
+def boundary_exact_kS(xi, r):
+    Whitt1Plus = whitw(-xi*(1j), 1/2, -2j*r)
+    Whitt2Plus = whitw(1-xi*(1j), 1/2, -2j*r)
+
+    Whitt1Minus = whitw(xi*(1j), 1/2, -2j*r)
+    Whitt2Minus = whitw(1+xi*(1j), 1/2, -2j*r)
+        
+    exptermPlus = np.exp(np.pi*xi)
+    exptermMinus = np.exp(-np.pi*xi)
+    
+    Fterm = np.zeros((3, 2))
+
+    Fterm[0,0] = exptermPlus*abs(1j*(r - xi) * Whitt1Plus + Whitt2Plus)**2/r**2
+    Fterm[0,1] = exptermMinus*abs(1j*(r + xi) * Whitt1Minus + Whitt2Minus)**2/r**2
+
+    Fterm[1,0] = exptermPlus*abs(Whitt1Plus)**2
+    Fterm[1,1] = exptermMinus*abs(Whitt1Minus)**2
+
+    Fterm[2,0] = exptermPlus*((Whitt2Plus*Whitt1Plus.conjugate()).real)/r
+    Fterm[2,1] = exptermMinus*((Whitt2Minus*Whitt1Minus.conjugate()).real)/r
+
+    return Fterm
