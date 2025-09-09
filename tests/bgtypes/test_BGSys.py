@@ -1,10 +1,10 @@
-from GEFF.bgtypes import BGVal, BGFunc, BGSystem, Val, Func
+from GEFF.bgtypes import BGVar, BGConst, BGFunc, BGSystem, Val, Func
 import pytest
 
 class TestBGSystem():
     @pytest.fixture
     def sample_bgval(self):
-        x = BGVal("x", 2, 1)
+        x = BGVar("x", 2, 1)
         return x
     
     @pytest.fixture
@@ -13,9 +13,10 @@ class TestBGSystem():
         return f
     
     def init(self):
-        x = BGVal("x", 2, 1)
+        x = BGVar("x", 2, 1)
+        c = BGConst("c", 0, 2)
         f = BGFunc("f", [x], 2, 1)
-        sys = BGSystem({x, f}, 0.55, 0.32)
+        sys = BGSystem({x, c, f}, 0.55, 0.32)
         return sys
     
     def test_init(self):
@@ -33,8 +34,9 @@ class TestBGSystem():
         assert V.H0 == U.H0
         assert V.MP == U.MP
         assert V.quantity_names() == U.quantity_names()
-        assert V.value_list() == U.value_list()
+        assert V.variable_list() == U.variable_list()
         assert V.function_list() == U.function_list()
+        assert V.constant_list() == U.constant_list()
 
         #check empty copy
         V = BGSystem.from_system(U, copy=False)
@@ -42,8 +44,9 @@ class TestBGSystem():
         assert V.H0 == U.H0
         assert V.MP == U.MP
         assert V.quantity_names() == U.quantity_names()
-        assert V.value_list() == []
+        assert V.variable_list() == []
         assert V.function_list() == []
+        assert V.constant_list() == []
 
     def test_quantity_set_and_names(self):
         U = self.init()
@@ -70,21 +73,34 @@ class TestBGSystem():
         U = self.init()
         with pytest.raises(Exception):
             U.initialise("a")(10)
-
     
     def test_value_list_and_names(self):
         U = self.init()
-        assert U.value_list() == []
+        assert U.variable_list() == []
         U.initialise("x")(10)
-        assert "x" in U.value_names()
+        assert "x" in U.variable_names()
+        U.initialise("c")(0.5)
+        assert "c" not in U.variable_names()
         U.initialise("f")(lambda x: 5)
-        assert "f" not in U.value_names()
+        assert "f" not in U.variable_names()
+
+    def test_const_list_and_names(self):
+        U = self.init()
+        assert U.constant_list() == []
+        U.initialise("x")(10)
+        assert "x" not in U.constant_names()
+        U.initialise("c")(0.5)
+        assert "c" in U.constant_names()
+        U.initialise("f")(lambda x: 5)
+        assert "f" not in U.constant_names()
 
     def test_function_list_and_names(self):
         U = self.init()
         assert U.function_list() == []
         U.initialise("x")(10)
         assert "x" not in U.function_names()
+        U.initialise("c")(0.5)
+        assert "c" not in U.function_names()
         U.initialise("f")(lambda x: 5)
         assert "f" in U.function_names()
 
@@ -98,11 +114,13 @@ class TestBGSystem():
 
     def test_add_obj(self):
         U = self.init()
-        U.add_BGVal("y", 0, 2)
+        U.add_BGVar("y", 0, 2)
+        U.add_BGConst("d", 2, 1)
         U.add_BGFunc("g", [U.quantities["y"]], 2, 0)
         names = U.quantity_names()
         assert "y" in names
         assert "g" in names
+        assert "d" in names
 
     """def test_AddVal(self):
         U = self.createSys()

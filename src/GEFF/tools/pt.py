@@ -4,7 +4,7 @@ from scipy.integrate import solve_ivp, trapezoid
 
 from GEFF._docs.docs_pt import DOCS
 from GEFF.mbm import GaugeSpec
-from GEFF.bgtypes import BGSystem
+from GEFF.bgtypes import BGSystem, Constant
 
 from typing import Tuple
 from types import NoneType
@@ -52,7 +52,10 @@ class PT:
 
         #define interpolated quantities as needed
         self._af = CubicSpline(self._t, a)
-        self._Hf = CubicSpline(self._t, H)
+        if isinstance(self._H, Constant):
+            self._Hf = lambda t: self._H
+        else:
+            self._Hf = CubicSpline(self._t, H)
         self._HN = CubicSpline(self._N, self._H)
         self._khN = CubicSpline(N, sys.kh)
 

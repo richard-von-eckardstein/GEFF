@@ -1,8 +1,8 @@
-from GEFF.bgtypes import BGVal, BGSystem
+from GEFF.bgtypes import BGVar, BGSystem
 import pytest
 import numpy as np
 
-class TestBGVal():
+class TestBGVar():
     @pytest.fixture
     def v1(self):
         return 10.
@@ -20,7 +20,7 @@ class TestBGVal():
         return np.array([3., 89.2, 15.123])
 
     def sys(self):
-        x = BGVal("x", 2, 1)
+        x = BGVar("x", 2, 1)
         U = BGSystem({x}, 0.55, 0.32)
         return U
     
@@ -30,7 +30,7 @@ class TestBGVal():
         return U.x
     
     def test_Class(self):
-        x = BGVal("x", 2, 1)
+        x = BGVar("x", 2, 1)
         assert x.name == "x"
         assert x.dtype == np.float64
         assert x.u_H0 == 2

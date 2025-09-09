@@ -1,4 +1,4 @@
-from GEFF.bgtypes import BGVal, BGFunc, BGSystem
+from GEFF.bgtypes import BGVar, BGFunc, BGSystem
 import pytest
 import numpy as np
 
@@ -20,8 +20,8 @@ class TestBGFunc():
         return 90.12
 
     def sys(self):
-        x = BGVal("x", 1, 1)
-        y = BGVal("y", 1, 0)
+        x = BGVar("x", 1, 1)
+        y = BGVar("y", 1, 0)
         f1 = BGFunc("f1", [x], 3, 1)
         f2 = BGFunc("f2", [x, y], 1, 3)
         U = BGSystem({x, y, f1, f2}, 0.55, 0.32 )
@@ -41,7 +41,7 @@ class TestBGFunc():
     
     def test_class(self):
         #single-variable function
-        x = BGVal("x", 2, 0)
+        x = BGVar("x", 2, 0)
         f = BGFunc("f", [x], 2, 2)
         assert f.name == "f"
         assert f.dtype == np.float64
@@ -51,8 +51,8 @@ class TestBGFunc():
             assert arg in [x]
 
         #multivariate function
-        x = BGVal("x", 1, 1)
-        y = BGVal("y", 1, 0)
+        x = BGVar("x", 1, 1)
+        y = BGVar("y", 1, 0)
         f = BGFunc("f", [x, y], 3, 1)
         assert f.name == "f"
         assert f.dtype == np.float64
