@@ -34,3 +34,4 @@ For release
 - rework input to not need dictionaries
 - Write arxiv manual
 - write read me
+- sigmaE and B -> alternative for if
