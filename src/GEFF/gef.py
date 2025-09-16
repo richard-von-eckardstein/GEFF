@@ -72,11 +72,11 @@ class BaseGEF(BGSystem):
 
         #initialise the other values with dummy variables.
         for obj in self.quantity_set():
-            if obj.name not in (self.variable_names() + self.function_names()):
+            if obj.name not in (self.variable_names() + self.function_names() + self.constant_names()):
                 if issubclass(obj, Val):
-                    self.initialise(name)(0)
+                    self.initialise(obj.name)(0)
                 elif issubclass(obj, Func):
-                    self.initialise(name)(lambda *x: 0)
+                    self.initialise(obj.name)(lambda *x: 0)
 
         #Add information about file paths
         self.GEFdata = GEFdata

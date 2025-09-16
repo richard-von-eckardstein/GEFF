@@ -55,6 +55,11 @@ class BGSystem:
             #Copy values and functions
             values = sys.variable_list()
             funcs = sys.function_list()
+            consts = sys.constant_list()
+
+            for const in consts:
+                obj = deepcopy(const)
+                newinstance.initialise(obj.name)(obj.value)
 
             for value in values:
                 obj = deepcopy(value)
