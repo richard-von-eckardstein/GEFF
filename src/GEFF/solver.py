@@ -348,7 +348,7 @@ class BaseGEFSolver:
                 event_dict_new, command, terminal_event = self._assess_event_occurrences(sol.t_events, sol.y_events, vals)
 
                 for key in event_dict_new.keys():
-                    event_dict[key].append(event_dict_new[key]["t"])
+                    event_dict[key].append(event_dict_new[key])
 
                 if command in ["finish", "error"]:
                     done=True

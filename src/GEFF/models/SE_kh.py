@@ -48,9 +48,6 @@ def interpret_settings():
     conductivity = define_conductivity()
     return
 
-
-
-
 #Define additional variables
 sigmaE=BGVal("sigmaE", 1, 0) #electric damping
 sigmaB=BGVal("sigmaB", 1, 0) #magnetic damping 

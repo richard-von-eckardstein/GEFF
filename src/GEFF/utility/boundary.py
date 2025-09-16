@@ -12,7 +12,7 @@ The functions in this module return an array of shape (3,2), with the first inde
 """
 import numpy as np
 import math
-from mpmath import whitw, mp
+from mpmath import whitw, whitm, mp
 
 #set accuracy of mpmath
 mp.dps = 8
@@ -210,3 +210,53 @@ def boundary_exact_kS(xi, r):
     Fterm[2,1] = exptermMinus*((Whitt2Minus*Whitt1Minus.conjugate()).real)/r
 
     return Fterm
+
+def Whittaker_PostFermionEntry(x):
+        xieff = x.vals["xieff"]
+        xi = x.vals["xi"]
+        sB = xieff-xi
+        sE = x.vals["s"]
+        #z = 2j*x.zferm #-2j*k/aH = 2jkn
+        k = x.vals["kh"]
+        z = 2j*k*x.etaf(x.vals["t"])
+        
+        W = np.array([complex(whitw(-1j*xi, 1/2, z)), complex(whitw(1j*xi, 1/2, z))])
+        W1 = np.array([complex(whitw(1-1j*xi, 1/2, z)), complex(whitw(1+1j*xi, 1/2, z))])
+                      
+        Mf = np.array([complex(whitm(-1j*xieff, 1/2+sE, z)), complex(whitm(1j*xieff, 1/2+sE, z))])
+        Mf1 = np.array([complex(whitm(1-1j*xieff, 1/2+sE, z)), complex(whitm(1+1j*xieff, 1/2+sE, z))])
+                    
+        Wf = np.array([complex(whitw(-1j*xieff, 1/2+sE, z)), complex(whitw(1j*xieff, 1/2+sE, z))])
+        Wf1 = np.array([complex(whitw(1-1j*xieff, 1/2+sE, z)), complex(whitw(1+1j*xieff, 1/2+sE, z))])
+        
+        lam = np.array([1., -1.])
+        
+        Gamma = np.array([complex((gamma(1+sE+1j*lam[i]*xieff)/gamma(2*(1+sE))))/z for i in range(2)])
+        
+        C = Gamma*(W*(Mf*(sE+1j*lam*sB) + (1+sE-1j*lam*xieff)*Mf1) + W1*Mf)
+        D = -Gamma*(W*(Wf*(sE+1j*lam*sB) - Wf1) + W1*Wf)
+        
+        r = (abs(xieff) + np.sqrt(xieff**2 + sE**2 + sE))
+        
+        Mr = np.array([complex(whitm(-1j*xieff, 1/2+sE, -2j*r)), complex(whitm(1j*xieff, 1/2+sE, -2j*r))])
+        Mr1 = np.array([complex(whitm(1-1j*xieff, 1/2+sE, -2j*r)), complex(whitm(1+1j*xieff, 1/2+sE, -2j*r))])
+                    
+        Wr = np.array([complex(whitw(-1j*xieff, 1/2+sE, -2j*r)), complex(whitw(1j*xieff, 1/2+sE, -2j*r))])
+        Wr1 = np.array([complex(whitw(1-1j*xieff, 1/2+sE, -2j*r)), complex(whitw(1+1j*xieff, 1/2+sE, -2j*r))])
+        
+        pre = np.exp(np.pi*xi*lam)
+        
+        Ak = (C*Wr + D*Mr)
+        Dk = ((1j*(r-lam*xieff) - sE)*Ak - D*(1+sE-1j*lam*xieff)*Mr1 + C*Wr1)/r
+        
+        Fterm = np.zeros((3, 2))
+        Fterm[0,0] = pre[0]*abs(Dk[0])**2
+        Fterm[1,0] = pre[0]*abs(Ak[0])**2
+        Fterm[2,0] = pre[0]*(Dk[0]*Ak[0].conjugate()).real
+        
+        Fterm[0,1] = pre[1]*abs(Dk[1])**2
+        Fterm[1,1] = pre[1]*abs(Ak[1])**2
+        Fterm[2,1] = pre[1]*(Dk[1]*Ak[1].conjugate()).real
+
+        return Fterm
+

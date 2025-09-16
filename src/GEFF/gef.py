@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from ._docs import generate_docs, docs_gef
-from .bgtypes import BGSystem
+from .bgtypes import BGSystem, Val, Func
 from .models import classic
 
 import importlib
@@ -63,7 +63,6 @@ class BaseGEF(BGSystem):
         H0, MP = self.define_units(*user_input.values())
 
         known_objects = set().union(*[item for key, item in self._object_classification.items() if key!="gauge"] )
-        print(known_objects)
         super().__init__(known_objects, H0, MP)
 
         #Add initial data to BGSystem
@@ -75,9 +74,14 @@ class BaseGEF(BGSystem):
             self.initialise(name)(value)
 
         #initialise the other values with dummy variables.
-        for name in self.quantity_names():
-            if name not in (self.value_names() + self.function_names()):
-                self.initialise(name)(0)
+        for obj in self.quantity_set():
+
+            if obj.name not in (self.value_names() + self.function_names()):
+
+                if issubclass(obj, Val):
+                    self.initialise(obj.name)(0)
+                elif issubclass(obj, Func):
+                    self.initialise(obj.name)(lambda x: 0)
 
         #Add information about file paths
         self.GEFdata = GEFdata

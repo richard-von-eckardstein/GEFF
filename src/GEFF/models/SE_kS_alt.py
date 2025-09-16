@@ -10,8 +10,8 @@ from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
 from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh,
-                                      drhoChi, gauge_field_ode_partial_damp_alt,
-                                        gauge_field_ode_bar,
+                                      drhoChi, gauge_field_ode_schwinger, gauge_field_ode_partial_damp,
+                                      
                                         conductivities_collinear, conductivities_mixed,
                                           dlnkS_collinear, dlnkS_mixed)
 from GEFF.utility.boundary import boundary_approx, boundary_exact_kS
@@ -67,7 +67,7 @@ GBar = BGVal("GBar", 4, 0)
 
 # define gauge field by assigning a name, 0th-order quantities and cut-off scale
 GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})
-GFBar = type("GF", (object,), {"name":"GF","0thOrder":{EBar, BBar, GBar}, "UV":kh})
+GFBar = type("GF", (object,), {"name":"GF","0thOrder":{EBar, BBar, GBar}, "UV":kS})
 
 #Assign quantities to a dictionary, classifying them by their role:
 quantities={
@@ -180,9 +180,9 @@ def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
     sys.kS.set_value(kF)
 
     pos = y[5:].shape[0]//2+5
-    sys.EBar.set_value( np.sign(y[pos])*min(y[pos], y[5])*np.exp(4*(y[3]-y[0])))
-    sys.BBar.set_value( np.sign(y[pos+1])*min(y[pos+1], y[6])*np.exp(4*(y[3]-y[0])))
-    sys.GBar.set_value( np.sign(y[pos+2])*min(y[pos+2], y[7])*np.exp(4*(y[3]-y[0])))
+    sys.EBar.set_value( np.sign(y[pos])*min(abs(y[pos]*(kF/sys.a)**4), abs(sys.E.value*(kF/sys.kh.value)**4)))
+    sys.BBar.set_value( np.sign(y[pos+1])*min(abs(y[pos+1]*(kF/sys.a)**4), abs(sys.B.value*(kF/sys.kh.value)**4)))
+    sys.GBar.set_value( np.sign(y[pos+2])*min(abs(y[pos+2]*(kF/sys.a)**4), abs(sys.G.value*(kF/sys.kh.value)**4)))
 
 
     #boundary term parameters
@@ -222,14 +222,14 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     FBar = y[pos:].reshape(Fcol,3)
     WBar = boundary_exact_kS(sys.xi.value, sys.kS/(sys.a*sys.H))
     #TODO
-    dFdt = gauge_field_ode_partial_damp_alt( F, FBar, sys.a, sys.kh, sys.kS,
+    dFdt = gauge_field_ode_partial_damp( F, FBar, sys.a, sys.kh, sys.kS,
                      2*sys.H*sys.xi, sys.sigmaE, sys.sigmaB, W, dlnkhdt)
     
     dlnkSdt = dlnkS(sys.E.value, sys.B.value, sys.G.value, 
                     dFdt[0,0], dFdt[0,1], dFdt[0,2], sys.H.value, sys.H0)
     deltaApprox = np.exp(-sys.sigmaE/sys.H*np.log(sys.kS/sys.kh))
-    dGdt = gauge_field_ode_bar(FBar, sys.a, sys.kh, sys.kS, 2*sys.H*sys.xieff,
-                                sys.sigmaE, deltaApprox, WBar, dlnkhdt, dlnkSdt, L=1)
+    dGdt = gauge_field_ode_schwinger(FBar, sys.a, sys.kS, 2*sys.H*sys.xieff,
+                                     sys.sigmaE, deltaApprox, WBar, dlnkSdt, L=1)
     
 
     #reshape to fit dydt
@@ -269,7 +269,7 @@ EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, 1, 
 
 #Event 2: ensure energy densities that are positive definite do not become negative
 def condition_NegativeEnergies(t, y, sys):
-    return min(y[5], y[6])
+    return min(y[6], y[7])
     
 NegativeEnergies = ErrorEvent("Negative energies", condition_NegativeEnergies, -1)
 """Defines the 'Negative energy' event."""
@@ -291,7 +291,7 @@ def consequence_fermion_crossing(sys, occurance):
         #stop solving once fermion crossing occurs
         return "finish", {}
     else:
-        return "proceed", {}
+        return "proceed"
     
 fermion_crossing = TerminalEvent("Fermion Crossing", condition_fermion_crossing, -1, consequence_fermion_crossing)
 """Defines the 'Fermion Crossing' event."""

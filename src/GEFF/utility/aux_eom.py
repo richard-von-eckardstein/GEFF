@@ -372,7 +372,7 @@ def conductivities_collinear(a  : float, H  : float,
     """     
     mu = (E+B)
     if mu<=0:
-        return 0., 0., 0.
+        return 0., 0., 1e-3*a*H
     else:
         mu = (mu/2)**(1/4)
         mz = 91.2/(2.43536e18)
@@ -422,7 +422,7 @@ def conductivities_mixed(a  : float, H  : float,
     """     
     Sigma = np.sqrt((E - B)**2 + 4*G**2)
     if Sigma<=0:
-        return 0., 0., 0.
+        return 0., 0., 1e-3*a*H
     else:
         mz = 91.2/(2.43536e18)
         mu = ((Sigma)/2)**(1/4)
@@ -443,10 +443,9 @@ def conductivities_mixed(a  : float, H  : float,
     
 
 
-def gauge_field_ode_kS(F : np.ndarray, FBar : np.ndarray, a : float, kh : float, kS : float,
-                        sclrCpl : float, sigmaE : float, sigmaB : float, delta : float, 
-                            W : np.ndarray, WBar : np.ndarray,
-                              dlnkhdt : float, dlnkSdt, L : int=10) -> np.ndarray:
+def gauge_field_ode_partial_damp(F : np.ndarray, FBar : np.ndarray, a : float, kh : float, kS : float,
+                        sclrCpl : float, sigmaE : float, sigmaB : float, 
+                            W : np.ndarray, dlnkhdt : float, L : int=10) -> np.ndarray:
     r"""
     Calculate the derivative of
     
@@ -484,13 +483,8 @@ def gauge_field_ode_kS(F : np.ndarray, FBar : np.ndarray, a : float, kh : float,
     FB = F[:,1]
     FG = F[:,2]
 
-    GE = FBar[:,0]
-    GB = FBar[:,1]
-    GG = FBar[:,2]
-
     scale = kh/a
     scaleR = kS/kh
-    scaleS = kS/a
 
     W[2,1] = -W[2,1]
 
@@ -498,16 +492,16 @@ def gauge_field_ode_kS(F : np.ndarray, FBar : np.ndarray, a : float, kh : float,
 
     lams = (-1)**ns
 
-    bdrF = (dlnkhdt*delta / (4*np.pi**2)
+    bdrF = (dlnkhdt / (4*np.pi**2)
             * (np.tensordot(np.ones_like(lams), W[:,0], axes=0)
                 + np.tensordot(lams, W[:,1], axes=0))
             )
 
     dFdt = np.zeros(bdrF.shape)
 
-    dampE = np.sign(FE)*np.minimum(abs(GE)*(scaleR)**(ns+4), abs(FE))
-    dampB = np.sign(FB)*np.minimum(abs(GB), abs(FB)) 
-    dampG = np.sign(FG)*np.minimum(abs(GG), abs(FG)) 
+    dampE = np.sign(FE)*np.minimum(abs(FBar[:,0])*(scaleR)**(ns+4), abs(FE))
+    dampB = np.sign(FB)*np.minimum(abs(FBar[:,1])*(scaleR)**(ns+4), abs(FB)) 
+    dampG = np.sign(FG)*np.minimum(abs(FBar[:,2])*(scaleR)**(ns+4), abs(FG)) 
 
     dFdt[:-1,0] = (bdrF[:-1,0] - (4+ns[:-1])*dlnkhdt*FE[:-1]
                   - 2*sigmaE*dampE[:-1]
@@ -535,17 +529,68 @@ def gauge_field_ode_kS(F : np.ndarray, FBar : np.ndarray, a : float, kh : float,
     dFdt[-1,2] = (bdrF[-1,2] - (4+ns[-1])*dlnkhdt*FG[-1]
                 - sigmaE*dampG[-1] + scale*(FEtr - FBtr) 
                 + sclrCpl*FB[-1] + sigmaB*dampB[-1])
-    
-    WBar[2,1] = -WBar[2,1]
 
-    bdrG = (dlnkSdt*delta / (4*np.pi**2)
+    return dFdt
+
+def gauge_field_ode_partial_damp_alt(F : np.ndarray, FBar : np.ndarray, a : float, kh : float, kS : float,
+                        sclrCpl : float, sigmaE : float, sigmaB : float, 
+                            W : np.ndarray, dlnkhdt : float, L : int=10) -> np.ndarray:
+    r"""
+    Calculate the derivative of
+    
+    $$\mathcal{F}_\mathcal{E}^{(n)} =  \frac{a^4}{k_{\mathrm{h}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf E}\rangle \,  ,$$
+    $$\mathcal{F}_\mathcal{B}^{(n)} =  \frac{a^4}{k_{\mathrm{h}}^{n+4}}\langle {\bf B} \cdot \operatorname{rot}^n {\bf B}\rangle \, , $$
+    $$\mathcal{F}_\mathcal{G}^{(n)} =  -\frac{a^4}{2 k_{\mathrm{h}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf B} + {\bf B} \cdot \operatorname{rot}^n {\bf E}\rangle \, , $$
+
+    in the presence of Schwinger conductivities.
+
+    Parameters
+    ----------
+    F : NDArray
+        array [$\mathcal{F}_\mathcal{E}^{(n)}$, $\mathcal{F}_\mathcal{B}^{(n)}$, $\mathcal{F}_\mathcal{G}^{(n)}$] in shape (3,ntr)
+    a : float
+        the scale factor, $a$
+    kh : float
+        the instability scale $k_{\rm h}$
+    sclrCpl : float
+        the inflaton gauge-field coupling, $2H\xi$
+    delta : float
+        cumulative electric damping, $\Delta$
+    W : NDarray
+        boundary terms, shape (3,2)
+    dlnkhdt : float
+        logarithmic derivative of the instability scale, ${\rm d} \log k_{\rm h} / {\rm d}t$
+    L : int
+        polynomial order for closing ode at ntr
+
+    Returns
+    -------
+    dFdt : NDArray
+        the time derivative of [$\mathcal{F}_\mathcal{E}^{(n)}$, $\mathcal{F}_\mathcal{B}^{(n)}$, $\mathcal{F}_\mathcal{G}^{(n)}$], shape (3,ntr)
+    """
+    FE = F[:,0]
+    FB = F[:,1]
+    FG = F[:,2]
+
+    scale = kh/a
+
+    W[2,1] = -W[2,1]
+
+    ns = np.arange(0,  FE.shape[0])
+
+    lams = (-1)**ns
+
+    bdrF = (dlnkhdt / (4*np.pi**2)
             * (np.tensordot(np.ones_like(lams), W[:,0], axes=0)
                 + np.tensordot(lams, W[:,1], axes=0))
             )
-    
-    dGdt = np.zeros(bdrG.shape)
 
-    #Check this expression!
+    dFdt = np.zeros(bdrF.shape)
+
+    dampE = np.sign(FE)*np.minimum(abs(FBar[:,0]), abs(FE))
+    dampB = np.sign(FB)*np.minimum(abs(FBar[:,1]), abs(FB)) 
+    dampG = np.sign(FG)*np.minimum(abs(FBar[:,2]), abs(FG)) 
+
     dFdt[:-1,0] = (bdrF[:-1,0] - (4+ns[:-1])*dlnkhdt*FE[:-1]
                   - 2*sigmaE*dampE[:-1]
                   - 2*scale*FG[1:] + 2*sclrCpl*FG[:-1]
@@ -555,28 +600,98 @@ def gauge_field_ode_kS(F : np.ndarray, FBar : np.ndarray, a : float, kh : float,
     dFdt[:-1,2] = (bdrF[:-1,2] - (4+ns[:-1])*dlnkhdt*FG[:-1]
                 - sigmaE*dampG[:-1] + scale*(FE[1:] - FB[1:])
                   + sclrCpl*FB[:-1] + sigmaB*dampB[:-1])
+    
+    #truncation conditions:
+    ls = np.arange(1, L+1, 1)
+    facl = np.array([math.comb(L, j) for j in range(1,L+1)])
+    FEtr = np.sum( (-1)**(ls-1) * facl * FE[-2*ls], axis=0 ) #-2*ls instead of -2*ls+1 since -1 is ntr not ntr-1
+    FBtr = np.sum( (-1)**(ls-1) * facl * FB[-2*ls], axis=0 )
+    FGtr = np.sum( (-1)**(ls-1) * facl * FG[-2*ls], axis=0 )
 
-
+    #bilinears at truncation order ntr
+    dFdt[-1,0] = (bdrF[-1,0] - (4+ns[-1])*dlnkhdt*FE[-1]
+                - 2*sigmaE*dampE[-1] - 2*scale*FGtr 
+                + 2*sclrCpl*FG[-1] + 2*sigmaB*dampG[-1])
+    dFdt[-1,1] = (bdrF[-1,1] - (4+ns[-1])*dlnkhdt*FB[-1]
+                + 2*scale*FGtr) 
+    dFdt[-1,2] = (bdrF[-1,2] - (4+ns[-1])*dlnkhdt*FG[-1]
+                - sigmaE*dampG[-1] + scale*(FEtr - FBtr) 
+                + sclrCpl*FB[-1] + sigmaB*dampB[-1])
 
     return dFdt
 
-def dlnkS(E0, B0, G0, H, ):
-    return
-    """H = x.vals["H"]
+def gauge_field_ode_bar(FBar : np.ndarray, a : float, kh : float, kS : float, sclrCpl : float,
+            sigmaE : float, delta : float, 
+            WBar : np.ndarray, dlnkhdt : float, dlnkSdt, L=10):
+    FE = FBar[:,0]
+    FB = FBar[:,1]
+    FG = FBar[:,2]
 
-    E0 = x.vals["E"]
-    B0 = x.vals["B"]
-    G0 = x.vals["G"]
+    scale = kh/a
+
+    WBar[2,1] = -WBar[2,1]
+
+    ns = np.arange(0,  FE.shape[0])
+
+    lams = (-1)**ns
+
+    bdrF = (dlnkSdt*delta / (4*np.pi**2)
+            * (np.tensordot(np.ones_like(lams)*(kS/kh)**(ns+4), WBar[:,0], axes=0)
+                + np.tensordot(lams*(kS/kh)**(ns+4), WBar[:,1], axes=0))
+            )
+
+    dFdt = np.zeros(bdrF.shape)
+
+    dFdt[:-1,0] = (bdrF[:-1,0] - (4+ns[:-1])*dlnkhdt*FE[:-1]
+                   - 2*sigmaE*FE[:-1] - 2*scale*FG[1:] + 2*sclrCpl*FG[:-1])
+    dFdt[:-1,1] = (bdrF[:-1,1] - (4+ns[:-1])*dlnkhdt*FB[:-1]
+                    + 2*scale*FG[1:])
+    dFdt[:-1,2] = (bdrF[:-1,2] - (4+ns[:-1])*dlnkhdt*FG[:-1]
+                   - sigmaE*FG[:-1] + scale*(FE[1:] - FB[1:]) + sclrCpl*FB[:-1])
+    
+    #truncation conditions:
+
+    FEtr = (kS/a)**2*FE[-1]
+    FBtr = (kS/a)**2*FB[-1]
+    FGtr = (kS/a)**2*FG[-1]
+
+    #bilinears at truncation order ntr
+    dFdt[-1,0] = (bdrF[-1,0] - (4+ns[-1])*dlnkhdt*FE[-1]
+                   - 2*sigmaE*FE[-1] - 2*scale*FGtr + 2*sclrCpl*FG[-1])
+    dFdt[-1,1] = (bdrF[-1,1] - (4+ns[-1])*dlnkhdt*FB[-1]
+                   + 2*scale*FGtr) 
+    dFdt[-1,2] = (bdrF[-1,2] - (4+ns[-1])*dlnkhdt*FG[-1]
+                   - sigmaE*FG[-1] + scale*(FEtr - FBtr) + sclrCpl*FB[-1])
+
+    return dFdt
+    
+
+def dlnkS_collinear(E0, B0, G0, dEdt, dBdt, dGdt, H, H0):
+    mu = (E0+B0)
+    if mu<=0:
+        return H
+    mu = (mu/2)**(1/4)
+    mz = 91.2/(2.43536e18)
+    gmz = 0.35
+    gmu2 = gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*H0)))
+
+    dlnkSdt = (H + 0.25*dEdt*(gmu2/8*41/(48*np.pi**2)/mu**4 + 1/E0 )
+                + dBdt*gmu2/32*41/(48*np.pi**2)/mu**4)
+    return dlnkSdt
+    
+
+def dlnkS_mixed(E0, B0, G0, dEdt, dBdt, dGdt, H, H0):
     Sigma = np.sqrt((E0 - B0)**2 + 4*G0**2)
     if Sigma==0:
-        return (1-alpha)*H
+        return H
     mz = 91.2/(2.43536e18)
     mu = ((Sigma)/2)**(1/4)
     gmz = 0.35
-    gmu2 = gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*x.ratio)))
+    gmu2 = gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*H0)))
 
     Eprime2 = E0 - B0 + Sigma
 
-    dlnkSdt = ((1-alpha)*H + 1/4*(dEdt-dBdt)/Sigma*(gmu2/4*41/(48*np.pi**2)*(E0-B0)/Sigma + 1)
+    dlnkSdt = (H + 1/4*(dEdt-dBdt)/Sigma*(gmu2/4*41/(48*np.pi**2)*(E0-B0)/Sigma + 1)
                 + dGdt*G0/Sigma**2*(gmu2/4*41/(48*np.pi**2) + Sigma/Eprime2))
-    return dlnkSdt"""
+    return dlnkSdt
+    
