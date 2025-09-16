@@ -9,8 +9,9 @@ from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, b
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
-from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh,
+from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh, dlnkh_schwinger,
                                       drhoChi, gauge_field_ode_partial_damp_alt,
+                                      gauge_field_ode_schwinger,
                                         gauge_field_ode_bar,
                                         conductivities_collinear, conductivities_mixed,
                                           dlnkS_collinear, dlnkS_mixed)
@@ -204,8 +205,8 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
 
     #achieving dlnkhdt is monotonous requires some care
     eps = max(abs(y[3])*rtol, atol)
-    dlnkhdt = dlnkh( sys.kh, sys.dphi, sys.ddphi, sys.beta,
-                                        0., sys.xi, sys.a, sys.H )
+    dlnkhdt = dlnkh_schwinger( sys.kh, sys.dphi, sys.ddphi, sys.beta,
+                                        0., sys.xieff, sys.a, sys.H )
     r = 2*abs(sys.xi)
     logfc = y[0] + np.log(r*dydt[0]) 
     dlnkhdt *= heaviside(dlnkhdt, eps)*heaviside(logfc-y[3]+10*eps, eps)
@@ -221,7 +222,6 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     W = boundary_approx(sys.xi.value)
     FBar = y[pos:].reshape(Fcol,3)
     WBar = boundary_exact_kS(sys.xi.value, sys.kS/(sys.a*sys.H))
-    #TODO
     dFdt = gauge_field_ode_partial_damp_alt( F, FBar, sys.a, sys.kh, sys.kS,
                      2*sys.H*sys.xi, sys.sigmaE, sys.sigmaB, W, dlnkhdt)
     
@@ -238,8 +238,45 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
 
     return dydt
 
-def compute_timestep_Cross(t, y, sys, atol=1e-20, rtoL=1e-6):
-    pass
+def compute_timestep_cross(t, y, sys, atol=1e-20, rtol=1e-6):
+    dydt = np.zeros(y.shape)
+
+    #odes for N and phi
+    dydt[0] = sys.H.value
+    dydt[1] = sys.dphi.value
+    dydt[2] = sys.ddphi.value
+
+    #achieving dlnkhdt is monotonous requires some care
+    eps = max(abs(y[3])*rtol, atol)
+    dlnkhdt = dlnkh( sys.kh, sys.dphi, sys.ddphi, sys.beta,
+                                        0., sys.xi, sys.s, sys.a, sys.H )
+    xieff = sys.xieff.value
+    s = sys.s.value
+    sqrtterm = np.sqrt(xieff**2 + s**2 + s)
+    r = (abs(xieff) + sqrtterm)
+    logfc = y[0] + np.log(r*dydt[0]) 
+    dlnkhdt *= heaviside(dlnkhdt, eps)*heaviside(logfc-y[3]+10*eps, eps)
+    dydt[3] = dlnkhdt
+
+    #the other derivatives are straight forwards
+    dydt[4] = drhoChi( sys.rhoChi, sys.E, sys.G, sys.sigmaE, sys.sigmaB, sys.H )
+
+    #compute boundary terms and then the gauge-field bilinear ODEs
+    pos = y[5:].shape[0]//2+5
+    Fcol = y[5:].shape[0]//6
+    F = y[5:pos].reshape(Fcol,3)
+    W = boundary_approx(sys.xi.value)
+
+    dFdt = gauge_field_ode_schwinger( F, sys.a, sys.kh, 
+                     2*sys.H*sys.xieff, sys.sigmaE, W, dlnkhdt)
+
+    dGdt = dFdt
+
+    #reshape to fit dydt
+    dydt[5:pos] = dFdt.reshape(Fcol*3)
+    dydt[pos:] = dGdt.reshape(Fcol*3)
+
+    return dydt
 
 #Event 1: Track the end of inflation:
 def condition_EndOfInflation(t, y, sys):
@@ -289,7 +326,8 @@ def condition_fermion_crossing(t, y, sys):
 def consequence_fermion_crossing(sys, occurance):
     if occurance:
         #stop solving once fermion crossing occurs
-        return "finish", {}
+
+        return "finish", {"timestep":compute_timestep_cross}
     else:
         return "proceed", {}
     
