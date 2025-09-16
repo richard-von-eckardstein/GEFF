@@ -177,12 +177,11 @@ class PowSpecT:
         self.__N = N
         self.__H = H
         self.__xi= values.xi
+        self.__kh = values.kh.value
 
         
         self.__af = CubicSpline(self.__t, a)
         self.__Hf = CubicSpline(self.__t, H)
-        self.__HN = CubicSpline(self.__N, self.__H)
-        self.__khN = CubicSpline(N, values.kh)
 
         #Obtain eta as a function of time
         deta = lambda t, y: 1/self.__af(t)
@@ -395,15 +394,31 @@ class PowSpecT:
             the gauge-field induced tensor power spectrum PT_ind(Ngrid[ind], k, lgrav).
         """
 
-        cutUV = self.__khN(Ngrid[ind])/k
+        cutUV = self.__khN[ind]/k
         cutIR = min(kgrid)/k
-        HN = self.__HN(Ngrid)
+        HN = self.__H
 
         logAs = np.linspace(np.log(max(0.5, cutIR)), np.log(cutUV), momgrid)
 
         #Alternatives for interpolating mode functions directly? Could be problematic as they are highly oscillatory
         #It may be better to directly interpolate the integrand...
         
+        """Ax_real = self.interp(np.log(kgrid), np.arcsinh(A1.real))
+        Ax_imag = self.interp(np.log(kgrid), np.arcsinh(A1.imag))
+        dAx_real = self.interp(np.log(kgrid), np.arcsinh(dA1.real))
+        dAx_imag = self.interp(np.log(kgrid), np.arcsinh(dA1.imag))
+
+        Ay_real = self.interp(np.log(kgrid), np.arcsinh(A2.real))
+        Ay_imag = self.interp(np.log(kgrid), np.arcsinh(A2.imag))
+        dAy_real = self.interp(np.log(kgrid), np.arcsinh(dA2.real))
+        dAy_imag = self.interp(np.log(kgrid), np.arcsinh(dA2.imag))
+
+        Afuncx = lambda x: np.sinh(Ax_real(x)) + 1j*np.sinh(Ax_imag(x))
+        dAfuncx = lambda x: np.sinh(dAx_real(x)) + 1j*np.sinh(dAx_imag(x))
+        
+        Afuncy = lambda x: np.sinh(Ay_real(x)) + 1j*np.sinh(Ay_imag(x))
+        dAfuncy = lambda x: np.sinh(dAy_real(x)) + 1j*np.sinh(dAy_imag(x))"""
+
         Ax_real = self.interp(np.log(kgrid), A1.real)
         Ax_imag = self.interp(np.log(kgrid), A1.imag)
         dAx_real = self.interp(np.log(kgrid), dA1.real)
@@ -443,7 +458,7 @@ class PowSpecT:
 
                 mom =  abs( l1*l2 + 2*lgrav*( (l1+l2)*A + (l1-l2)*B ) + 4*(A**2 - B**2) + 8*lgrav*A*B*( (l1-l2)*A - (l1+l2)*B ) - 16*l1*l2*A**2*B**2 )
                 z = max(A+B,A-B)
-                mask = np.where(z<self.__khN(Ngrid)/k, 1, 0)
+                mask = np.where(z<self.__kh/k, 1, 0)
 
                 val = (dAx*dAy + l1*l2*Ax*Ay)*mask*k/(np.exp(3*Ngrid)*HN)
                 timeintegrand = GreenN*val*mom

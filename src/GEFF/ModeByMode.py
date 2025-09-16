@@ -660,7 +660,7 @@ class ModeByMode:
         self.__af = CubicSpline(self.__t, a)
         deta = lambda t, y: 1/self.__af(t)
         
-        soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([0]), t_eval=self.__t)
+        soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([0]), t_eval=self.__t, atol=1e-20, rtol=1e-6)
 
         self.__eta = soleta.y[0,:]
 

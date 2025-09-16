@@ -105,7 +105,10 @@ class OmegaGW:
             TransferRH = 1/(1. - 0.22*(f/frh)**1.5 + 0.65*(f/frh)**2)
             TransferRH = np.where(np.log(f/fend) < 0, TransferRH, np.zeros(f.shape))
 
-        h2OmegaGW = h**2*omega_r/24  * PT * (g_rho_freq(f)/g_rho_0) * (g_s_0/g_s_freq(f))**(4/3) * TransferRH
+        feq = 2.1e-17
+        TransferMD = 1 + 9/32*(feq/f)**2
+
+        h2OmegaGW =  h**2*omega_r/24*PT*(g_rho_freq(f)/g_rho_0) * (g_s_0/g_s_freq(f))**(4/3)*TransferMD*TransferRH
         
         return h2OmegaGW, f
 
