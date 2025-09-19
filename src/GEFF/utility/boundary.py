@@ -11,7 +11,7 @@ with $r = |\xi| + \sqrt{\xi^2 + s^2 + s}$, the Whittaker-W function $W_{\kappa, 
 The functions in this module return an array of shape (3,2), with the first index corresponding to $E$, $B$, $G$ and the second index to helicity $\lambda=\pm 1$.
 """
 import numpy as np
-import math
+from scipy.special import gamma
 from mpmath import whitw, mp
 
 #set accuracy of mpmath
@@ -73,8 +73,8 @@ def boundary_approx(xi : float) -> np.ndarray:
         sgnsort = int((1-np.sign(xi))/2)
 
         xi = abs(xi)
-        g1 = math.gamma(2/3)**2
-        g2 = math.gamma(1/3)**2
+        g1 = gamma(2/3)**2
+        g2 = gamma(1/3)**2
         t1 = (3/2)**(1/3)*g1/(np.pi*xi**(1/3))
         t2 = -np.sqrt(3)/(15*xi)
         t3 = (2/3)**(1/3)*g2/(100*np.pi*xi**(5/3))
@@ -154,8 +154,8 @@ def boundary_approx_schwinger(xi :float, s : float) -> np.ndarray:
         rpsi = (psi/r**2)**(1/3)
         spsi = 5*s/psi**(2/3)
         
-        g1 = math.gamma(2/3)**2
-        g2 = math.gamma(1/3)**2
+        g1 = gamma(2/3)**2
+        g2 = gamma(1/3)**2
         
         t1 = 3**(1/3)*g1/np.pi
         t2 = -2/(5*np.sqrt(3))*(1+spsi)

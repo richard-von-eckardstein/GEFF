@@ -235,8 +235,6 @@ def consequence_EndOfInflation(sys, occurance):
         tdiff = np.round(5/sys.H, 0)
         #round again, sometimes floats cause problems in t_span and t_eval.
         tend  = np.round(sys.t + tdiff, 0)
-
-        print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
         return "proceed", {"tend":tend}
     
 EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, 1, consequence_EndOfInflation)
