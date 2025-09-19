@@ -209,7 +209,7 @@ def mode_equation_SE_scale(t: float, y : np.ndarray, k : float,
 
     dydt = np.zeros_like(y)
 
-    theta = np.heaviside(kS(t) - k, 0.5)
+    theta = np.heaviside(max(a(t)*H(t), kS(t)) - k, 0.5)
     
     drag = theta*sigmaE(t)
     dis1 = k / a(t)

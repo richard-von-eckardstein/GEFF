@@ -250,7 +250,7 @@ class BaseGEF(BGSystem):
             if attr not in ["y", "t", "y_events", "t_events", "sol", "events"]:
                 print(rf" - {attr} : {getattr(sol, attr)}")
         events = sol.events
-        if np.array([(len(event["t"])==0) for event in events.values()]).all():
+        if np.array([(len(event)==0) for event in events.values()]).all():
             print("No events occured during the run")
         else:
             print("The following events occured during the run:")

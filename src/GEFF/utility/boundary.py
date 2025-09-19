@@ -11,8 +11,9 @@ with $r = |\xi| + \sqrt{\xi^2 + s^2 + s}$, the Whittaker-W function $W_{\kappa, 
 The functions in this module return an array of shape (3,2), with the first index corresponding to $E$, $B$, $G$ and the second index to helicity $\lambda=\pm 1$.
 """
 import numpy as np
-import math
 from mpmath import whitw, whitm, mp
+from scipy.special import gamma
+from functools import lru_cache
 
 #set accuracy of mpmath
 mp.dps = 8
@@ -73,8 +74,8 @@ def boundary_approx(xi : float) -> np.ndarray:
         sgnsort = int((1-np.sign(xi))/2)
 
         xi = abs(xi)
-        g1 = math.gamma(2/3)**2
-        g2 = math.gamma(1/3)**2
+        g1 = gamma(2/3)**2
+        g2 = gamma(1/3)**2
         t1 = (3/2)**(1/3)*g1/(np.pi*xi**(1/3))
         t2 = -np.sqrt(3)/(15*xi)
         t3 = (2/3)**(1/3)*g2/(100*np.pi*xi**(5/3))
@@ -154,8 +155,8 @@ def boundary_approx_schwinger(xi :float, s : float) -> np.ndarray:
         rpsi = (psi/r**2)**(1/3)
         spsi = 5*s/psi**(2/3)
         
-        g1 = math.gamma(2/3)**2
-        g2 = math.gamma(1/3)**2
+        g1 = gamma(2/3)**2
+        g2 = gamma(1/3)**2
         
         t1 = 3**(1/3)*g1/np.pi
         t2 = -2/(5*np.sqrt(3))*(1+spsi)
@@ -211,52 +212,85 @@ def boundary_exact_kS(xi, r):
 
     return Fterm
 
-def Whittaker_PostFermionEntry(x):
-        xieff = x.vals["xieff"]
-        xi = x.vals["xi"]
-        sB = xieff-xi
-        sE = x.vals["s"]
-        #z = 2j*x.zferm #-2j*k/aH = 2jkn
-        k = x.vals["kh"]
-        z = 2j*k*x.etaf(x.vals["t"])
-        
-        W = np.array([complex(whitw(-1j*xi, 1/2, z)), complex(whitw(1j*xi, 1/2, z))])
-        W1 = np.array([complex(whitw(1-1j*xi, 1/2, z)), complex(whitw(1+1j*xi, 1/2, z))])
-                      
-        Mf = np.array([complex(whitm(-1j*xieff, 1/2+sE, z)), complex(whitm(1j*xieff, 1/2+sE, z))])
-        Mf1 = np.array([complex(whitm(1-1j*xieff, 1/2+sE, z)), complex(whitm(1+1j*xieff, 1/2+sE, z))])
-                    
-        Wf = np.array([complex(whitw(-1j*xieff, 1/2+sE, z)), complex(whitw(1j*xieff, 1/2+sE, z))])
-        Wf1 = np.array([complex(whitw(1-1j*xieff, 1/2+sE, z)), complex(whitw(1+1j*xieff, 1/2+sE, z))])
-        
-        lam = np.array([1., -1.])
-        
-        Gamma = np.array([complex((gamma(1+sE+1j*lam[i]*xieff)/gamma(2*(1+sE))))/z for i in range(2)])
-        
-        C = Gamma*(W*(Mf*(sE+1j*lam*sB) + (1+sE-1j*lam*xieff)*Mf1) + W1*Mf)
-        D = -Gamma*(W*(Wf*(sE+1j*lam*sB) - Wf1) + W1*Wf)
-        
-        r = (abs(xieff) + np.sqrt(xieff**2 + sE**2 + sE))
-        
-        Mr = np.array([complex(whitm(-1j*xieff, 1/2+sE, -2j*r)), complex(whitm(1j*xieff, 1/2+sE, -2j*r))])
-        Mr1 = np.array([complex(whitm(1-1j*xieff, 1/2+sE, -2j*r)), complex(whitm(1+1j*xieff, 1/2+sE, -2j*r))])
-                    
-        Wr = np.array([complex(whitw(-1j*xieff, 1/2+sE, -2j*r)), complex(whitw(1j*xieff, 1/2+sE, -2j*r))])
-        Wr1 = np.array([complex(whitw(1-1j*xieff, 1/2+sE, -2j*r)), complex(whitw(1+1j*xieff, 1/2+sE, -2j*r))])
-        
-        pre = np.exp(np.pi*xi*lam)
-        
-        Ak = (C*Wr + D*Mr)
-        Dk = ((1j*(r-lam*xieff) - sE)*Ak - D*(1+sE-1j*lam*xieff)*Mr1 + C*Wr1)/r
-        
-        Fterm = np.zeros((3, 2))
-        Fterm[0,0] = pre[0]*abs(Dk[0])**2
-        Fterm[1,0] = pre[0]*abs(Ak[0])**2
-        Fterm[2,0] = pre[0]*(Dk[0]*Ak[0].conjugate()).real
-        
-        Fterm[0,1] = pre[1]*abs(Dk[1])**2
-        Fterm[1,1] = pre[1]*abs(Ak[1])**2
-        Fterm[2,1] = pre[1]*(Dk[1]*Ak[1].conjugate()).real
 
-        return Fterm
+@lru_cache(maxsize=int(5e5))
+def boundary_post_cross_p1(xi, absz):
+    z = 2j*absz
+    W = (complex(whitw(-1j*xi, 1/2, z)), complex(whitw(1j*xi, 1/2, z)))
+    W1 = (complex(whitw(1-1j*xi, 1/2, z)), complex(whitw(1+1j*xi, 1/2, z)))
+    return W, W1
+
+@lru_cache(maxsize=int(5e5))
+def boundary_post_cross_p2(xieff, sE, absz):
+    z = 2j*absz
+
+    Mf = (complex(whitm(-1j*xieff, 1/2+sE, z)), complex(whitm(1j*xieff, 1/2+sE, z)))
+    Mf1 = (complex(whitm(1-1j*xieff, 1/2+sE, z)), complex(whitm(1+1j*xieff, 1/2+sE, z)))
+                
+    Wf = (complex(whitw(-1j*xieff, 1/2+sE, z)), complex(whitw(1j*xieff, 1/2+sE, z)))
+    Wf1 = (complex(whitw(1-1j*xieff, 1/2+sE, z)), complex(whitw(1+1j*xieff, 1/2+sE, z)))
+    return Mf, Mf1, Wf, Wf1
+
+@lru_cache(maxsize=int(5e5))
+def boundary_post_cross_p3(xieff, sE):
+    r = (abs(xieff) + np.sqrt(xieff**2 + sE**2 + sE))
+
+    Mr = (complex(whitm(-1j*xieff, 1/2+sE, -2j*r)), complex(whitm(1j*xieff, 1/2+sE, -2j*r)))
+    Mr1 = (complex(whitm(1-1j*xieff, 1/2+sE, -2j*r)), complex(whitm(1+1j*xieff, 1/2+sE, -2j*r)))
+                
+    Wr = (complex(whitw(-1j*xieff, 1/2+sE, -2j*r)), complex(whitw(1j*xieff, 1/2+sE, -2j*r)))
+    Wr1 = (complex(whitw(1-1j*xieff, 1/2+sE, -2j*r)), complex(whitw(1+1j*xieff, 1/2+sE, -2j*r)))
+    return Mr, Mr1, Wr, Wr1
+
+
+def boundary_post_cross(xi, xieff, sE, absz):
+    xi = float(np.round(xi, 6))
+    xieff = float(np.round(xieff, 6))
+    sE = float(np.round(sE, 6))
+    absz = float(np.round(absz, 6))
+    W, W1 = boundary_post_cross_p1(xi,absz)
+
+    W = np.array(W)
+    W1 = np.array(W1)
+                    
+    Mf, Mf1, Wf, Wf1 = boundary_post_cross_p2(xieff,sE,absz)
+
+    Mf = np.array(Mf)
+    Mf1 = np.array(Mf1)
+    Wf = np.array(Wf)
+    Wf1 = np.array(Wf1)
+
+    sB = xieff-xi
+    
+    lam = np.array([1., -1.])
+    
+    Gamma = gamma(1+sE+1j*lam*xieff)/gamma(2*(1+sE))
+    
+    C = Gamma*(W*(Mf*(sE+1j*lam*sB) + (1+sE-1j*lam*xieff)*Mf1) + W1*Mf)
+    D = -Gamma*(W*(Wf*(sE+1j*lam*sB) - Wf1) + W1*Wf)
+    
+    r = (abs(xieff) + np.sqrt(xieff**2 + sE**2 + sE))
+    
+    Mr, Mr1, Wr, Wr1 = boundary_post_cross_p3(xieff,sE)
+
+    Mr = np.array(Mr)
+    Mr1 = np.array(Mr1)
+    Wr = np.array(Wr)
+    Wr1 = np.array(Wr1)
+    
+    pre = np.exp(np.pi*xi*lam)
+    
+    Ak = (C*Wr + D*Mr)
+    Dk = ((1j*(r-lam*xieff) - sE)*Ak - D*(1+sE-1j*lam*xieff)*Mr1 + C*Wr1)/r
+    
+    Fterm = np.zeros((3, 2))
+    Fterm[0,0] = pre[0]*abs(Dk[0])**2
+    Fterm[1,0] = pre[0]*abs(Ak[0])**2
+    Fterm[2,0] = pre[0]*(Dk[0]*Ak[0].conjugate()).real
+    
+    Fterm[0,1] = pre[1]*abs(Dk[1])**2
+    Fterm[1,1] = pre[1]*abs(Ak[1])**2
+    Fterm[2,1] = pre[1]*(Dk[1]*Ak[1].conjugate()).real
+
+    return Fterm
 

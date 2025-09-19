@@ -15,7 +15,7 @@ from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh, dlnkh_schwinge
                                         gauge_field_ode_bar,
                                         conductivities_collinear, conductivities_mixed,
                                           dlnkS_collinear, dlnkS_mixed)
-from GEFF.utility.boundary import boundary_approx, boundary_exact_kS
+from GEFF.utility.boundary import boundary_approx, boundary_approx_schwinger, boundary_exact_kS, boundary_post_cross
 from GEFF.utility.auxiliary import heaviside
 from GEFF.utility.aux_mode import mode_equation_SE_scale, bd_classic
 from GEFF._docs import generate_docs, docs_models
@@ -58,6 +58,7 @@ def interpret_settings():
 sigmaE=BGVal("sigmaE", 1, 0) #electric damping
 sigmaB=BGVal("sigmaB", 1, 0) #magnetic damping 
 deltaF=BGFunc("deltaF", [t], 0, 0) #integrated electric damping, func not par
+etaF=BGFunc("etaF", [t], -1, 0) #integrated electric damping, func not par
 xieff=BGVal("xieff", 0, 0) #effective instability parameter
 s=BGVal("s", 0, 0) #electric damping parameter,
 rhoChi=BGVal("rhoChi", 4, 0)#Fermion energy density 
@@ -65,6 +66,7 @@ kS = BGVal("kS", 1, 0) # pair creation scale
 EBar = BGVal("EBar", 4, 0)
 BBar = BGVal("BBar", 4, 0)
 GBar = BGVal("GBar", 4, 0)
+state=BGVal("state", 0, 0)
 
 # define gauge field by assigning a name, 0th-order quantities and cut-off scale
 GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})
@@ -75,8 +77,8 @@ quantities={
             "time":{t},
             "dynamical":{N, phi, dphi, kh, rhoChi},
             "static":{a, H, xi, kS, E, B, G, EBar, BBar, GBar, ddphi, sigmaE, sigmaB, xieff, s},
-            "constant":{beta},
-            "function":{V, dV, deltaF},
+            "constant":{beta, state},
+            "function":{V, dV, deltaF, etaF},
             "gauge":{GF1, GFBar}
             }
 r"""The following variables are tracked by the model:
@@ -146,6 +148,8 @@ def initial_conditions(sys, ntr):
     sys.initialise("deltaF")( lambda x: 1.0 )
     yini[4] = sys.rhoChi.value
 
+    sys.initialise("state")(1)
+
     #all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
 
@@ -181,9 +185,9 @@ def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
     sys.kS.set_value(kF)
 
     pos = y[5:].shape[0]//2+5
-    sys.EBar.set_value( np.sign(y[pos])*min(y[pos], y[5])*np.exp(4*(y[3]-y[0])))
-    sys.BBar.set_value( np.sign(y[pos+1])*min(y[pos+1], y[6])*np.exp(4*(y[3]-y[0])))
-    sys.GBar.set_value( np.sign(y[pos+2])*min(y[pos+2], y[7])*np.exp(4*(y[3]-y[0])))
+    sys.EBar.set_value( np.sign(y[pos])*np.minimum(abs(y[pos]), abs(y[5]))*np.exp(4*(y[3]-y[0])))
+    sys.BBar.set_value( np.sign(y[pos+1])*np.minimum(abs(y[pos+1]), abs(y[6]))*np.exp(4*(y[3]-y[0])))
+    sys.GBar.set_value( np.sign(y[pos+2])*np.minimum(abs(y[pos+2]), abs(y[7]))*np.exp(4*(y[3]-y[0])))
 
 
     #boundary term parameters
@@ -205,8 +209,8 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
 
     #achieving dlnkhdt is monotonous requires some care
     eps = max(abs(y[3])*rtol, atol)
-    dlnkhdt = dlnkh_schwinger( sys.kh, sys.dphi, sys.ddphi, sys.beta,
-                                        0., sys.xieff, sys.a, sys.H )
+    dlnkhdt = dlnkh( sys.kh, sys.dphi, sys.ddphi, sys.beta,
+                        0., sys.xi, sys.a, sys.H )
     r = 2*abs(sys.xi)
     logfc = y[0] + np.log(r*dydt[0]) 
     dlnkhdt *= heaviside(dlnkhdt, eps)*heaviside(logfc-y[3]+10*eps, eps)
@@ -227,9 +231,8 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     
     dlnkSdt = dlnkS(sys.E.value, sys.B.value, sys.G.value, 
                     dFdt[0,0], dFdt[0,1], dFdt[0,2], sys.H.value, sys.H0)
-    deltaApprox = np.exp(-sys.sigmaE/sys.H*np.log(sys.kS/sys.kh))
     dGdt = gauge_field_ode_bar(FBar, sys.a, sys.kh, sys.kS, 2*sys.H*sys.xieff,
-                                sys.sigmaE, deltaApprox, WBar, dlnkhdt, dlnkSdt, L=1)
+                                sys.sigmaE, 1.0, WBar, dlnkhdt, dlnkSdt, L=1)
     
 
     #reshape to fit dydt
@@ -248,8 +251,8 @@ def compute_timestep_cross(t, y, sys, atol=1e-20, rtol=1e-6):
 
     #achieving dlnkhdt is monotonous requires some care
     eps = max(abs(y[3])*rtol, atol)
-    dlnkhdt = dlnkh( sys.kh, sys.dphi, sys.ddphi, sys.beta,
-                                        0., sys.xi, sys.s, sys.a, sys.H )
+    dlnkhdt = dlnkh_schwinger( sys.kh, sys.dphi, sys.ddphi, sys.beta,
+                                        0., sys.xieff, sys.s, sys.a, sys.H )
     xieff = sys.xieff.value
     s = sys.s.value
     sqrtterm = np.sqrt(xieff**2 + s**2 + s)
@@ -265,10 +268,52 @@ def compute_timestep_cross(t, y, sys, atol=1e-20, rtol=1e-6):
     pos = y[5:].shape[0]//2+5
     Fcol = y[5:].shape[0]//6
     F = y[5:pos].reshape(Fcol,3)
-    W = boundary_approx(sys.xi.value)
-
+    W = boundary_approx_schwinger(sys.xieff.value, sys.s.value)
+    deltaApprox = np.exp(-sys.sigmaE/sys.H*np.log(sys.kS/sys.kh))
     dFdt = gauge_field_ode_schwinger( F, sys.a, sys.kh, 
-                     2*sys.H*sys.xieff, sys.sigmaE, W, dlnkhdt)
+                     2*sys.H*sys.xieff, sys.sigmaE, deltaApprox, W, dlnkhdt)
+
+    dGdt = dFdt
+
+    #reshape to fit dydt
+    dydt[5:pos] = dFdt.reshape(Fcol*3)
+    dydt[pos:] = dGdt.reshape(Fcol*3)
+
+    return dydt
+
+def recompute_timestep_cross(t, y, sys, atol=1e-20, rtol=1e-6):
+    dydt = np.zeros(y.shape)
+
+    #odes for N and phi
+    dydt[0] = sys.H.value
+    dydt[1] = sys.dphi.value
+    dydt[2] = sys.ddphi.value
+
+    #achieving dlnkhdt is monotonous requires some care
+    eps = max(abs(y[3])*rtol, atol)
+    dlnkhdt = dlnkh_schwinger( sys.kh, sys.dphi, sys.ddphi, sys.beta,
+                                        0., sys.xieff, sys.s, sys.a, sys.H )
+    xieff = sys.xieff.value
+    s = sys.s.value
+    sqrtterm = np.sqrt(xieff**2 + s**2 + s)
+    r = (abs(xieff) + sqrtterm)
+    logfc = y[0] + np.log(r*dydt[0]) 
+    dlnkhdt *= heaviside(dlnkhdt, eps)*heaviside(logfc-y[3]+10*eps, eps)
+    dydt[3] = dlnkhdt
+
+    #the other derivatives are straight forwards
+    dydt[4] = drhoChi( sys.rhoChi, sys.E, sys.G, sys.sigmaE, sys.sigmaB, sys.H )
+
+    #compute boundary terms and then the gauge-field bilinear ODEs
+    pos = y[5:].shape[0]//2+5
+    Fcol = y[5:].shape[0]//6
+    F = y[5:pos].reshape(Fcol,3)
+    eta_cross = sys.etaF(t)
+
+    W = boundary_post_cross(sys.xi.value, sys.xieff.value, sys.s.value, sys.kh.value*eta_cross)
+    delta = sys.deltaF(t)
+    dFdt = gauge_field_ode_schwinger( F, sys.a, sys.kh, 
+                     2*sys.H*sys.xieff, sys.sigmaE, delta, W, dlnkhdt)
 
     dGdt = dFdt
 
@@ -288,6 +333,9 @@ def condition_EndOfInflation(t, y, sys):
     val = np.log(abs((dphi**2 + rhoEB + rhoChi)/V))
     return val
 
+
+
+
 def consequence_EndOfInflation(sys, occurance):
     if occurance:
         #stop solving once the end of inflation is reached
@@ -298,7 +346,7 @@ def consequence_EndOfInflation(sys, occurance):
         #round again, sometimes floats cause problems in t_span and t_eval.
         tend  = np.round(sys.t + tdiff, 0)
 
-        print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
+        print("The end of inflation was not reached by the solver.")
         return "proceed", {"tend":tend}
     
 EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, 1, consequence_EndOfInflation)
@@ -315,23 +363,28 @@ NegativeEnergies = ErrorEvent("Negative energies", condition_NegativeEnergies, -
 
 # Event 3: check for kS > kh
 def condition_fermion_crossing(t, y, sys):
-    a = np.exp(y[0])
-    E = y[5]*np.exp(4*(y[3]-y[0]))
-    B = y[6]*np.exp(4*(y[3]-y[0]))
-    G = y[7]*np.exp(4*(y[3]-y[0]))
-    H = friedmann(0.5*y[2]**2, sys.V(y[1]), 0.5*(E+B)*sys.H0**2, y[4]*sys.H0**2)
-    _, _, kS = conductivity(a, H, E, B, G, sys.H0)
-    return np.log(kS)-y[3]
+    try:
+        assert sys.state==1
+    except AssertionError:
+        return 1
+    else:
+        a = np.exp(y[0])
+        E = y[5]*np.exp(4*(y[3]-y[0]))
+        B = y[6]*np.exp(4*(y[3]-y[0]))
+        G = y[7]*np.exp(4*(y[3]-y[0]))
+        H = friedmann(0.5*y[2]**2, sys.V(y[1]), 0.5*(E+B)*sys.H0**2, y[4]*sys.H0**2)
+        _, _, kS = conductivity(a, H, E, B, G, sys.H0)
+        return kS-np.exp(y[3])
 
 def consequence_fermion_crossing(sys, occurance):
     if occurance:
+        sys.state.set_value(0)
         #stop solving once fermion crossing occurs
-
-        return "finish", {"timestep":compute_timestep_cross}
+        return "proceed", {"timestep":compute_timestep_cross}
     else:
         return "proceed", {}
     
-fermion_crossing = TerminalEvent("Fermion Crossing", condition_fermion_crossing, -1, consequence_fermion_crossing)
+fermion_crossing = TerminalEvent("Fermion Crossing", condition_fermion_crossing, 1, consequence_fermion_crossing)
 """Defines the 'Fermion Crossing' event."""
 
 

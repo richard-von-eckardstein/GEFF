@@ -8,7 +8,7 @@ from typing import Callable, Tuple, ClassVar
 from ._docs import generate_docs, docs_solver
 
 class BaseGEFSolver:
-    known_variables : ClassVar[dict] = {"time":{t}, "dynamical":{N}, "static":{a}, "constant":{H}, "function":{}, "gauge":{}}
+    known_variables : ClassVar[dict] = {"time":[t], "dynamical":[N], "static":[a], "constant":[H], "function":[], "gauge":[]}
     """
     Classifies variables used by the solver according to:
     * 'time': the name of the time parameter of the ODE's (should be "t") 
@@ -180,16 +180,22 @@ class BaseGEFSolver:
 
             #get number of regular dynamical variables
             n_dynam = len(self.known_variables["dynamical"])
+            n_gf = len(self.known_variables["gauge"])
 
             #construct yini
-            yini = np.zeros(((ntr+1)*3+n_dynam))
+            yini = np.zeros(((ntr+1)*3*n_gf+n_dynam))
 
-            #parse everyting except for GEF-bilinears with n>1 to yini
-            yini[:n_dynam+3] = sol.y[:n_dynam+3,reinit_ind]
+            #parse everyting except that is not a GEF-bilinear
+            yini[:n_dynam] = sol.y[:n_dynam,reinit_ind]
 
-            # compute En, Bn, Gn, for n>1 from Modes
-            yini[n_dynam+3:] = np.array([reinit_spec.integrate_slice(n=n, integrator="simpson")
-                                            for n in range(1,ntr+1)])[:,:,0].reshape(3*(ntr))
+            for n in range(n_gf):
+                space = n_dynam+3*(ntr+1)*n
+                next = n_dynam+3*(ntr+1)*(n+1)
+                yini[space:space+3] =  sol.y[space:space+3,reinit_ind]
+
+                # compute En, Bn, Gn, for n>1 from Modes
+                yini[space+3:next] = np.array([reinit_spec.integrate_slice(n=n, integrator="simpson")
+                                                for n in range(1,ntr+1)])[:,:,0].reshape(3*(ntr))
             
             self.parse_arr_to_sys(t_reinit, yini, temp)
 
@@ -404,7 +410,7 @@ class BaseGEFSolver:
             if occurrence:
                 event_dict.update({event.name:t_events[i]})
                 print(f"{event.name} at t={np.round(t_events[i], 1)}")
-
+            
             if event.type == "error" and occurrence:
                 commands["primary"].append( ("error", event.name) )
             
@@ -420,7 +426,12 @@ class BaseGEFSolver:
         for command in commands["secondary"]:
             for key, item in command.items():
                 if key in ["timestep", "tend", "atol", "rtol"]:
-                    setattr(self, key, item)
+                    if key=="tend":
+                        if item > self.tend:
+                            print(f"Increasing tend by {np.round(item-self.tend,1)} to {np.round(item,1)}")
+                            setattr(self, key, item)
+                    else:
+                        setattr(self, key, item)
                 else:
                     print("Unknown setting 'key', ignoring input.")
         
