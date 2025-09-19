@@ -159,6 +159,7 @@ class PT:
             elif key=="vac":
                 PT["tot"] += PT[key]
 
+        #this returns k with units restored. Needs to be matched by omega_GW
         return ks*self._H0, PT
     
     def compute_homogeneous(self, k : float, tvac : float, teval : np.ndarray|NoneType, atol : float=1e-3, rtol : float=1e-4) -> Tuple[np.ndarray, np.ndarray]:
