@@ -5,7 +5,7 @@ For more details on this model, see e.g., [2408.16538](https://arxiv.org/abs/240
 """
 import numpy as np
 
-from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVal
+from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVar
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
@@ -49,11 +49,11 @@ def interpret_settings():
     return
 
 #Define additional variables
-sigmaE=BGVal("sigmaE", 1, 0) #electric damping
-sigmaB=BGVal("sigmaB", 1, 0) #magnetic damping 
-xieff=BGVal("xieff", 0, 0) #effective instability parameter
-rhoChi=BGVal("rhoChi", 4, 0)#Fermion energy density 
-kS=BGVal("kS", 1, 0)#Fermion energy density 
+sigmaE=BGVar("sigmaE", 1, 0) #electric damping
+sigmaB=BGVar("sigmaB", 1, 0) #magnetic damping 
+xieff=BGVar("xieff", 0, 0) #effective instability parameter
+rhoChi=BGVar("rhoChi", 4, 0)#Fermion energy density 
+kS=BGVar("kS", 1, 0)#Fermion energy density 
 
 # define gauge field by assigning a name, 0th-order quantities and cut-off scale
 GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})
@@ -228,8 +228,6 @@ def consequence_EndOfInflation(sys, occurance):
         tdiff = np.round(5/sys.H, 0)
         #round again, sometimes floats cause problems in t_span and t_eval.
         tend  = np.round(sys.t + tdiff, 0)
-
-        print(rf"The end of inflation was not reached by the solver. Increasing tend by {tdiff} to {tend}.")
         return "proceed", {"tend":tend}
     
 EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, 1, consequence_EndOfInflation)

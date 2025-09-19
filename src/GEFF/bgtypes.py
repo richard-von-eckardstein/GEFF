@@ -53,8 +53,13 @@ class BGSystem:
             sys.set_units(True)
 
             #Copy values and functions
-            values = sys.value_list()
+            values = sys.variable_list()
             funcs = sys.function_list()
+            consts = sys.constant_list()
+
+            for const in consts:
+                obj = deepcopy(const)
+                newinstance.initialise(obj.name)(obj.value)
 
             for value in values:
                 obj = deepcopy(value)
@@ -162,7 +167,7 @@ class BGSystem:
 
         return self._units
     
-    def value_list(self) -> list['Val']:
+    def variable_list(self) -> list['Val']:
         """
         Get a list of all `Val` instances attributed to this BGSystem.
 
@@ -175,11 +180,11 @@ class BGSystem:
         vals = []
         for var in vars(self):
             obj = getattr(self, var)
-            if isinstance(obj, Val):
+            if isinstance(obj, Variable):
                 vals.append(obj)    
         return vals
     
-    def value_names(self) -> list[str]:
+    def variable_names(self) -> list[str]:
         """
         Get a list of names for all `Val` instances attributed to this BGSystem.
 
@@ -190,7 +195,39 @@ class BGSystem:
         """
 
         names = []
-        for val in self.value_list():
+        for val in self.variable_list():
+            names.append(val.name)
+        return names
+    
+    def constant_list(self) -> list['Val']:
+        """
+        Get a list of all `Val` instances attributed to this BGSystem.
+
+        Returns
+        -------
+        vals : list of Val
+            the list of `Val` instances.
+        """
+
+        vals = []
+        for var in vars(self):
+            obj = getattr(self, var)
+            if isinstance(obj, Constant):
+                vals.append(obj)    
+        return vals
+    
+    def constant_names(self) -> list[str]:
+        """
+        Get a list of names for all `Val` instances attributed to this BGSystem.
+
+        Returns
+        -------
+        names : list of str
+            the list of names.
+        """
+
+        names = []
+        for val in self.constant_list():
             names.append(val.name)
         return names
 
@@ -240,9 +277,9 @@ class BGSystem:
         self.quantities.pop(name)
         return
     
-    def add_BGVal(self, name : str, H0units : int, MPunits : int):
+    def add_BGVar(self, name : str, H0units : int, MPunits : int):
         """
-        Define a new `Val` object and add it to `quantities`.
+        Define a new `Variable` object and add it to `quantities`.
 
         Parameters
         ----------
@@ -254,7 +291,24 @@ class BGSystem:
             the 'u_MP' parameter of the new object.
         """
 
-        self.quantities[name] = BGVal(name, H0units, MPunits)
+        self.quantities[name] = BGVar(name, H0units, MPunits)
+        return
+    
+    def add_BGConst(self, name : str, H0units : int, MPunits : int):
+        """
+        Define a new `Constant` object and add it to `quantities`.
+
+        Parameters
+        ----------
+        name : str
+            the name of the new object.
+        H0units : int
+            the 'u_H0' parameter of the new object.
+        MPunits : int
+            the 'u_MP' parameter of the new object.
+        """
+
+        self.quantities[name] = BGConst(name, H0units, MPunits)
         return
     
     def add_BGFunc(self, name : str, args : list['Val'], H0units : int, MPunits : int):
@@ -279,6 +333,8 @@ class BGSystem:
 class Quantity:
     name : ClassVar[str]= ""
     """The objects name"""
+    description : ClassVar[str]= ""
+    """A brief description of the object"""
     u_H0 : ClassVar[int] = 0
     """Indicates how the object scales with frequency."""
     u_MP : ClassVar[int] = 0
@@ -364,12 +420,9 @@ class Quantity:
 
     
 class Val(Quantity):
-    dtype : ClassVar[np.floating] = np.float64
-    """The data type of `value`."""
-
-    def __init__(self, value : np.ndarray, sys : BGSystem):
+    def __init__(self, value : np.ndarray|float, sys : BGSystem):
         """
-        Create a new instance using a numpy array and a BGSystem
+        Create a new instance using a BGSystem
 
         Parameters
         ----------
@@ -379,7 +432,7 @@ class Val(Quantity):
             the BGSystem to which the instance belongs
         """
         super().__init__(sys)
-        self.value : np.ndarray =  np.asarray(value, dtype=self.dtype)
+        self.value =  value
         """A 1-D array of values in the units of the class instance."""
 
     def __str__(self) -> str:
@@ -427,16 +480,8 @@ class Val(Quantity):
             the new value.
         """
 
-        self.value = np.asarray(value)
+        self.value = value
         return
-    
-    #The following methods ensure that a `Val` instance can be used as an array concerning mathematical operations and indexing.
-    
-    def __getitem__(self, idx):
-        return self.value[idx]
-    
-    def __len__(self):
-        return len(self.value)
     
     #Define all mathematical operations as operations acting on self.value
     def __abs__(self):
@@ -509,6 +554,7 @@ class Val(Quantity):
         #self.__Compatible(self, other, ">=")
         return  self.value >= other
     
+
 class Func(Quantity):
     args : ClassVar[list[Val]] = []
     """Indicates the argument signature for the class."""
@@ -586,13 +632,72 @@ class Func(Quantity):
             pow = (1 - x.get_units())
             return x*conv**pow
 
-        typedic = {Val : val_handler}
+        typedic = {Variable : val_handler, Val : val_handler, Constant: val_handler}
 
         args = [typedic.get(arg.__class__.__bases__[0], float_handler)(arg, i) for i, arg in enumerate(args)]
 
         return self._basefunc(*args)/self._conversion**(1-units)
+
     
-def BGVal(qname : str, H0 : int, MP : int, q_dtype : np.floating=np.float64):
+class Variable(Val):
+    """A `Val` that represents a variable with time."""
+
+    dtype : ClassVar[np.floating] = np.float64
+    """The data type of `value`."""
+    
+    def __init__(self, value : np.ndarray, sys : BGSystem):
+        """
+        Create a new instance using a numpy array and a BGSystem
+
+        Parameters
+        ----------
+        value : NDArray
+            the underlying array of the instance
+        sys : BGSystem
+            the BGSystem to which the instance belongs
+        """
+        super().__init__( np.asarray(value, dtype=self.dtype), sys)
+
+    #The following methods ensure that a `Val` instance can be used as an array concerning mathematical operations and indexing.
+    
+    def __getitem__(self, idx):
+        return self.value[idx]
+    
+    def __len__(self):
+        return len(self.value)
+
+    def set_value(self, value : np.ndarray):
+        """
+        Overwrite the `value` attribute.
+
+        Parameters
+        ----------
+        value : NDArray or float
+            the new value.
+        """
+
+        self.value = np.asarray(value)
+        return
+     
+     
+     
+class Constant(Val):
+    """A `Val` that represents a constant with time."""
+    def __init__(self, value : float, sys : BGSystem):
+        """
+        Create a new instance using a float and a BGSystem
+
+        Parameters
+        ----------
+        value : NDArray
+            the underlying array of the instance
+        sys : BGSystem
+            the BGSystem to which the instance belongs
+        """
+        super().__init__( value, sys)
+    
+    
+def BGVar(qname : str, H0 : int, MP : int, q_description:str="", q_dtype : np.dtype=np.float64):
     """
     Creates a subclass of `Val` with custom `Val.name`, `Val.u_H0` and `Val.u_MP`.
 
@@ -606,10 +711,12 @@ def BGVal(qname : str, H0 : int, MP : int, q_dtype : np.floating=np.float64):
         the `u_MP` attribute of the subclass
     q_dtype : Numpy Data Type
         the `dtype` attribute of the subclass
+    q_description : str
+        a brief description of the subclass
         
     Returns
     -------
-    CustomVal : class
+    CustomVar : class
         the custom subclass
 
     Raises
@@ -621,22 +728,62 @@ def BGVal(qname : str, H0 : int, MP : int, q_dtype : np.floating=np.float64):
     if not( np.issubdtype(q_dtype, np.floating) ):
         raise TypeError("BGVal's data-type must be a subtype of 'numpy.floating'.")
 
-    class CustomVal(Val):
+    class CustomVar(Variable):
         __doc__ = docs_bgtypes.DOCS["BGVal.BGVal"]
         name=qname
         u_H0 = H0
         u_MP = MP
         dtype = q_dtype
+        description = q_description
         def __init__(self, value, sys):
             super().__init__(value, sys)
-    CustomVal.__qualname__ = f"Val_{qname}"
-    CustomVal.__module__ = __name__
+    CustomVar.__qualname__ = f"Val_{qname}"
+    CustomVar.__module__ = __name__
 
-    return CustomVal
+    return CustomVar
+
+def BGConst(qname : str, H0 : int, MP : int, q_description:str=""):
+    """
+    Creates a subclass of `Val` with custom `Val.name`, `Val.u_H0` and `Val.u_MP`.
+
+    Parameters
+    ----------
+    q_name : str
+        the `name` attribute of the subclass
+    H0 : int
+        the `u_H0` attribute of the subclass
+    MP : int
+        the `u_MP` attribute of the subclass
+    q_description : str
+        a brief description of the subclass
+        
+    Returns
+    -------
+    CustomConst : class
+        the custom subclass
+
+    Raises
+    ------
+    TypeError
+        if the data type is not a subtype of `numpy.floating`
+    """
+
+    class CustomConst(Constant):
+        __doc__ = docs_bgtypes.DOCS["BGVal.BGVal"]
+        name=qname
+        u_H0 = H0
+        u_MP = MP
+        description = q_description
+        def __init__(self, value, sys):
+            super().__init__(value, sys)
+    CustomConst.__qualname__ = f"Const_{qname}"
+    CustomConst.__module__ = __name__
+
+    return CustomConst
 
 
 
-def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_dtype : np.dtype=np.float64):
+def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_description:str="", q_dtype : np.dtype=np.float64):
     """
     Creates a subclass of `Func` with custom `Func.name`, `Func.u_H0` and `Func.u_MP`. and `Func.args`.
 
@@ -650,6 +797,8 @@ def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_dtype : np.
         the `u_MP` attribute of the subclass
     q_dtype : Numpy Data Type
         the `dtype` attribute of the subclass
+    q_description : str
+        a brief description of the subclass
 
     Returns
     -------
@@ -666,12 +815,13 @@ def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_dtype : np.
         raise TypeError("BGFunc's data-type must be a subtype of 'np.floating'.")
     
     class CustomFunc(Func):
-        __doc__ = docs_bgtypes.DOCS["BGVal.BGVal"]
+        __doc__ = docs_bgtypes.DOCS["BGFunc.BGFunc"]
         name=qname
         u_H0 = H0
         u_MP = MP
         args = func_args
         dtype = q_dtype
+        description = q_description
         def __init__(self, func, sys):
             super().__init__(func, sys)
 
@@ -686,28 +836,28 @@ generate_docs(docs_bgtypes.DOCS)
     
 #Some usful pre-defined quantities
 #Space--time variables:
-t=BGVal("t", -1, 0) #physical time
-N=BGVal("N", 0, 0) #e-folds
-a=BGVal("a", 0, 0) #scale factor
-H=BGVal("H", 1, 0) #Hubble rate
+t=BGVar("t", -1, 0, "physical time")
+N=BGVar("N", 0, 0, "e-folds")
+a=BGVar("a", 0, 0, "scale factor")
+H=BGVar("H", 1, 0, "Hubble rate")
 
 #Inflaton  variables:
-phi=BGVal("phi", 0, 1) #inflaton field
-dphi=BGVal("dphi", 1, 1) #inflaton velocity
-ddphi=BGVal("ddphi", 2, 1) #inflaton acceleration
+phi=BGVar("phi", 0, 1, "inflaton expectation value")
+dphi=BGVar("dphi", 1, 1, "inflaton velocity")
+ddphi=BGVar("ddphi", 2, 1, "inflaton acceleration")
 
 #Inflaton potential
-V=BGFunc("V", [phi], 2, 2) #scalar potential
-dV=BGFunc("dV", [phi], 2, 2) #scalar-potential derivative
+V=BGFunc("V", [phi], 2, 2, "scalar potential")
+dV=BGFunc("dV", [phi], 2, 2, "scalar-potential derivative")
 
 #Gauge-field variables:
-E=BGVal("E", 4, 0) #electric field expectation value
-B=BGVal("B", 4, 0) #magnetic field expectation value
-G=BGVal("G", 4, 0) #-EdotB expectation value
+E=BGVar("E", 4, 0, "electric field expectation value, E^2")
+B=BGVar("B", 4, 0, "magnetic field expectation value, B^2")
+G=BGVar("G", 4, 0, "Chern-Pontryagin expectation value, -E.B")
 
 #Auxiliary quantities:
-xi=BGVal("xi", 0, 0) #instability parameter
-kh=BGVal("kh", 1, 0) #instability scale
+xi=BGVar("xi", 0, 0, "instability parameter")
+kh=BGVar("kh", 1, 0, "instability scale")
 
 #constants
-beta=BGVal("beta", 0, -1) #inflaton--gauge-field coupling beta/Mp
+beta=BGConst("beta", 0, -1, "inflaton--gauge-field coupling beta/Mp")

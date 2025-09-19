@@ -21,10 +21,6 @@ class BaseGEF(BGSystem):
     _input_signature = classic.input
     define_units = staticmethod(classic.define_units)
 
-    _object_classification = { key:{i for i in item} for key, item in GEFSolver.known_variables.items()}
-
-
-
     def __init__(
                 self, consts : dict, init_data : dict, funcs : dict, 
                 GEFdata: NoneType|str = None, MbMdata: NoneType|str = None
@@ -62,7 +58,8 @@ class BaseGEF(BGSystem):
 
         H0, MP = self.define_units(*user_input.values())
 
-        known_objects = set().union(*[item for key, item in self._object_classification.items() if key!="gauge"] )
+        known_objects = set().union(*[item for key, item in self.GEFSolver.known_variables.items() if key!="gauge"] )
+
         super().__init__(known_objects, H0, MP)
 
         #Add initial data to BGSystem
@@ -75,13 +72,11 @@ class BaseGEF(BGSystem):
 
         #initialise the other values with dummy variables.
         for obj in self.quantity_set():
-
-            if obj.name not in (self.value_names() + self.function_names()):
-
+            if obj.name not in (self.variable_names() + self.function_names() + self.constant_names()):
                 if issubclass(obj, Val):
                     self.initialise(obj.name)(0)
                 elif issubclass(obj, Func):
-                    self.initialise(obj.name)(lambda x: 0)
+                    self.initialise(obj.name)(lambda *x: 0)
 
         #Add information about file paths
         self.GEFdata = GEFdata
@@ -230,7 +225,7 @@ class BaseGEF(BGSystem):
             if sol.success:
                 print("\nStoring results in GEF instance.")
                 self.set_units(False)
-                for obj in self.value_list():
+                for obj in self.variable_list():
                     obj.set_value(getattr(vals, obj.name).value)
                 self.set_units(True)
                 self._completed = True
@@ -393,10 +388,6 @@ class BaseGEF(BGSystem):
         for key, values in data.items():
             self.initialise(key)(values)
 
-        if "H" in [const.name for const in self._object_classification["constant"]]:
-            #make sure H is always an array, even if constant.
-            self.set_value("H")(np.ones_likes(self.t.value)*self.H.value)
-
         self.set_units(units)
         self._completed=True
 
@@ -428,14 +419,9 @@ class BaseGEF(BGSystem):
             raise Exception("You did not specify the file under which to store the GEF data. Set 'GEFdata' to the location where you want to save your data.")
 
         else:
-            storeables = set().union(
-                                     self._object_classification["time"],
-                                     self._object_classification["dynamical"],
-                                     self._object_classification["static"]
-                                    )    
-            storeables = {obj.name for obj in storeables}       
+            storeables = self.variable_names     
             #Check that all dynamic and derived quantities are initialised in this GEF instance
-            if not( storeables.issubset(set( self.value_names() )) ):
+            if len(storeables)==0:
                 print("No data to store.")
                 return
             else:
@@ -535,8 +521,6 @@ def GEF(modelname:str, settings:dict):
         """The mode solver used for mode-by-mode cross checks."""
         _input_signature = model.input
         define_units = staticmethod(classic.define_units)
-
-        _object_classification = { key:{i for i in item} for key, item in GEFSolver.known_variables.items()}
 
     CustomGEF.__qualname__ = model.name
     CustomGEF.__module__ = __name__

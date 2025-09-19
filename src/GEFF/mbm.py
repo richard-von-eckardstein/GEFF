@@ -4,7 +4,7 @@ import pandas as pd
 from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.integrate import solve_ivp
 from scipy.integrate import quad, simpson
-from .bgtypes import Val, Func, BGSystem
+from .bgtypes import Variable, Constant, Func, BGSystem
 from .utility.aux_mode  import mode_equation_classic, bd_classic
 from typing import Tuple, Callable, ClassVar
 from types import NoneType
@@ -525,7 +525,7 @@ class BaseModeSolver:
         #Check that all necessary keys are there:
         for key in self.necessary_keys:
             try:
-                assert key in sys.value_names()
+                assert key in sys.variable_names()
             except AssertionError:
                 KeyError(f"'sys' needs to own an attribute called '{key}'.")
         
@@ -544,19 +544,24 @@ class BaseModeSolver:
         for key in self.necessary_keys:
             if key not in ["t", "N", self.cutoff]: 
                 obj = getattr(sys, key)
-                if isinstance(obj, Val):
+                if isinstance(obj, Variable):
                     value = getattr(sys, key).value
+                    self._ode_kwargs[key] = CubicSpline(self.__t, value)
                 elif isinstance(obj, Func):
                     arg_vals = []
                     for arg in Func.args:
                         arg_vals.append(getattr(sys, arg.name))
                     value = obj(*arg_vals)
+                    self._ode_kwargs[key] = CubicSpline(self.__t, value)
+                elif isinstance(obj, Constant):
+                    value = getattr(sys, key).value
+                    self._ode_kwargs[key] = lambda t: value
                 else:
                     raise ValueError(f"'{key}' should refer to either a 'Val' or 'Func' subclass.")
                 if len(value)==1:
                     #deal with constants
                     value = np.ones_like(self.__t)*value
-                self._ode_kwargs[key] = CubicSpline(self.__t, value)
+                
         
         #compute the evolution of conformal time for the phases
         self.__af = CubicSpline(self.__t, a)

@@ -5,7 +5,7 @@ For more details on this model, see e.g., [2109.01651](https://arxiv.org/abs/210
 """
 import numpy as np
 
-from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVal, BGFunc
+from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVar, BGConst, BGFunc
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
@@ -55,18 +55,18 @@ def interpret_settings():
     return
 
 #Define all additional variables
-sigmaE=BGVal("sigmaE", 1, 0) #electric damping
-sigmaB=BGVal("sigmaB", 1, 0) #magnetic damping 
+sigmaE=BGVar("sigmaE", 1, 0) #electric damping
+sigmaB=BGVar("sigmaB", 1, 0) #magnetic damping 
 deltaF=BGFunc("deltaF", [t], 0, 0) #integrated electric damping, func not par
 etaF=BGFunc("etaF", [t], -1, 0) #integrated electric damping, func not par
-xieff=BGVal("xieff", 0, 0) #effective instability parameter
-s=BGVal("s", 0, 0) #electric damping parameter,
-rhoChi=BGVal("rhoChi", 4, 0)#Fermion energy density 
-kS = BGVal("kS", 1, 0) # pair creation scale
-EBar = BGVal("EBar", 4, 0)
-BBar = BGVal("BBar", 4, 0)
-GBar = BGVal("GBar", 4, 0)
-state=BGVal("state", 0, 0)
+xieff=BGVar("xieff", 0, 0) #effective instability parameter
+s=BGVar("s", 0, 0) #electric damping parameter,
+rhoChi=BGVar("rhoChi", 4, 0)#Fermion energy density 
+kS = BGVar("kS", 1, 0) # pair creation scale
+EBar = BGVar("EBar", 4, 0)
+BBar = BGVar("BBar", 4, 0)
+GBar = BGVar("GBar", 4, 0)
+state=BGConst("state", 0, 0)
 
 # define gauge field by assigning a name, 0th-order quantities and cut-off scale
 GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})

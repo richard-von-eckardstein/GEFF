@@ -425,15 +425,16 @@ class BaseGEFSolver:
         #Handle secondary commands
         for command in commands["secondary"]:
             for key, item in command.items():
-                if key in ["timestep", "tend", "atol", "rtol"]:
-                    if key=="tend":
-                        if item > self.tend:
-                            print(f"Increasing tend by {np.round(item-self.tend,1)} to {np.round(item,1)}")
-                            setattr(self, key, item)
-                    else:
+                if key =="timestep":
+                    setattr(self, key, item)
+                elif key=="tend":
+                    if item > self.tend:
+                        print(f"Increasing tend by {np.round(item-self.tend,1)} to {np.round(item,1)}")
                         setattr(self, key, item)
+                elif key in self.settings.keys():
+                    self.update_settings({key:item})
                 else:
-                    print("Unknown setting 'key', ignoring input.")
+                    print(f"Unknown setting '{key}', ignoring input.")
         
         #Check command priority (in case of multiple final events occuring). error > finish > repeat > proceed
         for primary_command in ["error", "finish", "repeat", "proceed"]:

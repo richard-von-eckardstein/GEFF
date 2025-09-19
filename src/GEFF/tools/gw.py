@@ -14,6 +14,9 @@ from scipy.integrate import simpson
 from numpy.typing import ArrayLike
 from typing import Tuple
 
+feq = 2.1e-17
+        
+
 class OmegaGW:
     """
     TODO
@@ -113,9 +116,11 @@ class OmegaGW:
             TransferRH = 1/(1. - 0.22*(f/frh)**1.5 + 0.65*(f/frh)**2)
             TransferRH = np.where(np.log(f/fend) < 0, TransferRH, np.zeros(f.shape))
 
-        OmegaGW = h**2*omega_r/24  * PT * (g_rho_freq(f)/g_rho_0) * (g_s_0/g_s_freq(f))**(4/3) * TransferRH
+        TransferMD = 1 + 9/32*(feq/f)**2
+
+        h2OmegaGW = h**2*omega_r/24  * PT * (g_rho_freq(f)/g_rho_0) * (g_s_0/g_s_freq(f))**(4/3) * TransferMD * TransferRH
         
-        return OmegaGW, f
+        return h2OmegaGW, f
 
 basepath = os.path.dirname(os.path.abspath(__file__))
 
@@ -150,7 +155,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
         the updated plot.
     """
     #the path to the sensitivity curve data
-    path = os.path.join(basepath, "../data/power-law-integrated_sensitivities/")
+    path = os.path.join(basepath, "../data/plis/")
     arr = os.listdir(path)
     
     #Obtain List of experiments and running experiments
@@ -174,10 +179,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
 
     arr = []
     for name in names:
-        if name=="NANOGrav":
-            arr.append("NANOGrav/sensitivity_curves_NG15yr_fullPTA.txt")
-        else:
-            arr.append("plis_" + name + ".dat")   
+        arr.append("plis_" + name + ".dat")   
 
     #Parse Input Colors
     if cols==[]:
@@ -193,14 +195,9 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
 
     for key in dic.keys():
         
-        if key=="NANOGrav":
-            tab = pd.read_table(path+dic[key]["file"], comment="#", sep=",").values.T
-            f = tab[0,:]
-            SCurve = h**2*tab[3,:]
-        else:
-            tab = pd.read_table(path+dic[key]["file"], comment="#").values.T
-            f = 10**tab[0,:]
-            SCurve = 10**tab[1,:]
+        tab = pd.read_table(path+dic[key]["file"], comment="#", header=None).values.T
+        f = 10**tab[0,:]
+        SCurve = 10**tab[1,:]
         f = np.array([f[0]] + list(f) + [f[-1]])
         SCurve = np.array([1.] + list(SCurve) + [1.])
         
@@ -212,7 +209,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
     ax.set_xscale("log")
     return ax
 
-def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
+def ComputeSNR(fSignal, h2OmegaSignal, experiment, tobs=1.):
     """TODO"""
     path = os.path.join(basepath, "../data/strains/")
     arr = os.listdir(path)
@@ -223,9 +220,19 @@ def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
 
     file = path+filename
     try:
-        tab = pd.read_table(file, comment="#").values.T
-        fNoise = 10**tab[0,:]
-        OmegaNoise = 10**tab[1,:]
+        if experiment != "NANOGrav":
+            tab = pd.read_table(file, comment="#").values.T
+            fNoise = 10**tab[0,:]
+            h2OmegaNoise = 10**tab[1,:]
+        else:
+            tab = pd.read_table(file, comment="#", sep=",").values.T
+            fmin = 1/(16.03*365.2425*24*3600)
+            fmax = 30*fmin
+            fNoise = tab[0,:]
+            minind = np.where(fNoise >= fmin)[0][0]
+            maxind = np.where(fNoise <= fmax)[0][-1]
+            fNoise = fNoise[minind:maxind]
+            h2OmegaNoise = h**2*tab[3,minind:maxind]
 
         content = open(file).readlines()
         if "auto-correlation" in content[1]:
@@ -246,8 +253,8 @@ def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
         SNR = 0.
     else:
         f = fSignal[overlap]
-        OmegaNoise = np.exp(CubicSpline(np.log(fNoise), np.log(OmegaNoise))(np.log(f)))
-        SNR = (ndet*(tobs*365.2425*3600*24)*simpson((OmegaSignal[overlap]/OmegaNoise)**2, f))**(1/2)
+        h2OmegaNoise = np.exp(CubicSpline(np.log(fNoise), np.log(h2OmegaNoise))(np.log(f)))
+        SNR = (ndet*(tobs*365.2425*3600*24)*simpson((h2OmegaSignal[overlap]/h2OmegaNoise)**2, f))**(1/2)
 
     return SNR
 
