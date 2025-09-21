@@ -212,7 +212,7 @@ class BaseGEF(BGSystem):
                 else:
                     t_reinit = reinit_spec["t"]
                     print(f"Attempting to solve GEF using self-correction starting from \
-                          t={np.round(reinit_spec['t'], 1)}, N={np.round(reinit_spec['N'], 1)}.\n")
+                          t={reinit_spec['t']:{3}.{1}}, N={reinit_spec['N']:{3}.{1}}.\n")
 
                     solver.set_initial_conditions_to_MbM(sol, reinit_spec)
                 

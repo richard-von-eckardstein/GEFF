@@ -336,10 +336,10 @@ class BaseGEFSolver:
                     raise TruncationError
             #find 
             except KeyboardInterrupt:
-                print(f"The run failed at t={vals.t}, N={vals.N}.")
+                print(f"The run failed at t={vals.t.value:{3}.{2}}, N={vals.N.value:{3}.{2}}.")
                 raise KeyboardInterrupt
             except Exception as e:
-                print(f"While solving the GEF ODE, an error occured at t={vals.t}, N={vals.N} : \n \t {e}")
+                print(f"While solving the GEF ODE, an error occured at t={vals.t.value:{3}.{2}}, N={vals.N.value:{3}.{2}}: \n \t {e}")
                 raise TruncationError
             
             else:
@@ -403,7 +403,7 @@ class BaseGEFSolver:
             #Add the event occurrence to the event dictionary:
             if occurrence:
                 event_dict.update({event.name:t_events[i]})
-                print(f"{event.name} at t={np.round(t_events[i], 1)}")
+                print(f"{event.name} at t={t_events[i]:{3}.{1}}")
 
             if event.type == "error" and occurrence:
                 commands["primary"].append( ("error", event.name) )
@@ -423,7 +423,7 @@ class BaseGEFSolver:
                     setattr(self, key, item)
                 elif key=="tend":
                     if item > self.tend:
-                        print(f"Increasing tend by {np.round(item-self.tend,1)} to {np.round(item,1)}")
+                        print(f"Increasing tend by {item-self.tend:{4}.{1}} to {item:{4}.{1}}")
                         setattr(self, key, item)
                 elif key in self.settings.keys():
                     self.update_settings({key:item})
@@ -468,7 +468,7 @@ class BaseGEFSolver:
 
         for event_name in (event_dict.keys()):
             try:
-                event_dict[event_name] = np.round(np.concatenate(event_dict[event_name]), 1)
+                event_dict[event_name] = np.concatenate(event_dict[event_name])
             except ValueError:
                 event_dict[event_name] = np.array(event_dict[event_name])
 

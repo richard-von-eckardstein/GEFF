@@ -9,6 +9,7 @@ from .utility.aux_mode  import mode_equation_classic, bd_classic
 from typing import Tuple, Callable, ClassVar
 from types import NoneType
 from ._docs import generate_docs, docs_mbm
+from tabulate import tabulate
 
 
 class GaugeSpec(dict):
@@ -410,19 +411,22 @@ class GaugeSpec(dict):
     
     @staticmethod
     def _error_summary(bin_errs, bin_terr, references : list[str]=["E", "B", "G"]):
-        print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:")
-        for i, key in enumerate(references):
-            err = bin_errs[i]
-            errind = np.where(err == max(err))
-            rmserr = np.round(100*np.sqrt(np.sum(err**2)/len(err)), 1)
-            maxerr = np.round(100*err[errind][0], 1)
-            tmaxerr = bin_terr[errind][0]#np.round(Nerr[errind][0], 1)
-            errend = np.round(100*err[-1], 1)
-            terrend = bin_terr[-1]#np.round(Nerr[-1], 1)
-            print(f"\t-- {key} --")
-            print(f"max: {maxerr}% at t={tmaxerr}")
-            print(f"final: {errend}% at t={terrend}")
-            print(f"RMS: {rmserr}%")
+        print("The mode-by-mode comparison finds the following relative deviations from the GEF solution:\n")
+
+        lst = []
+        for err in bin_errs:
+            rmserr = 100*np.sqrt(np.sum(err**2)/len(err))
+            finerr = 100*err[-1]
+            maxerr = 100*max(err)
+
+            tmaxerr = bin_terr[np.argmax(err)]
+            tfinerr = bin_terr[-1]
+
+            lst.append([f"{maxerr:{3}.{1}}% at {tmaxerr:{3}.{1}}",
+                        f"{finerr:{3}.{1}}% at {tfinerr:{3}.{1}}",
+                        f"{rmserr:{3}.{1}}%"])
+
+        print(tabulate(lst, headers=["max", "final", "RMS"], showindex=references, tablefmt="simple")+"\n")
         return
 
    
@@ -506,7 +510,7 @@ class BaseModeSolver:
     mode_equation = staticmethod(mode_equation_classic)
     initialise_in_bd = staticmethod(bd_classic)
 
-    def __init__(self, sys : BGSystem):
+    def __init__(self, insys : BGSystem):
         """
         Import the evolution of the background dynamics to configure the solver.
 
@@ -524,6 +528,9 @@ class BaseModeSolver:
         ValueError:
             if the keys in `necessary_keys` are not `Val` or `Func` objects.
         """
+        sys = BGSystem.from_system(insys, copy=True)
+        sys.set_units(False)
+
         #Check that all necessary keys are there:
         for key in self.necessary_keys:
             check = True
@@ -535,9 +542,6 @@ class BaseModeSolver:
                     )
             if not(check):
                 raise KeyError(f"'sys' needs to own an attribute called '{key}'.")
-        
-        #Ensure that all values from the BGSystem are imported without units
-        sys.set_units(False)
 
         #store the relevant background evolution parameters
         self.__t = sys.t.value
