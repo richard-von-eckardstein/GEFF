@@ -30,7 +30,7 @@ class OmegaGW:
 
         Nend = N[-1]
 
-        self.__omega = values.H0
+        self.__omega = values.omega
         
         #Assess if the end of inflation is reached for this run
         """if np.log10(abs(max(N) - Nend)) > -2:

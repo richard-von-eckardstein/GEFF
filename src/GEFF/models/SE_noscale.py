@@ -34,11 +34,11 @@ def define_conductivity():
     if settings["pic"]=="mixed":
         conductivity = conductivities_mixed
     elif settings["pic"]=="electric":
-        def conductivity(a, H, E, B, G, H0):
-            return conductivities_collinear(a, H, E, B, G, -1, H0)
+        def conductivity(a, H, E, B, G, omega):
+            return conductivities_collinear(a, H, E, B, G, -1, omega)
     elif settings["pic"]=="magnetic":
-        def conductivity(a, H, E, B, G, H0):
-            return conductivities_collinear(a, H, E, B, G, 1, H0)
+        def conductivity(a, H, E, B, G, omega):
+            return conductivities_collinear(a, H, E, B, G, 1, omega)
     else:
         raise KeyError(f"{settings['pic']} is an unknown choice for the setting'pic'")
     return np.vectorize(conductivity)
@@ -113,10 +113,10 @@ def define_units(consts, init, funcs):
     rhochi = init["rhoChi"]
     H0 = friedmann( rhoK, rhoV, rhochi )
     
-    freq = H0 #Characteristic frequency is the initial Hubble rate
-    amp = 1. #Charatcterisic amplitude is the Planck mass
+    omega = H0 #Characteristic frequency is the initial Hubble rate
+    mu = 1. #Charatcterisic amplitude is the Planck mass
 
-    return freq, amp
+    return omega, mu
 
 #the new function for sys_to_yini in GEFSolver
 def initial_conditions(sys, ntr):
@@ -159,11 +159,11 @@ def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
 
     #Hubble rate
     sys.H.set_value( friedmann(0.5*sys.dphi**2, sys.V(sys.phi), 
-                                0.5*(sys.E+sys.B)*sys.H0**2, sys.rhoChi*sys.H0**2) )
+                                0.5*(sys.E+sys.B)*sys.omega**2, sys.rhoChi*sys.omega**2) )
 
     #conductivities
     sigmaE, sigmaB, ks = conductivity(sys.a.value, sys.H.value, sys.E.value,
-                                       sys.B.value, sys.G.value, sys.H0)
+                                       sys.B.value, sys.G.value, sys.omega)
     eps = np.maximum(abs(y[0])*rtol, atol)
     GlobalFerm = heaviside(np.log(ks/(sys.a*sys.H)), eps)
     sys.sigmaE.set_value(GlobalFerm*sigmaE)
@@ -175,7 +175,7 @@ def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
     sys.xieff.set_value(sys.xi + sys.sigmaB/(2*sys.H))
 
     #acceleration for convenience
-    sys.ddphi.set_value( klein_gordon(sys.dphi, sys.dV(sys.phi), sys.H, -sys.G*sys.beta*sys.H0**2) )
+    sys.ddphi.set_value( klein_gordon(sys.dphi, sys.dV(sys.phi), sys.H, -sys.G*sys.beta*sys.omega**2) )
     return
 
 def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
@@ -218,7 +218,7 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
 
 #Event 1: Track the end of inflation:
 def condition_EndOfInflation(t, y, sys):
-    ratio = sys.H0/sys.MP
+    ratio = sys.omega/sys.mu
     dphi = y[2]
     V = sys.V(y[1])
     rhoEB = 0.5*(y[6]+y[7])*ratio**2*np.exp(4*(y[3]-y[0]))

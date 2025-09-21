@@ -37,7 +37,7 @@ class PT:
         a = np.exp(N)
         H = sys.H.value
 
-        self._H0 = sys.H0
+        self._omega = sys.omega
             
         #Set the range of modes
         self.maxk = np.maximum(a*H)
@@ -160,7 +160,7 @@ class PT:
                 PT["tot"] += PT[key]
 
         #this returns k with units restored. Needs to be matched by omega_GW
-        return ks*self._H0, PT
+        return ks*self._omega, PT
     
     def compute_homogeneous(self, k : float, tvac : float, teval : np.ndarray|NoneType, atol : float=1e-3, rtol : float=1e-4) -> Tuple[np.ndarray, np.ndarray]:
         r"""
@@ -412,7 +412,7 @@ class PT:
         PTvac : NDArray
             the vacuum tensor power spectrum
         """
-        PTvac = 2*(k*self._H0)**2/( np.pi**2 ) * abs(uk)**2
+        PTvac = 2*(k*self._omega)**2/( np.pi**2 ) * abs(uk)**2
         return PTvac
 
     def compute_ptind(self, k : float, lgrav : float, Ngrid : np.ndarray, ind: int, GreenN : np.ndarray, pgrid : np.ndarray,
@@ -514,7 +514,7 @@ class PT:
             IntOuter.append(trapezoid(IntInner, Bs))
         IntOuter = np.array(IntOuter)
 
-        PTind = trapezoid(IntOuter, logAs) / (16*np.pi**4)*(k*self._H0)**4
+        PTind = trapezoid(IntOuter, logAs) / (16*np.pi**4)*(k*self._omega)**4
 
         return PTind
     
@@ -527,7 +527,7 @@ class PT:
         PT : dict
             a dictionary containing the analyitcal estimates
         """
-        H = self._H0*self._H
+        H = self._omega*self._H
         xi = abs(self._xi)
         pre = (H/np.pi)**2 # * (self._H)**(self._nT)
         if np.sign(self._xi[0]) > 0:                

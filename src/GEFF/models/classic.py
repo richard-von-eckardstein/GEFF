@@ -68,10 +68,10 @@ def define_units(consts, init, funcs):
     rhoV = funcs["V"](init["phi"])
     H0 = friedmann( rhoK, rhoV )
     
-    freq = H0 #Characteristic frequency is the initial Hubble rate in Planck units
-    amp = 1. #Charatcterisic amplitude is the Planck mass (in Planck units)
+    omega = H0 #Characteristic frequency is the initial Hubble rate in Planck units
+    mu = 1. #Charatcterisic amplitude is the Planck mass (in Planck units)
 
-    return freq, amp
+    return omega, mu
 
 #define sys_to_yini for GEFSolver
 def initial_conditions(sys, ntr):
@@ -106,13 +106,13 @@ def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
     sys.G.set_value( y[6]*np.exp(4*(y[3]-y[0])))
 
     #Hubble rate
-    sys.H.set_value( friedmann(0.5*sys.dphi**2, sys.V(sys.phi), 0.5*(sys.E+sys.B)*sys.H0**2) )
+    sys.H.set_value( friedmann(0.5*sys.dphi**2, sys.V(sys.phi), 0.5*(sys.E+sys.B)*sys.omega**2) )
 
     #boundary term parameter
     sys.xi.set_value( sys.beta*(sys.dphi/(2*sys.H)))
 
     #acceleration for convenience
-    sys.ddphi.set_value( klein_gordon(sys.dphi, sys.dV(sys.phi), sys.H, -sys.G*sys.beta*sys.H0**2)  )
+    sys.ddphi.set_value( klein_gordon(sys.dphi, sys.dV(sys.phi), sys.H, -sys.G*sys.beta*sys.omega**2)  )
     return
 
 #define timestep for GEFSolver
@@ -148,7 +148,7 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
 def condition_EndOfInflation(t, y, sys):
     dphi = y[2]
     V = sys.V(y[1])
-    rhoEB = 0.5*(y[4]+y[5])*(sys.H0/sys.MP)**2*np.exp(4*(y[3]-y[0]))
+    rhoEB = 0.5*(y[4]+y[5])*(sys.omega/sys.mu)**2*np.exp(4*(y[3]-y[0]))
     val = np.log(abs((dphi**2 + rhoEB)/V))
     return val
 

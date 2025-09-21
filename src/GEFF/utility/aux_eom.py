@@ -339,7 +339,7 @@ def gauge_field_ode_schwinger(F : np.ndarray, a : float, kh : float, sclrCpl : f
 
 def conductivities_collinear(a  : float, H  : float,
                            E  : float, B : float, G : float,
-                             picture : int, H0 : float) -> Tuple[float, float, float]:
+                             picture : int, omega : float) -> Tuple[float, float, float]:
     r"""
     Compute electric & magnetic conductivities and the damping scale $k_{\rm S}$
     assuming collinear E & M fields.
@@ -358,7 +358,7 @@ def conductivities_collinear(a  : float, H  : float,
         the expectation value of $-\langle {\bf E} \cdot {\bf B} \rangle$
     picture : int
         an integer specifying electric (=-1) or magnetic pictures (=1) 
-    H0 : float
+    omega : float
         the reference frequency to convert from numerical to physical units
 
     Returns
@@ -377,7 +377,7 @@ def conductivities_collinear(a  : float, H  : float,
         mu = (mu/2)**(1/4)
         mz = 91.2/(2.43536e18)
         gmz = 0.35
-        gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*H0))))
+        gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*omega))))
         
         C = 41/12
 
@@ -391,7 +391,7 @@ def conductivities_collinear(a  : float, H  : float,
     
 def conductivities_mixed(a  : float, H  : float,
                            E  : float, B : float, G : float,
-                            H0 : float) -> Tuple[float, float, float]:
+                            omega : float) -> Tuple[float, float, float]:
     r"""
     Compute electric & magnetic conductivities and the damping scale $k_{\rm S}$
     in the mixed picture.
@@ -408,7 +408,7 @@ def conductivities_mixed(a  : float, H  : float,
         the magnetic field expecation value, $\langle {\bf B}^2 \rangle$
     G : float
         the expectation value of $-\langle {\bf E} \cdot {\bf B} \rangle$
-    H0 : float
+    omega : float
         the reference frequency to convert from numerical to physical units
 
     Returns
@@ -427,7 +427,7 @@ def conductivities_mixed(a  : float, H  : float,
         mz = 91.2/(2.43536e18)
         mu = ((Sigma)/2)**(1/4)
         gmz = 0.35
-        gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*H0))))
+        gmu = np.sqrt(gmz**2/(1 + gmz**2*41./(48.*np.pi**2)*np.log(mz/(mu*omega))))
 
         Eprime = np.sqrt( (E - B + Sigma)/2 )
         Bprime = np.sqrt( (B- E + Sigma)/2 )

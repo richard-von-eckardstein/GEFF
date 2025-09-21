@@ -21,8 +21,8 @@ class TestBGSystem():
     
     def test_init(self):
         U = self.init()
-        assert U.H0 == 0.55
-        assert U.MP == 0.32
+        assert U.omega == 0.55
+        assert U.mu == 0.32
 
     def test_initFromU(self):
         U = self.init()
@@ -31,8 +31,8 @@ class TestBGSystem():
         #check full copy
         V = BGSystem.from_system(U, copy=True)
 
-        assert V.H0 == U.H0
-        assert V.MP == U.MP
+        assert V.omega == U.omega
+        assert V.mu == U.mu
         assert V.quantity_names() == U.quantity_names()
         assert V.variable_list() == U.variable_list()
         assert V.function_list() == U.function_list()
@@ -41,8 +41,8 @@ class TestBGSystem():
         #check empty copy
         V = BGSystem.from_system(U, copy=False)
 
-        assert V.H0 == U.H0
-        assert V.MP == U.MP
+        assert V.omega == U.omega
+        assert V.mu == U.mu
         assert V.quantity_names() == U.quantity_names()
         assert V.variable_list() == []
         assert V.function_list() == []
@@ -114,9 +114,9 @@ class TestBGSystem():
 
     def test_add_obj(self):
         U = self.init()
-        U.add_BGVar("y", 0, 2)
-        U.add_BGConst("d", 2, 1)
-        U.add_BGFunc("g", [U.quantities["y"]], 2, 0)
+        U.add_variable("y", 0, 2)
+        U.add_constant("d", 2, 1)
+        U.add_function("g", [U.quantities["y"]], 2, 0)
         names = U.quantity_names()
         assert "y" in names
         assert "g" in names

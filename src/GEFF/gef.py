@@ -56,11 +56,11 @@ class BaseGEF(BGSystem):
         for input_type, input_dict  in user_input.items():
             self._check_input(input_dict, input_type)
 
-        H0, MP = self.define_units(*user_input.values())
+        omega, mu = self.define_units(*user_input.values())
 
         known_objects = set().union(*[item for key, item in self.GEFSolver.known_variables.items() if key!="gauge"] )
 
-        super().__init__(known_objects, H0, MP)
+        super().__init__(known_objects, omega, mu)
 
         #Add initial data to BGSystem
         for name, constant in user_input["constants"].items():
@@ -121,7 +121,7 @@ class BaseGEF(BGSystem):
         Solve the ODE's of the GEF using `GEFSolver`. Cross check the solution using `ModeSolver`.
 
         The `GEFSolver` is initialized using the initial conditions defined by the class.
-        If the solver returns a succesful solution, `ModeSolver.compute_spectrum` computes a gauge field spectrum
+        If the solver returns a successful solution, `ModeSolver.compute_spectrum` computes a gauge field spectrum
          to perform a mode-by-mode cross check (unless `nmodes=None`).
         If the mode-by-mode cross check is a success, the solution is stored in the underlying `BGSystem` of the class.
         Otherwise, the `GEFSolver` tries to self correct using the gauge field spectrum. This is attempted for `mbm_attempts` or until successful.
