@@ -2,6 +2,42 @@ r"""
 Module defining the GEF model "SE no-scale" corresponding to fermionic axion inflation without a heuristic scale dependence.
 
 For more details on this model, see e.g., [2109.01651](https://arxiv.org/abs/2109.01651).
+
+---
+
+The model knows the following variables:
+* time variable: `t` - *cosmic time*, $t$ 
+* dynamical variables:
+    * `N` - *$e$-folds*,  $N$
+    * `phi`, `dphi` - *inflaton amplitude, $\varphi$, and velocity, $\dot{\varphi}$* 
+    * `kh` -  *the instability scale, $k_{\rm h}$*
+    * `delta` - *cumulative electric damping, $\Delta$*
+    * `rhoChi` - *fermion energy density, $\rho_{\chi}$*
+* static variables:
+    * `a` - *scale factor, $a$* 
+    * `H` - *Hubble rate, $H$* 
+    * `ddphi` - *inflaton acceleration, $\ddot{\varphi}$*
+    * `E`, `B`, `G` - *gauge-field expectation values, $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, -$\langle {\bf E} \cdot {\bf B} \rangle$*
+    * `xi` - *instability parameter, $\xi$* 
+    * `sigmaE`, `sigmaB` - *electric and magnetic conductivities, $\sigma_{\rm E}$, $\sigma_{\rm B}$*
+    * `xieff` - *effective instability parameter, $\xi_{\rm eff}$*
+    * `s` - *electric damping parameter, $s = \sigma_{\rm E}/(2H)$*
+* constants: 
+    * `beta` - *coupling strength, $\beta$*
+* functions: 
+    * `V`,`dV` - *inflaton potential, $V(\varphi)$, and its derivative, $V_{,\varphi}(\varphi)$*
+* gauge field: 
+    * `GF` - *tower of gauge bilinears, $\mathcal{F}_{\mathcal X}^{(n)}$*
+
+The model expects the following input:
+* `phi`, `dphi` - *initial data on the inflaton, $\varphi$, $\dot\varphi$*
+* `rhoChi` - *initial data on the fermion energy density, $\rho_{\chi}$*
+* `beta` - *coupling strength, $\beta$*
+* `V`, `dV` - *potential shape, $V(\varphi)$, $V_{,\varphi}(\varphi)$*
+
+The model tracks the following events:
+* end of inflation - terminate solver when $\ddot{a} < 0$
+* negative energy - return an error when $\langle {\bf E}^2 \rangle$ or  $\langle {\bf B}^2 \rangle$ are negative 
 """
 import numpy as np
 
@@ -49,61 +85,32 @@ def interpret_settings():
     return
 
 #Define all additional variables
-sigmaE=BGVar("sigmaE", 1, 0) #electric damping
-sigmaB=BGVar("sigmaB", 1, 0) #magnetic damping 
-delta=BGVar("delta", 0, 0) #integrated electric damping
-xieff=BGVar("xieff", 0, 0) #effective instability parameter
-s=BGVar("s", 0, 0) #electric damping parameter,
-rhoChi=BGVar("rhoChi", 4, 0)#Fermion energy density 
+sigmaE=BGVar("sigmaE", 1, 0, "electric damping")
+sigmaB=BGVar("sigmaB", 1, 0, "magnetic damping")
+delta=BGVar("delta", 0, 0, "cumulative electric damping") 
+xieff=BGVar("xieff", 0, 0, "effective instabilty parameter") 
+s=BGVar("s", 0, 0, "electric damping parameter")
+rhoChi=BGVar("rhoChi", 4, 0, "fermion energy density")
 
 # define gauge field by assigning a name, 0th-order quantities and cut-off scale
-GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})
+GF1 = type("GF", (object,), {"name":"GF","associated":[E, B, G], "UV":kh})
 
 #Assign quantities to a dictionary, classifying them by their role:
 quantities={
-            "time":{t},
-            "dynamical":{N, phi, dphi, kh, delta, rhoChi},
-            "static":{a, H, xi, E, B, G, ddphi, sigmaE, sigmaB, xieff, s},
-            "constant":{beta},
-            "function":{V, dV},
-            "gauge":{GF1}
+            "time":[t],
+            "dynamical":[N, phi, dphi, kh, delta, rhoChi],
+            "static":[a, H, xi, E, B, G, ddphi, sigmaE, sigmaB, xieff, s],
+            "constant":[beta],
+            "function":[V, dV],
+            "gauge":[GF1]
             }
-r"""The following variables are tracked by the model:
-
-* **time variable**: cosmic time, $t$
-* **dynamical variable**:
-    * $e$-folds, $N$
-    * inflaton amplitude and its velocity, $\varphi$, $\dot{\varphi}$
-    * the instability scale $k_{\rm h}$
-    * fermion energy density, $\rho_{\chi}$
-    * cumulative electric damping, $\Delta$
-* **static variables**:
-    * scale factor: $a$
-    * Hubble rate: $H$
-    * instability parameter $\xi$
-    * gauge-field expectation values: $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, $-\langle {\bf E} \cdot {\bf B} \rangle$
-    * inflaton acceleration, $\ddot{\varphi}$
-    * electric and magnetic conductivities $\sigma_{\rm E/B}$
-    * effective instability parameter $\xi_{\rm eff}$
-    * effective electric damping, $s = \sigma_{\rm E}/(2H)$
-* **constants**: coupling strength, $\beta$
-* **functions**: inflaton potential and its derivative, $V(\varphi)$, $V_{,\varphi}(\varphi)$
-* **gauge**: tower of re-scales gauge-bilinears, $\mathcal{F}_{\mathcal X}^{(n)}$, $\mathcal{X} = \mathcal{E}, \mathcal{B}, \mathcal{G}$
-"""
 
 #State which variables require input for initialisation
 input = {
-        "initial data":{"phi", "dphi", "rhoChi"},
-        "constants":{"beta"},
-        "functions":{"V", "dV"}
+        "initial data":[phi, dphi, rhoChi],
+        "constants":[beta],
+        "functions":[V, dV]
         }
-r"""Define the expected input of the model.
-
-* initial data on the inflaton: $\varphi$, $\dot\varphi$
-* initial data on the fermionic energy density: $\rho_{\chi}$
-* coupling strength: $\beta$
-* potential shape: $V(\varphi)$, $V_{,\varphi}(\varphi)$
-"""
 
 #this functions is called upon initialisation of the GEF class
 def define_units(consts, init, funcs):

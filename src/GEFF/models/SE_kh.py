@@ -1,7 +1,42 @@
 r"""
-Module defining the GEF model "SE-kh" corresponding to fermionic axion inflation with a heuristic scale dependence given by the instability scale $k_{\rm h}$.
+Defines the GEF model "SE-kh" corresponding to fermionic axion inflation with a heuristic scale dependence model through the instability scale $k_{\rm h}$.
 
 For more details on this model, see e.g., [2408.16538](https://arxiv.org/abs/2408.16538).
+
+---
+
+The model knows the following variables:
+* time variable: `t` - *cosmic time*, $t$ 
+* dynamical variables:
+    * `N` - *$e$-folds*,  $N$
+    * `phi`, `dphi` - *inflaton amplitude, $\varphi$, and velocity, $\dot{\varphi}$* 
+    * `kh` -  *the instability scale, $k_{\rm h}$*
+    * `rhoChi` - *fermion energy density, $\rho_{\chi}$*
+* static variables:
+    * `a` - *scale factor, $a$* 
+    * `H` - *Hubble rate, $H$* 
+    * `ddphi` - *inflaton acceleration, $\ddot{\varphi}$*
+    * `E`, `B`, `G` - *gauge-field expectation values, $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, -$\langle {\bf E} \cdot {\bf B} \rangle$*
+    * `xi` - *instability parameter, $\xi$* 
+    * `sigmaE`, `sigmaB` - *electric and magnetic conductivities, $\sigma_{\rm E}$, $\sigma_{\rm B}$*
+    * `xieff` - *effective instability parameter, $\xi_{\rm eff}$*
+    * `kS` - *fermion momentum scale, $k_{\rm S}$*
+* constants: 
+    * `beta` - *coupling strength, $\beta$*
+* functions: 
+    * `V`,`dV` - *inflaton potential, $V(\varphi)$, and its derivative, $V_{,\varphi}(\varphi)$*
+* gauge field: 
+    * `GF` - *tower of gauge bilinears, $\mathcal{F}_{\mathcal X}^{(n)}$*
+
+The model expects the following input:
+* `phi`, `dphi` - *initial data on the inflaton, $\varphi$, $\dot\varphi$*
+* `rhoChi` - *initial data on the fermion energy density, $\rho_{\chi}$*
+* `beta` - *coupling strength, $\beta$*
+* `V`, `dV` - *potential shape, $V(\varphi)$, $V_{,\varphi}(\varphi)$*
+
+The model tracks the following events:
+* end of inflation - terminate solver when $\ddot{a} < 0$
+* negative energy - return an error when $\langle {\bf E}^2 \rangle$ or  $\langle {\bf B}^2 \rangle$ are negative 
 """
 import numpy as np
 
@@ -26,7 +61,7 @@ settings = {"pic":"mixed"}
 Possible settings are "mixed", "electric", "magnetic".
 
 Determines if conductivities are computed assuming collinear E&M fields 
-("electric", "magnetic") or not ("mixed")
+("electric", "magnetic") or not ("mixed").
 """
 
 # parse settings
@@ -48,63 +83,33 @@ def interpret_settings():
     conductivity = define_conductivity()
     return
 
-
-
-
 #Define additional variables
-sigmaE=BGVar("sigmaE", 1, 0) #electric damping
-sigmaB=BGVar("sigmaB", 1, 0) #magnetic damping 
-xieff=BGVar("xieff", 0, 0) #effective instability parameter
-rhoChi=BGVar("rhoChi", 4, 0)#Fermion energy density 
-kS=BGVar("kS", 1, 0)#Fermion energy density 
+sigmaE=BGVar("sigmaE", 1, 0, "electric damping")
+sigmaB=BGVar("sigmaB", 1, 0, "magnetic damping")
+xieff=BGVar("xieff", 0, 0, "effective instability parameter")
+rhoChi=BGVar("rhoChi", 4, 0, "fermion energy density")
+kS=BGVar("kS", 1, 0, "fermion momentum scale")#Fermion energy density 
 
 # define gauge field by assigning a name, 0th-order quantities and cut-off scale
-GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})
+GF1 = type("GF", (object,), {"name":"GF","associated":[E, B, G], "UV":kh})
 
 #Assign quantities to a dictionary, classifying them by their role:
 quantities={
-            "time":{t}, #time coordinate according to which EoMs are expressed
-            "dynamical":{N, phi, dphi, kh, rhoChi}, #variables which evolve in time according to an EoM
-            "static":{a, H, xi, E, B, G, ddphi, sigmaE, sigmaB, xieff, kS}, #variables which are derived from dynamical variables
-            "constant":{beta}, #constant quantities in the model
-            "function":{V, dV}, #functions of variables such as scalar potentials
-            "gauge":{GF1} #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
+            "time":[t], #time coordinate according to which EoMs are expressed
+            "dynamical":[N, phi, dphi, kh, rhoChi], #variables which evolve in time according to an EoM
+            "static":[a, H, xi, E, B, G, ddphi, sigmaE, sigmaB, xieff, kS], #variables which are derived from dynamical variables
+            "constant":[beta], #constant quantities in the model
+            "function":[V, dV], #functions of variables such as scalar potentials
+            "gauge":[GF1] #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
             }
-r"""The following variables are tracked by the model:
-
-* **time variable**: cosmic time, $t$
-* **dynamical variable**:
-    * $e$-folds, $N$
-    * inflaton amplitude and its velocity, $\varphi$, $\dot{\varphi}$
-    * the instability scale $k_{\rm h}$
-    * fermion energy density, $\rho_{\chi}$
-* **static variables**:
-    * scale factor: $a$
-    * Hubble rate: $H$
-    * instability parameter $\xi$
-    * gauge-field expectation values: $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, $-\langle {\bf E} \cdot {\bf B} \rangle$
-    * inflaton acceleration, $\ddot{\varphi}$
-    * effective instability parameter $\xi_{\rm eff}$
-    * electric and magnetic conductivities $\sigma_{\rm E/B}$
-    * fermion momentum scale, $k_{\rm S} = k_{\rm h}$
-* **constants**: coupling strength, $\beta$
-* **functions**: inflaton potential and its derivative, $V(\varphi)$, $V_{,\varphi}(\varphi)$
-* **gauge**: tower of re-scales gauge-bilinears, $\mathcal{F}_{\mathcal X}^{(n)}$, $\mathcal{X} = \mathcal{E}, \mathcal{B}, \mathcal{G}$
-"""
 
 #State which variables require input for initialisation
 input = {
-        "initial data":{"phi", "dphi", "rhoChi"},
-        "constants":{"beta"},
-        "functions":{"V", "dV"}
+        "initial data":[phi, dphi, rhoChi],
+        "constants":[beta],
+        "functions":[V, dV]
         }
-r"""Define the expected input of the model.
 
-* initial data on the inflaton: $\varphi$, $\dot\varphi$
-* initial data on the fermionic energy density: $\rho_{\chi}$
-* coupling strength: $\beta$
-* potential shape: $V(\varphi)$, $V_{,\varphi}(\varphi)$
-"""
 
 #this functions is called upon initialisation of the GEF class
 def define_units(consts, init, funcs):

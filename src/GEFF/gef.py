@@ -13,7 +13,6 @@ from types import NoneType
 
 class BaseGEF(BGSystem):
     
-
     GEFSolver = classic.solver
     """The solver used to solve the GEF equations in `run`."""
     ModeSolver = classic.MbM
@@ -91,13 +90,31 @@ class BaseGEF(BGSystem):
         """
         Print the input required to initialize the class.
         """
-        print("This GEF model requires the following input:")
+        print("This GEF model expects the following input:\n")
         for key, item in cls._input_signature.items():
-            print(f"\t {key.capitalize()}: {item}")
+            print(f"{key.capitalize()}:")
+            for i in item:
+                print(f" * {i.get_description()}")
         return
+    
+    @classmethod
+    def print_known_variables(cls):
+        """
+        Print a list of known variables for this model
+        """
+        print("This GEF model knows the following variables:\n")
+        for key, item in cls.GEFSolver.known_variables.items():
+            if len(item) > 0:
+                print(f"{key}:")
+                for i in item:
+                    if key=="gauge":
+                        print(f" * {i.name} - associated with: {[ass.name for ass in i.associated]}, UV cutoff: {i.UV.name}")
+                    else:
+                        print(f" * {i.get_description()}")
 
     def _check_input(self, input_data : dict, input_type : str):
-        for key in self._input_signature[input_type]:
+        for val in self._input_signature[input_type]:
+            key = val.name
             try:
                 assert key in input_data.keys()
             except AssertionError:
@@ -496,7 +513,7 @@ def _load_model(model : str, user_settings : dict):
     return mod
 
 
-def GEF(modelname:str, settings:dict):
+def GEF(modelname:str, settings:dict={}):
     """
     Define a custom subclass of BaseGEF adapted to a new GEF model.
 

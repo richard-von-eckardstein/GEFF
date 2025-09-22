@@ -1,8 +1,8 @@
 DOCS = {
-    "define_units":r"""Define how initial data is used to define the reference frequency and energy scale.
+    "define_units":r"""Define how initial data is used to set the reference frequency, $\omega$ and energy scale, $\mu$.
     
     * energy scale: $M_{\rm P}$ in Planck units
-    * frequency scale: initial Hubble rate, $H$ (in Planck units)
+    * frequency scale: initial Hubble rate, $H_0$ (in Planck units)
 
     Parameters
     ----------

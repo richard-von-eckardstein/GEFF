@@ -29,9 +29,6 @@ For release
 - Parse models before creation? 
 - What to do about output? SQL Datenbanken?... Es gibt "eval" in python: str -> function. Reverse?
 - gauge field class
-- test constants and description
-- update docs for constant and description
-- rename H0 and MP in BGSys etc.
 - rework input to not need dictionaries
 - Write arxiv manual
 - write read me

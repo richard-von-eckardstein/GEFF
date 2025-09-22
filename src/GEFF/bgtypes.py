@@ -378,8 +378,9 @@ class Quantity:
             return f"{self.name} (numerical)"
         elif self._units:
             return f"{self.name} (physical)"
-        
-    def what(self) -> str:
+    
+    @classmethod
+    def get_description(self) -> str:
         """
         Return a string describing the object.
 
@@ -387,7 +388,10 @@ class Quantity:
         -------
         string : str
         """
-        return self.description
+        if self.description=="":
+            return f"{self.name}"
+        else:
+            return f"{self.name} - {self.description}"
         
     def get_units(self) -> bool:
         """
@@ -844,7 +848,7 @@ generate_docs(docs_bgtypes.DOCS)
     
 #Some usful pre-defined quantities
 #Space--time variables:
-t=BGVar("t", -1, 0, "physical time")
+t=BGVar("t", -1, 0, "cosmic time")
 N=BGVar("N", 0, 0, "e-folds")
 a=BGVar("a", 0, 0, "scale factor")
 H=BGVar("H", 1, 0, "Hubble rate")
@@ -859,8 +863,8 @@ V=BGFunc("V", [phi], 2, 2, "scalar potential")
 dV=BGFunc("dV", [phi], 2, 2, "scalar-potential derivative")
 
 #Gauge-field variables:
-E=BGVar("E", 4, 0, "electric field expectation value, E^2")
-B=BGVar("B", 4, 0, "magnetic field expectation value, B^2")
+E=BGVar("E", 4, 0, "electric-field expectation value, E^2")
+B=BGVar("B", 4, 0, "magnetic-field expectation value, B^2")
 G=BGVar("G", 4, 0, "Chern-Pontryagin expectation value, -E.B")
 
 #Auxiliary quantities:
