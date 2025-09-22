@@ -357,29 +357,29 @@ class Quantity:
 
     def __repr__(self):
         r"""
-        A string representing the class, giving its scaling with frequency ($\omega$) and energy ($\mu$), and a brief description.
-
-        Returns
-        -------
-        repr : str
-            the string representation.
+        A string representing the class, giving its name and scaling with frequency ($\omega$) and energy ($\mu$).
         """
-        return f"{self.name}({self.u_omega},{self.u_mu}) - {self.description}"
+        return f"{self.name}({self.u_omega},{self.u_mu})"
 
     def __str__(self) -> str:
         """
         The class instance as a string including its name and current units.
-
-        Returns
-        -------
-        string : str
-            the string representation.
         """
 
         if not(self._units):
             return f"{self.name} (numerical)"
         elif self._units:
             return f"{self.name} (physical)"
+    
+    @classmethod
+    def get_description(cls) -> str:
+        """
+        Return a string describing the object.
+        """
+        if cls.description=="":
+            return f"{cls.name}"
+        else:
+            return f"{cls.name} - {cls.description}"
         
     def get_units(self) -> bool:
         """
@@ -433,7 +433,7 @@ class Val(Quantity):
         """
         super().__init__(sys)
         self.value =  value
-        """A 1-D array of values in the units of the class instance."""
+        """The objects value in its respective units."""
 
     def __str__(self) -> str:
         """
@@ -640,8 +640,6 @@ class Func(Quantity):
 
     
 class Variable(Val):
-    """A `Val` object representing a variable quantity with time."""
-
     dtype : ClassVar[np.floating] = np.float64
     """The data type of `value`."""
     
@@ -682,11 +680,6 @@ class Variable(Val):
      
      
 class Constant(Val):
-    """
-    A `Val` that represents a constant with time.
-
-    This subclass 
-    """
     def __init__(self, value : float, sys : BGSystem):
         """
         Create a new instance using a float and a BGSystem
@@ -830,13 +823,43 @@ def BGFunc(qname : str, func_args : list[Val], q_u_omega : int, q_u_mu : int, q_
 
     return CustomFunc
 
+class GaugeField:
+    """
+    A low level class defining some basic properties of gauge-field bilinear towers.
+    """
+    name : ClassVar[str] = ""
+    """The name of the class."""
+    associated : ClassVar[list[Variable]]= []
+    """
+    A list of the 0th order quantities which are associated with this class.
+    """
+    cutoff : Variable = None
+    """The UV-regulator cutoff scale associated with this class."""
+        
+    @classmethod
+    def get_description(cls) -> str:
+        """Return a string describing the object."""
+        return f"{cls.name} - associated with: {[a.name for a in cls.associated]}, UV cutoff: {cls.cutoff.name}"
+
+def BGGauge(qname : str, qassociated : list[Variable], qcutoff : Variable):
+    """
+    A class factory creating custom  `GaugeField` classes with new name, associated variables, and cutoff scale.
+    """
+    class CustomGaugeField(GaugeField):
+        name = qname
+        associated = qassociated
+        cutoff = qcutoff
+        
+    CustomGaugeField.__qualname__ = f"GaugeField_{qname}"
+    CustomGaugeField.__module__ = __name__
+    return CustomGaugeField
 
 #Add docstrings
 generate_docs(docs_bgtypes.DOCS)
     
 #Some usful pre-defined quantities
 #Space--time variables:
-t=BGVar("t", -1, 0, "physical time")
+t=BGVar("t", -1, 0, "cosmic time")
 N=BGVar("N", 0, 0, "e-folds")
 a=BGVar("a", 0, 0, "scale factor")
 H=BGVar("H", 1, 0, "Hubble rate")
@@ -851,8 +874,8 @@ V=BGFunc("V", [phi], 2, 2, "scalar potential")
 dV=BGFunc("dV", [phi], 2, 2, "scalar-potential derivative")
 
 #Gauge-field variables:
-E=BGVar("E", 4, 0, "electric field expectation value, E^2")
-B=BGVar("B", 4, 0, "magnetic field expectation value, B^2")
+E=BGVar("E", 4, 0, "electric-field expectation value, E^2")
+B=BGVar("B", 4, 0, "magnetic-field expectation value, B^2")
 G=BGVar("G", 4, 0, "Chern-Pontryagin expectation value, -E.B")
 
 #Auxiliary quantities:
@@ -861,3 +884,6 @@ kh=BGVar("kh", 1, 0, "instability scale")
 
 #constants
 beta=BGConst("beta", 0, -1, "inflaton--gauge-field coupling beta/Mp")
+
+#basic gauge-field
+GF = BGGauge("GF", [E, B, G], kh)

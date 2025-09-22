@@ -1,8 +1,8 @@
 val_docs = r"""
-    A `Quantity` subclass used as basis for defining real-valued variables of cosmic time and constants.
+    A `Quantity` subclass used as basis for defining real-valued variables and constants.
      
-    In addition to the basic structure defined by `Quantity`, this class can be used like an arithmetic type
-    defining basic arithmetic operations for its instances as operations on its underlying `value` attribute.
+    In addition to the basic structure defined by `Quantity`, this class can be used like an arithmetic type.
+    It defines basic arithmetic operations on its instances as operations on their underlying `value` attribute.
 
     As a subclass of `Quantity` it inherits all its attributes and methods, but re-defines the `set_units` method
     such that changing units converts `value` according to `Quantity.get_conversion`.
@@ -14,11 +14,11 @@ variable_docs = r"""
     A `Val` subclass representing real-valued variables evolving with cosmic time.
 
     Instances of this class can be used like a 1-D Numpy-Array for mathematical operations as defined by `Val`.
-     It can be indexed like a Numpy-Array, returning the associated index of `value`.
+     Indexed returns the associated index of `value`.
     """
 
 variable_addendum = r"""
-    A typical `Variable` is the scalar field velocity, $\dot\varphi \sim \omega\mu$    
+    A typical `Variable` is the scalar field velocity, $\dot\varphi = \omega\mu \dot\bar{\varphi}$    
 
     To define a custom `Variable` object use the class factory `BGVar`.
     """
@@ -35,7 +35,7 @@ constant_docs = r"""
     """
 
 constant_addendum = r"""
-    A typical `Constant` is the inflaton--gauge-field coupling, $\beta/M_{\rm P} \sim \mu^{-1}$    
+    A typical `Constant` is the inflaton--gauge-field coupling, $\beta/M_{\rm P} \sim \beta/(\bar M_{\rm P} \mu)$    
 
     To define a custom `Constant` object use the class factory `BGConst`.
     """
@@ -51,6 +51,7 @@ func_docs = r"""
     
     An instance of this class can be used as a function,
     evaluating the underlying method, `f(*args)` depending on the current units.
+
     In physical units, the call returns the result of the underlying function, `f(*args)`.
     In numerical units, the call instead returns `f(*args)/conversion_factor`, 
     with `conversion_factor` defined by `Quantity.get_conversion`.  
@@ -60,7 +61,7 @@ func_docs = r"""
       it is assumed that the argument is in the same unit system as the `Func` instance.
     """
 func_addendum = r"""
-    A typical object is the scalar potential, $V(\varphi) \sim (\omega \mu)^2$
+    A typical object is the scalar potential, $V(\varphi) = \omega^2 \mu^2 \bar{V}(\bar{\varphi} \mu) $
 
     To define a custom `Func` object, use the class factory `BGFunc`.
     """
@@ -75,26 +76,28 @@ DOCS = {
     This module defines base classes used throughout the `GEFF` module.
 
     The main purpose of this module is to address the following situation:
-    Most cosmological variables will scale according to an inverse-time scale, $\omega$, and an energy scale, $\mu$.
-    In typical inflationary contexts, these scales are some constant Hubble rate, and the Planck mass.
+    Most cosmological quantities will scale according to an inverse-time scale, $\omega$, and an energy scale, $\mu$.
     For example, a time derivative scales with inverse time, $\partial_t \sim \omega$, and therefore also a gauge field, $A_\mu \sim \omega$, as it appears in covariant derivatives.
     On the other hand, the amplitude of a scalar field scales with energy, $\varphi \sim \mu$.
+    In typical inflationary contexts, $\omega = H_0$, some constant Hubble rate, and $\mu = M_{\rm P}$, the Planck mass.
+    
+    For numerical applications, it is convenient to work with dimensionless quantities.
+    For example, it is useful to perform numerical computations using the *dimensionless* scalar amplitude $\bar{\varphi} = \varphi/\mu$, or the *dimensionless* gauge field, $\bar{A}_\mu = A_\mu / \omega$.
+    Ultimately, the quantities we are interested in are obviously $\varphi$, $A_\mu$, etc. 
+    Therefore, we need an easy way to switch between $\bar{X}$ and $X$. This is the purpose of this module.
 
-    For numerical purposes it is convenient to work with dimensionless variables.
-    For example, it is useful to define the dimensionless scalar amplitude $\bar{\varphi} = \varphi/\mu$, and gauge field $\bar{A}_\mu = A_\mu / \mu$.
-    Ultimately however, the quantities we are interested in are the actual dimensionful quantities $\varphi$, $A_\mu$, etc.
-    We refer to the dimensionless variable, $\bar{X}$, as being in "numerical units", while $X$ is in "physical units". 
+    Throughout the code, we refer to the dimensionless variable, $\bar{X}$, as being in *numerical units*, while $X$ is in *physical units*. 
 
     To facilitate switching between these two unit systems throughout the code, this module provides the classes `BGSystem`, `Variable`, `Constant`, and `Func`. 
     The latter three are collectively referred to as `Quantity` objects.
-    The `Quantity` objects each are defined by a particular scaling with $\omega$ and $\mu$, e.g., $X = \bar{X} \omega^a \mu^b$, where $\bar{X}$ is the re-scaled quantity used for numerical computations.
+    Each `Quantity` object is defined by a scaling with $\omega$ and $\mu$. For example, the `Quantity` $X$ scales as $X = \omega^a \mu^b \bar{X}$, where $\bar{X}$ is the re-scaled quantity used for numerical computations.
     A `BGSystem` is a collection of `Quantity` objects, which defines a common unit system by setting the value of $\omega$ and $\mu$.
 
-    The user may define variables varying with cosmic time, e.g., the Hubble rate, scalar field amplitude etc. using the `BGVar` class factory, which creates subclasses of `Variable`.
-    In the same manner, the user can define constants of cosmic time, like a coupling strength, using the `BGConst` class factory, which creates subclasses of `Constant`.
-    For functions of these variables, like a scalar potential, the same is achieved by the factory `BGFunc`, which creates subclasses of `Func`.
+    The user may define variables that evolve with cosmic time using the `BGVar` class factory, which creates subclasses of `Variable`. Examples of a `Variable` are the Hubble rate, scalar field amplitude etc.
+    In the same manner, the user can define constants of cosmic time using the `BGConst` class factory, which creates subclasses of `Constant`. Examples of a `constant` are, e.g., coupling strengths.
+    Some quantities are functions of variables, for example, a scalar potential. These are defined by the factory `BGFunc`, which creates subclasses of `Func`.
 
-    The following examples illustrates the typical workflow using these classes:
+    The following examples illustrates the basic use of these classes:
 
     Examples
     --------
@@ -106,7 +109,7 @@ DOCS = {
     time = BGVar("t", q_u_omega=-1, q_u_mu=0)
     Hubble = BGVar("H", q_u_omega=1, q_u_mu=0)
 
-    # Create a BGSystem with 'time' and 'Hubble' (the latter being a constant)
+    # Create a BGSystem with 'time' and 'Hubble'
     # We set the reference frequency to 1e-5*Mpl
     # The reference energy is the Planck mass in Planck units (so 1)
     U = BGSystem({time, Hubble}, omega=1e-5, mu=1)
@@ -114,7 +117,8 @@ DOCS = {
     # The BGSystem knows about the new variables time and Hubble
     print(U.quantity_names()) # prints ["t", "H"]
 
-    # However, neither the constant nor the variable are instantiated (we did not specify their value)
+    # However, neither the constant nor the variable are instantiated 
+    # (we did not specify their value)
     print(U.variable_names()) # prints []  
 
     # Instantiate the quantities t and H using the units defined by U:
@@ -227,30 +231,30 @@ DOCS = {
     A collection of cosmological variables sharing a system of units.
 
     Instances of this class define two base unit systems,
-    'physical units' and 'numerical units', by setting an energy scale, `omega` and an inverse time scale, `mu`. 
+    *physical units* and *numerical units*, by setting an energy scale, `omega` and an inverse time scale, `mu`. 
 
-    The cosmological variables (time, Hubble rate etc) are represented by `Quantity` objects.
-    These objects are stored in `quantities` and can can be initialise using `initialise`.
+    The cosmological variables (time, Hubble rate, etc.) are represented by `Quantity` objects.
+    These objects are stored in `quantities`, and can can be initialise using `initialise`.
     Instances of these objects can be collectively converted between units by using the scales `omega` and `mu`. 
 
-    This class is the fundamental building block of the GEF-code. 
+    This class is the fundamental building block of the `geff` code. 
     """,
 
     "Quantity":r"""
     An object representing a cosmological quantity. 
 
-    A cosmological quantity has a characteristic scaling with respect to a frequency scale (e.g., the Hubble rate at some reference time), and energy scale (e.g. the Planck mass).
+    A cosmological quantity has a characteristic scaling with respect to a frequency scale (e.g., the Hubble rate at some reference time), and energy scale (e.g., the Planck mass).
 
     Typical such objects are:
-    - cosmic time $t \sim \omega^{-1}$
-    - frequency $f \sim \omega$
-    - scalar-field vev $\varphi \sim \mu$
-    - scalar potential $V(\varphi) \sim (\omega \mu)^2$ *(i.e., scales like an energy density)*
-    - gauge fields $A_\mu \sim \omega$ *(i.e., scales like a time derivative)*
+    - cosmic time $t = \bar{t}/\omega$
+    - frequency $f = \omega \bar{f}$
+    - scalar-field vev $\varphi = \mu \bar{\varphi}$
+    - scalar potential $ V(\varphi) = \omega^2 \mu^2 \bar{V}(\bar{\varphi} \mu) $ 
+    - gauge fields $A_\mu =  \omega\bar{A}_\mu $ *(i.e., scales like a time derivative)*
 
-    `Quantity` objects are initialized as part of a `BGSystem`, which defines a common frequency scale and energy scale for all its `quantities`.
+    `Quantity` objects are initialized as part of a `BGSystem`, which defines $\omega$ and $\mu$.
 
-    This class serves as a parent for `Val` and `Func`.
+    This class is a parent of `Val` and `Func`.
     """,
 
     "Val":val_docs,

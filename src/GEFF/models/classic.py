@@ -1,11 +1,42 @@
-"""
-Module defining the GEF model "classic" corresponding to pure axion inflation.
+r"""
+Defines the GEF model "classic" corresponding to pure axion inflation.
 
 For more details on this model, see e.g., [2109.01651](https://arxiv.org/abs/2109.01651).
+
+---
+
+The model knows the following variables:
+* time variable: `t` - *cosmic time*, $t$ 
+* dynamical variables:
+    * `N` - *$e$-folds*,  $N$
+    * `phi`, `dphi` - *inflaton amplitude, $\varphi$, and velocity, $\dot{\varphi}$* 
+    * `kh` -  *the instability scale, $k_{\rm h}$*
+* static variables:
+    * `a` - *scale factor, $a$* 
+    * `H` - *Hubble rate, $H$* 
+    * `ddphi` - *inflaton acceleration, $\ddot{\varphi}$*
+    * `E`, `B`, `G` - *gauge-field expectation values, $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, -$\langle {\bf E} \cdot {\bf B} \rangle$*
+    * `xi` - *instability parameter, $\xi$* 
+* constants: 
+    * `beta` - *coupling strength, $\beta$*
+* functions: 
+    * `V`,`dV` - *inflaton potential, $V(\varphi)$, and its derivative, $V_{,\varphi}(\varphi)$*
+* gauge field: 
+    * `GF` - *tower of gauge bilinears, $\mathcal{F}_{\mathcal X}^{(n)}$*
+
+The model expects the following input:
+* `phi`, `dphi` - *initial data on the inflaton, $\varphi$, $\dot\varphi$*
+* `rhoChi` - *initial data on the fermion energy density, $\rho_{\chi}$*
+* `beta` - *coupling strength, $\beta$*
+* `V`, `dV` - *potential shape, $V(\varphi)$, $V_{,\varphi}(\varphi)$*
+
+The model tracks the following events:
+* end of inflation - terminate solver when $\ddot{a} < 0$
+* negative energy - return an error when $\langle {\bf E}^2 \rangle$ or  $\langle {\bf B}^2 \rangle$ are negative 
 """
 import numpy as np
 
-from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta
+from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, GF
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
@@ -19,47 +50,21 @@ from GEFF._docs import generate_docs, docs_models
 name : str = "classic"
 """The models name."""
 
-# define gauge field by assigning a name, 0th-order quantities and cut-off scale
-GF1 = type("GF", (object,), {"name":"GF","0thOrder":{E, B, G}, "UV":kh})
-
 quantities : dict={
-            "time":{t}, #time coordinate according to which EoMs are expressed
-            "dynamical":{N, phi, dphi, kh}, #variables which evolve in time according to an EoM
-            "static":{a, H, xi, E, B, G, ddphi}, #variables which are derived from dynamical variables
-            "constant":{beta}, #constant quantities in the model
-            "function":{V, dV}, #functions of variables such as scalar potentials
-            "gauge":{GF1} #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
+            "time":[t], #time coordinate according to which EoMs are expressed
+            "dynamical":[N, phi, dphi, kh], #variables which evolve in time according to an EoM
+            "static":[a, H, ddphi, xi, E, B, G], #variables which are derived from dynamical variables
+            "constant":[beta], #constant quantities in the model
+            "function":[V, dV], #functions of variables such as scalar potentials
+            "gauge":[GF] #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
             }
-r"""The following variables are tracked by the model:
-
-* **time variable**: cosmic time, $t$
-* **dynamical variable**:
-    * $e$-folds, $N$
-    * inflaton amplitude and its velocity, $\varphi$, $\dot{\varphi}$
-    * the instability scale $k_{\rm h}$
-* **static variables**:
-    * scale factor: $a$
-    * Hubble rate: $H$
-    * instability parameter $\xi$
-    * gauge-field expectation values: $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, $-\langle {\bf E} \cdot {\bf B} \rangle$
-    * inflaton acceleration, $\ddot{\varphi}$
-* **constants**: coupling strength, $\beta$
-* **functions**: inflaton potential and its derivative, $V(\varphi)$, $V_{,\varphi}(\varphi)$
-* **gauge**: tower of re-scales gauge-bilinears, $\mathcal{F}_{\mathcal X}^{(n)}$, $\mathcal{X} = \mathcal{E}, \mathcal{B}, \mathcal{G}$
-"""
 
 #State which variables require input for initialisation
-input = {
-        "initial data":{"phi", "dphi"},
-        "constants":{"beta"},
-        "functions":{"V", "dV"}
+input_dic = {
+        "initial data":[phi, dphi],
+        "constants":[beta],
+        "functions":[V, dV]
         }
-r"""Define the expected input of the model.
-
-* initial data on the inflaton: $\varphi$, $\dot\varphi$
-* coupling strength: $\beta$
-* potential shape: $V(\varphi)$, $V_{,\varphi}(\varphi)$
-"""
 
 #this functions is called upon initialisation of the GEF class
 def define_units(consts, init, funcs):

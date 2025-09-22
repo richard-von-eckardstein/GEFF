@@ -13,12 +13,11 @@ from types import NoneType
 
 class BaseGEF(BGSystem):
     
-
     GEFSolver = classic.solver
     """The solver used to solve the GEF equations in `run`."""
     ModeSolver = classic.MbM
     """The mode solver used for mode-by-mode cross checks."""
-    _input_signature = classic.input
+    _input_signature = classic.input_dic
     define_units = staticmethod(classic.define_units)
 
     def __init__(
@@ -91,13 +90,31 @@ class BaseGEF(BGSystem):
         """
         Print the input required to initialize the class.
         """
-        print("This GEF model requires the following input:")
+        print("This GEF model expects the following input:\n")
         for key, item in cls._input_signature.items():
-            print(f"\t {key.capitalize()}: {item}")
+            print(f"{key.capitalize()}:")
+            for i in item:
+                print(f" * {i.get_description()}")
+        print()
+        return
+    
+    @classmethod
+    def print_known_variables(cls):
+        """
+        Print a list of known variables for this model
+        """
+        print("This GEF model knows the following variables:\n")
+        for key, item in cls.GEFSolver.known_variables.items():
+            if len(item) > 0:
+                print(f"{key}:")
+                for i in item:
+                    print(f" * {i.get_description()}")
+        print()
         return
 
     def _check_input(self, input_data : dict, input_type : str):
-        for key in self._input_signature[input_type]:
+        for val in self._input_signature[input_type]:
+            key = val.name
             try:
                 assert key in input_data.keys()
             except AssertionError:
@@ -499,7 +516,7 @@ def _load_model(model : str, user_settings : dict):
     return mod
 
 
-def GEF(modelname:str, settings:dict):
+def GEF(modelname:str, settings:dict={}):
     """
     Define a custom subclass of BaseGEF adapted to a new GEF model.
 
@@ -522,8 +539,8 @@ def GEF(modelname:str, settings:dict):
         """The solver used to solve the GEF equations in `run`."""
         ModeSolver = model.MbM
         """The mode solver used for mode-by-mode cross checks."""
-        _input_signature = model.input
-        define_units = staticmethod(classic.define_units)
+        _input_signature = model.input_dic
+        define_units = staticmethod(model.define_units)
 
     CustomGEF.__qualname__ = model.name
     CustomGEF.__module__ = __name__
