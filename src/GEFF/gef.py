@@ -17,7 +17,7 @@ class BaseGEF(BGSystem):
     """The solver used to solve the GEF equations in `run`."""
     ModeSolver = classic.MbM
     """The mode solver used for mode-by-mode cross checks."""
-    _input_signature = classic.input
+    _input_signature = classic.input_dic
     define_units = staticmethod(classic.define_units)
 
     def __init__(
@@ -95,6 +95,7 @@ class BaseGEF(BGSystem):
             print(f"{key.capitalize()}:")
             for i in item:
                 print(f" * {i.get_description()}")
+        print()
         return
     
     @classmethod
@@ -107,10 +108,9 @@ class BaseGEF(BGSystem):
             if len(item) > 0:
                 print(f"{key}:")
                 for i in item:
-                    if key=="gauge":
-                        print(f" * {i.name} - associated with: {[ass.name for ass in i.associated]}, UV cutoff: {i.UV.name}")
-                    else:
-                        print(f" * {i.get_description()}")
+                    print(f" * {i.get_description()}")
+        print()
+        return
 
     def _check_input(self, input_data : dict, input_type : str):
         for val in self._input_signature[input_type]:
@@ -536,8 +536,8 @@ def GEF(modelname:str, settings:dict={}):
         """The solver used to solve the GEF equations in `run`."""
         ModeSolver = model.MbM
         """The mode solver used for mode-by-mode cross checks."""
-        _input_signature = model.input
-        define_units = staticmethod(classic.define_units)
+        _input_signature = model.input_dic
+        define_units = staticmethod(model.define_units)
 
     CustomGEF.__qualname__ = model.name
     CustomGEF.__module__ = __name__

@@ -36,7 +36,7 @@ The model tracks the following events:
 """
 import numpy as np
 
-from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta
+from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, GF
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
@@ -50,20 +50,17 @@ from GEFF._docs import generate_docs, docs_models
 name : str = "classic"
 """The models name."""
 
-# define gauge field by assigning a name, 0th-order quantities and cut-off scale
-GF1 = type("GF", (object,), {"name":"GF","associated":[E, B, G], "UV":kh})
-
 quantities : dict={
             "time":[t], #time coordinate according to which EoMs are expressed
             "dynamical":[N, phi, dphi, kh], #variables which evolve in time according to an EoM
             "static":[a, H, ddphi, xi, E, B, G], #variables which are derived from dynamical variables
             "constant":[beta], #constant quantities in the model
             "function":[V, dV], #functions of variables such as scalar potentials
-            "gauge":[GF1] #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
+            "gauge":[GF] #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
             }
 
 #State which variables require input for initialisation
-input = {
+input_dic = {
         "initial data":[phi, dphi],
         "constants":[beta],
         "functions":[V, dV]

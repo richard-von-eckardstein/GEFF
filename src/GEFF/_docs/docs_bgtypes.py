@@ -14,7 +14,7 @@ variable_docs = r"""
     A `Val` subclass representing real-valued variables evolving with cosmic time.
 
     Instances of this class can be used like a 1-D Numpy-Array for mathematical operations as defined by `Val`.
-     It can be indexed like a Numpy-Array, returning the associated index of `value`.
+     Indexed returns the associated index of `value`.
     """
 
 variable_addendum = r"""

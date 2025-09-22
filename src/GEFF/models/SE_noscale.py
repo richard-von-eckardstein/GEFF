@@ -41,7 +41,7 @@ The model tracks the following events:
 """
 import numpy as np
 
-from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, BGVar
+from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, GF, BGVar
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
@@ -92,9 +92,6 @@ xieff=BGVar("xieff", 0, 0, "effective instabilty parameter")
 s=BGVar("s", 0, 0, "electric damping parameter")
 rhoChi=BGVar("rhoChi", 4, 0, "fermion energy density")
 
-# define gauge field by assigning a name, 0th-order quantities and cut-off scale
-GF1 = type("GF", (object,), {"name":"GF","associated":[E, B, G], "UV":kh})
-
 #Assign quantities to a dictionary, classifying them by their role:
 quantities={
             "time":[t],
@@ -102,11 +99,11 @@ quantities={
             "static":[a, H, xi, E, B, G, ddphi, sigmaE, sigmaB, xieff, s],
             "constant":[beta],
             "function":[V, dV],
-            "gauge":[GF1]
+            "gauge":[GF]
             }
 
 #State which variables require input for initialisation
-input = {
+input_dic = {
         "initial data":[phi, dphi, rhoChi],
         "constants":[beta],
         "functions":[V, dV]
