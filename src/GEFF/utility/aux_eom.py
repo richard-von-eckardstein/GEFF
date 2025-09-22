@@ -372,7 +372,7 @@ def conductivities_collinear(a  : float, H  : float,
     """     
     mu = (E+B)
     if mu<=0:
-        return 0., 0., 0.
+        return 0., 0., 1e-4*a*H
     else:
         mu = (mu/2)**(1/4)
         mz = 91.2/(2.43536e18)
@@ -422,7 +422,7 @@ def conductivities_mixed(a  : float, H  : float,
     """     
     Sigma = np.sqrt((E - B)**2 + 4*G**2)
     if Sigma<=0:
-        return 0., 0., 0.
+        return 0., 0., 1e-4*a*H
     else:
         mz = 91.2/(2.43536e18)
         mu = ((Sigma)/2)**(1/4)

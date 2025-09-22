@@ -357,14 +357,13 @@ class Quantity:
 
     def __repr__(self):
         r"""
-        A string representing the class, giving its scaling with frequency ($\omega$) and energy ($\mu$), and a brief description.
+        A string representing the class, giving its name and scaling with frequency ($\omega$) and energy ($\mu$).
 
         Returns
         -------
         repr : str
-            the string representation.
         """
-        return f"{self.name}({self.u_omega},{self.u_mu}) - {self.description}"
+        return f"{self.name}({self.u_omega},{self.u_mu})"
 
     def __str__(self) -> str:
         """
@@ -373,13 +372,22 @@ class Quantity:
         Returns
         -------
         string : str
-            the string representation.
         """
 
         if not(self._units):
             return f"{self.name} (numerical)"
         elif self._units:
             return f"{self.name} (physical)"
+        
+    def what(self) -> str:
+        """
+        Return a string describing the object.
+
+        Returns
+        -------
+        string : str
+        """
+        return self.description
         
     def get_units(self) -> bool:
         """
@@ -433,7 +441,7 @@ class Val(Quantity):
         """
         super().__init__(sys)
         self.value =  value
-        """A 1-D array of values in the units of the class instance."""
+        """The objects value in its respective units."""
 
     def __str__(self) -> str:
         """
