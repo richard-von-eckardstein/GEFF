@@ -33,3 +33,4 @@ For release
 - Write arxiv manual
 - write read me
 - sigmaE and B -> alternative for if
+- replace where's when possible

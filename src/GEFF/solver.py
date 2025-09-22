@@ -173,7 +173,7 @@ class BaseGEFSolver:
 
             t_reinit = reinit_spec["t"]
 
-            reinit_ind = np.where(sol.t == t_reinit)[0][0]
+            reinit_ind = np.argmin(abs(sol.t - t_reinit))
 
             #Create unit system (copy to also get constants and functions):
             temp = BGSystem.from_system(self.init_vals, copy=True)

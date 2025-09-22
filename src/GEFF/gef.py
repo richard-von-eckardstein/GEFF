@@ -263,9 +263,9 @@ class BaseGEF(BGSystem):
                 print(rf" - {attr} : {getattr(sol, attr)}")
         events = sol.events
         if np.array([(len(event)==0) for event in events.values()]).all():
-            print("No events occured during the run")
+            print("No events occurred during the run")
         else:
-            print("The following events occured during the run:")
+            print("The following events occurred during the run:")
             for event, time in events.items():
                 if len(time) > 0:
                     if len(time) > 1:
@@ -301,9 +301,7 @@ class BaseGEF(BGSystem):
                 setattr(sol, attr, getattr(sol_new, attr))
             return sol
         
-     #move to GEF
-    @staticmethod
-    def mbm_crosscheck(spec, vals:BGSystem, err_tol:float, err_thr:float, binning:int, **integrator_kwargs):
+    def mbm_crosscheck(self, spec, vals:BGSystem, err_tol:float, err_thr:float, binning:int, **integrator_kwargs):
         """
         Estimate the error of a GEF solution using `.mbm.GaugeSpec.estimate_GEF_error`.
 
@@ -329,26 +327,33 @@ class BaseGEF(BGSystem):
         reinit_slice : SpecSlice
             the spectrum with which the GEF solver is re-initialized.
         """
-        errs, terr, _ = spec.estimate_GEF_error(vals, err_thr=err_thr, binning=binning, **integrator_kwargs)
-
-        reinit_inds = []
+        GFs = self.GEFSolver.known_variables["gauge"]
         agreement=True
-        for err in errs:
-            rmserr = np.sqrt(np.sum(err**2)/len(err))
-            if max(err[-1], rmserr) > err_tol:
-                agreement=False
-                #find where the error is above 5%, take the earliest occurrence, reduce by 1
-                inds = np.where(err > err_thr)
-                err_ind = inds[0][0]-1               
-            else:
-                err_ind = len(terr)-1
-            reinit_inds.append( err_ind )
 
-        t0 = terr[min(reinit_inds)]
+        for GF in GFs:
+            ref = [a.name for a in GF.associated]
+            cut = GF.cutoff.name
 
-        ind = np.where(spec["t"] <= t0)[0][-1]
+            errs, terr, _ = spec.estimate_GEF_error(vals, references=ref, cutoff=cut, err_thr=err_thr, binning=binning, **integrator_kwargs)
 
-        reinit_slice = spec.tslice(ind)
+            reinit_inds = []
+            
+            for err in errs:
+                rmserr = np.sqrt(np.sum(err**2)/len(err))
+                if max(err[-1], rmserr) > err_tol:
+                    agreement=False
+                    #find where the error is above 5%, take the earliest occurrence, reduce by 1
+                    inds = np.where(err > err_thr)
+                    err_ind = inds[0][0]-1               
+                else:
+                    err_ind = len(terr)-1
+                reinit_inds.append( err_ind )
+
+            t0 = terr[min(reinit_inds)]
+
+            ind = np.argmin(abs(spec["t"] - t0))
+
+            reinit_slice = spec.tslice(ind)
 
         return agreement, reinit_slice
 
