@@ -212,7 +212,7 @@ class BaseGEF(BGSystem):
                 else:
                     t_reinit = reinit_spec["t"]
                     print(f"Attempting to solve GEF using self-correction starting from \
-                          t={reinit_spec['t']:{3}.{1}}, N={reinit_spec['N']:{3}.{1}}.\n")
+                          t={reinit_spec['t']:.1f}, N={reinit_spec['N']:.1f}.\n")
 
                     solver.set_initial_conditions_to_MbM(sol, reinit_spec)
                 
@@ -249,10 +249,13 @@ class BaseGEF(BGSystem):
             print("No events occured during the run")
         else:
             print("The following events occured during the run:")
-            for event in events.keys():
-                time = events[event]
-                if len(time > 0):
-                    print(f"  - {event} at t={time}")
+            for event, time in events.items():
+                if len(time) > 0:
+                    if len(time) > 1:
+                        tstr = [f"{t:.1f}" for t in time]
+                    else:
+                        tstr = f"{time[0]:.1f}"
+                    print(f"  - {event} at t={tstr}")
         return
         
     @staticmethod

@@ -336,10 +336,10 @@ class BaseGEFSolver:
                     raise TruncationError
             #find 
             except KeyboardInterrupt:
-                print(f"The run failed at t={vals.t.value:{3}.{2}}, N={vals.N.value:{3}.{2}}.")
+                print(f"The run failed at t={vals.t.value[0]:.2f}, N={vals.N.value[0]:.2f}.")
                 raise KeyboardInterrupt
             except Exception as e:
-                print(f"While solving the GEF ODE, an error occured at t={vals.t.value:{3}.{2}}, N={vals.N.value:{3}.{2}}: \n \t {e}")
+                print(f"While solving the GEF ODE, an error occured at t={vals.t.value[0]:.2f}, N={vals.N.value[0]:.2f}: \n \t {e}")
                 raise TruncationError
             
             else:
@@ -403,7 +403,11 @@ class BaseGEFSolver:
             #Add the event occurrence to the event dictionary:
             if occurrence:
                 event_dict.update({event.name:t_events[i]})
-                print(f"{event.name} at t={t_events[i]:{3}.{1}}")
+                if len(t_events[i])>1:
+                    tstr = [f"{t:.1f}" for t in t_events[i]]
+                else:
+                    tstr = f"{t_events[i][0]:.1f}"
+                print(f"{event.name} at t={tstr}")
 
             if event.type == "error" and occurrence:
                 commands["primary"].append( ("error", event.name) )
@@ -423,7 +427,7 @@ class BaseGEFSolver:
                     setattr(self, key, item)
                 elif key=="tend":
                     if item > self.tend:
-                        print(f"Increasing tend by {item-self.tend:{4}.{1}} to {item:{4}.{1}}")
+                        print(f"Increasing tend by {item-self.tend:.1f} to {item:.1f}")
                         setattr(self, key, item)
                 elif key in self.settings.keys():
                     self.update_settings({key:item})

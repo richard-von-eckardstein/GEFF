@@ -422,9 +422,9 @@ class GaugeSpec(dict):
             tmaxerr = bin_terr[np.argmax(err)]
             tfinerr = bin_terr[-1]
 
-            lst.append([f"{maxerr:{3}.{1}}% at {tmaxerr:{3}.{1}}",
-                        f"{finerr:{3}.{1}}% at {tfinerr:{3}.{1}}",
-                        f"{rmserr:{3}.{1}}%"])
+            lst.append([f"{maxerr:.1f}% at {tmaxerr:.1f}",
+                        f"{finerr:.1f}% at {tfinerr:.1f}",
+                        f"{rmserr:.1f}%"])
 
         print(tabulate(lst, headers=["max", "final", "RMS"], showindex=references, tablefmt="simple")+"\n")
         return
