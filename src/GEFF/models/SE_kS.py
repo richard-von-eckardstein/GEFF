@@ -74,12 +74,12 @@ GFBar = type("GF", (object,), {"name":"GF","0thOrder":{EBar, BBar, GBar}, "UV":k
 
 #Assign quantities to a dictionary, classifying them by their role:
 quantities={
-            "time":{t},
-            "dynamical":{N, phi, dphi, kh, rhoChi},
-            "static":{a, H, xi, kS, E, B, G, EBar, BBar, GBar, ddphi, sigmaE, sigmaB, xieff, s},
-            "constant":{beta, state},
-            "function":{V, dV, deltaF, etaF},
-            "gauge":{GF1, GFBar}
+            "time":[t],
+            "dynamical":[N, phi, dphi, kh, rhoChi],
+            "static":[a, H, xi, kS, E, B, G, EBar, BBar, GBar, ddphi, sigmaE, sigmaB, xieff, s],
+            "constant":[beta, state],
+            "function":[V, dV, deltaF, etaF],
+            "gauge":[GF1, GFBar]
             }
 r"""The following variables are tracked by the model:
 
@@ -105,10 +105,10 @@ r"""The following variables are tracked by the model:
 """
 
 #State which variables require input for initialisation
-input = {
-        "initial data":{"phi", "dphi", "rhoChi"},
-        "constants":{"beta"},
-        "functions":{"V", "dV"}
+input_dic = {
+        "initial data":[phi, dphi, rhoChi],
+        "constants":[beta],
+        "functions":[V, dV]
         }
 r"""Define the expected input of the model.
 

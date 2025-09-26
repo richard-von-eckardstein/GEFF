@@ -45,8 +45,8 @@ class TestBGFunc():
         f = BGFunc("f", [x], 2, 2)
         assert f.name == "f"
         assert f.dtype == np.float64
-        assert f.u_H0 == 2
-        assert f.u_MP == 2
+        assert f.u_omega == 2
+        assert f.u_mu == 2
         for arg in f.args:
             assert arg in [x]
 
@@ -56,8 +56,8 @@ class TestBGFunc():
         f = BGFunc("f", [x, y], 3, 1)
         assert f.name == "f"
         assert f.dtype == np.float64
-        assert f.u_H0 == 3
-        assert f.u_MP == 1
+        assert f.u_omega == 3
+        assert f.u_mu == 1
         for arg in f.args:
             assert arg in [x, y]
     

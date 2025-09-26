@@ -13,12 +13,11 @@ from types import NoneType
 
 class BaseGEF(BGSystem):
     
-
     GEFSolver = classic.solver
     """The solver used to solve the GEF equations in `run`."""
     ModeSolver = classic.MbM
     """The mode solver used for mode-by-mode cross checks."""
-    _input_signature = classic.input
+    _input_signature = classic.input_dic
     define_units = staticmethod(classic.define_units)
 
     def __init__(
@@ -56,11 +55,11 @@ class BaseGEF(BGSystem):
         for input_type, input_dict  in user_input.items():
             self._check_input(input_dict, input_type)
 
-        H0, MP = self.define_units(*user_input.values())
+        omega, mu = self.define_units(*user_input.values())
 
         known_objects = set().union(*[item for key, item in self.GEFSolver.known_variables.items() if key!="gauge"] )
 
-        super().__init__(known_objects, H0, MP)
+        super().__init__(known_objects, omega, mu)
 
         #Add initial data to BGSystem
         for name, constant in user_input["constants"].items():
@@ -91,13 +90,31 @@ class BaseGEF(BGSystem):
         """
         Print the input required to initialize the class.
         """
-        print("This GEF model requires the following input:")
+        print("This GEF model expects the following input:\n")
         for key, item in cls._input_signature.items():
-            print(f"\t {key.capitalize()}: {item}")
+            print(f"{key.capitalize()}:")
+            for i in item:
+                print(f" * {i.get_description()}")
+        print()
+        return
+    
+    @classmethod
+    def print_known_variables(cls):
+        """
+        Print a list of known variables for this model
+        """
+        print("This GEF model knows the following variables:\n")
+        for key, item in cls.GEFSolver.known_variables.items():
+            if len(item) > 0:
+                print(f"{key}:")
+                for i in item:
+                    print(f" * {i.get_description()}")
+        print()
         return
 
     def _check_input(self, input_data : dict, input_type : str):
-        for key in self._input_signature[input_type]:
+        for val in self._input_signature[input_type]:
+            key = val.name
             try:
                 assert key in input_data.keys()
             except AssertionError:
@@ -121,7 +138,7 @@ class BaseGEF(BGSystem):
         Solve the ODE's of the GEF using `GEFSolver`. Cross check the solution using `ModeSolver`.
 
         The `GEFSolver` is initialized using the initial conditions defined by the class.
-        If the solver returns a succesful solution, `ModeSolver.compute_spectrum` computes a gauge field spectrum
+        If the solver returns a successful solution, `ModeSolver.compute_spectrum` computes a gauge field spectrum
          to perform a mode-by-mode cross check (unless `nmodes=None`).
         If the mode-by-mode cross check is a success, the solution is stored in the underlying `BGSystem` of the class.
         Otherwise, the `GEFSolver` tries to self correct using the gauge field spectrum. This is attempted for `mbm_attempts` or until successful.
@@ -496,7 +513,7 @@ def _load_model(model : str, user_settings : dict):
     return mod
 
 
-def GEF(modelname:str, settings:dict):
+def GEF(modelname:str, settings:dict={}):
     """
     Define a custom subclass of BaseGEF adapted to a new GEF model.
 
@@ -519,8 +536,8 @@ def GEF(modelname:str, settings:dict):
         """The solver used to solve the GEF equations in `run`."""
         ModeSolver = model.MbM
         """The mode solver used for mode-by-mode cross checks."""
-        _input_signature = model.input
-        define_units = staticmethod(classic.define_units)
+        _input_signature = model.input_dic
+        define_units = staticmethod(model.define_units)
 
     CustomGEF.__qualname__ = model.name
     CustomGEF.__module__ = __name__

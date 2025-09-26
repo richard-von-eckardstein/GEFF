@@ -520,14 +520,21 @@ class BaseModeSolver:
         Raises
         ------
         KeyError:
-            if `sys` is missing a `Val` object from `necessary_keys`
+            if `sys` is missing a `Val` or `Func` object from `necessary_keys`
+        ValueError:
+            if the keys in `necessary_keys` are not `Val` or `Func` objects.
         """
         #Check that all necessary keys are there:
         for key in self.necessary_keys:
-            try:
-                assert key in sys.variable_names()
-            except AssertionError:
-                KeyError(f"'sys' needs to own an attribute called '{key}'.")
+            check = True
+            check = ( (key in sys.variable_names())
+                        or
+                        (key in sys.constant_names())
+                        or 
+                        (key in sys.function_names())
+                    )
+            if not(check):
+                raise KeyError(f"'sys' needs to own an attribute called '{key}'.")
         
         #Ensure that all values from the BGSystem are imported without units
         sys.set_units(False)
@@ -546,22 +553,23 @@ class BaseModeSolver:
                 obj = getattr(sys, key)
                 if isinstance(obj, Variable):
                     value = getattr(sys, key).value
-                    self._ode_kwargs[key] = CubicSpline(self.__t, value)
+                    func = CubicSpline(self.__t, value)
                 elif isinstance(obj, Func):
                     arg_vals = []
                     for arg in Func.args:
                         arg_vals.append(getattr(sys, arg.name))
                     value = obj(*arg_vals)
-                    self._ode_kwargs[key] = CubicSpline(self.__t, value)
+                    func =  CubicSpline(self.__t, value)
                 elif isinstance(obj, Constant):
                     value = getattr(sys, key).value
-                    self._ode_kwargs[key] = lambda t: value
+                    def func(t): return value
                 else:
                     raise ValueError(f"'{key}' should refer to either a 'Val' or 'Func' subclass.")
-                if len(value)==1:
-                    #deal with constants
-                    value = np.ones_like(self.__t)*value
                 
+                if key in self._ode_kwargs.keys():
+                    self._ode_kwargs[key] = func
+                if key in self._bd_kwargs.keys():
+                    self._bd_kwargs[key] = func
         
         #compute the evolution of conformal time for the phases
         self.__af = CubicSpline(self.__t, a)

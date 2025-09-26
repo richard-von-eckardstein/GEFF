@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import Callable, ClassVar
 
 class BGSystem:
-    def __init__(self, quantity_set : set, H0 : float, MP : float):
+    def __init__(self, quantity_set : set, omega : float, mu : float):
         """
         Create a new BGSystem in physical units.
 
@@ -12,16 +12,16 @@ class BGSystem:
         ----------
         quantity_set : set of Quantity
             used to define `quantities`
-        H0 : float
+        omega : float
             the characteristic frequency scale
-        MP : float
+        mu : float
             the characteristic energy scale
         """
         self.quantities : dict = {q.name:q for q in quantity_set}
         """A dictionary of all `Quantity` objects for this BGSystem"""
-        self.H0 : float = H0
+        self.omega : float = omega
         """A frequency scale (typically the Hubble rate at some reference time)"""
-        self.MP : float = MP
+        self.mu : float = mu
         """An energy scale(typically the Planck mass)"""
         self._units=True
     
@@ -44,7 +44,7 @@ class BGSystem:
             the new instance
         """
 
-        newinstance = cls(sys.quantity_set(), sys.H0, sys.MP)
+        newinstance = cls(sys.quantity_set(), sys.omega, sys.mu)
 
         if copy:
             #store units of original sys
@@ -167,9 +167,9 @@ class BGSystem:
 
         return self._units
     
-    def variable_list(self) -> list['Val']:
+    def variable_list(self) -> list['Variable']:
         """
-        Get a list of all `Val` instances attributed to this BGSystem.
+        Get a list of all `Variable` instances attributed to this BGSystem.
 
         Returns
         -------
@@ -186,7 +186,7 @@ class BGSystem:
     
     def variable_names(self) -> list[str]:
         """
-        Get a list of names for all `Val` instances attributed to this BGSystem.
+        Get a list of names for all `Variable` instances attributed to this BGSystem.
 
         Returns
         -------
@@ -199,9 +199,9 @@ class BGSystem:
             names.append(val.name)
         return names
     
-    def constant_list(self) -> list['Val']:
+    def constant_list(self) -> list['Constant']:
         """
-        Get a list of all `Val` instances attributed to this BGSystem.
+        Get a list of all `Constant` instances attributed to this BGSystem.
 
         Returns
         -------
@@ -218,7 +218,7 @@ class BGSystem:
     
     def constant_names(self) -> list[str]:
         """
-        Get a list of names for all `Val` instances attributed to this BGSystem.
+        Get a list of names for all `Constant` instances attributed to this BGSystem.
 
         Returns
         -------
@@ -277,7 +277,7 @@ class BGSystem:
         self.quantities.pop(name)
         return
     
-    def add_BGVar(self, name : str, H0units : int, MPunits : int):
+    def add_variable(self, name : str, omega_scaling : int, mu_scaling : int):
         """
         Define a new `Variable` object and add it to `quantities`.
 
@@ -285,16 +285,16 @@ class BGSystem:
         ----------
         name : str
             the name of the new object.
-        H0units : int
-            the 'u_H0' parameter of the new object.
-        MPunits : int
-            the 'u_MP' parameter of the new object.
+        omega_scaling : int
+            the 'u_omega' parameter of the new object.
+        mu_scaling : int
+            the 'u_mu' parameter of the new object.
         """
 
-        self.quantities[name] = BGVar(name, H0units, MPunits)
+        self.quantities[name] = BGVar(name, omega_scaling, mu_scaling)
         return
     
-    def add_BGConst(self, name : str, H0units : int, MPunits : int):
+    def add_constant(self, name : str, omega_scaling : int, mu_scaling : int):
         """
         Define a new `Constant` object and add it to `quantities`.
 
@@ -302,16 +302,16 @@ class BGSystem:
         ----------
         name : str
             the name of the new object.
-        H0units : int
-            the 'u_H0' parameter of the new object.
-        MPunits : int
-            the 'u_MP' parameter of the new object.
+        omega_scaling : int
+            the 'u_omega' parameter of the new object.
+        mu_scaling : int
+            the 'u_mu' parameter of the new object.
         """
 
-        self.quantities[name] = BGConst(name, H0units, MPunits)
+        self.quantities[name] = BGConst(name, omega_scaling, mu_scaling)
         return
     
-    def add_BGFunc(self, name : str, args : list['Val'], H0units : int, MPunits : int):
+    def add_function(self, name : str, args : list['Val'], omega_scaling : int, mu_scaling : int):
         """
         Define a new `Func` object and add it to `quantities`.
 
@@ -321,13 +321,13 @@ class BGSystem:
             the name of the new object.
         args : list of BGVal
             the 'args' parameter of the new object.
-        H0units : int
-            the 'u_H0' parameter of the new object.
-        MPunits : int
-            the 'u_MP' parameter of the new object.
+        omega_scaling : int
+            the 'u_omega' parameter of the new object.
+        mu_scaling : int
+            the 'u_mu' parameter of the new object.
         """
 
-        self.quantities[name] = BGFunc(name, args, H0units, MPunits)
+        self.quantities[name] = BGFunc(name, args, omega_scaling, mu_scaling)
         return
     
 class Quantity:
@@ -335,9 +335,9 @@ class Quantity:
     """The objects name"""
     description : ClassVar[str]= ""
     """A brief description of the object"""
-    u_H0 : ClassVar[int] = 0
+    u_omega : ClassVar[int] = 0
     """Indicates how the object scales with frequency."""
-    u_MP : ClassVar[int] = 0
+    u_mu : ClassVar[int] = 0
     """Indicates how the object scales with energy."""
 
     def __init__(self, sys : BGSystem):
@@ -353,33 +353,33 @@ class Quantity:
         """
 
         self._units = sys.get_units()
-        self._conversion = (sys.H0**self.u_H0*sys.MP**self.u_MP)
+        self._conversion = (sys.omega**self.u_omega*sys.mu**self.u_mu)
 
     def __repr__(self):
+        r"""
+        A string representing the class, giving its name and scaling with frequency ($\omega$) and energy ($\mu$).
         """
-        The class represented as a string stating its scaling with 'H0' and 'MP'.
-
-        Returns
-        -------
-        repr : str
-            the string representation.
-        """
-        return f"{self.name}(H0={self.u_H0}, MP={self.u_MP})"
+        return f"{self.name}({self.u_omega},{self.u_mu})"
 
     def __str__(self) -> str:
         """
-        The class instance represented as a string including its name and current units.
-
-        Returns
-        -------
-        string : str
-            the string representation.
+        The class instance as a string including its name and current units.
         """
 
         if not(self._units):
             return f"{self.name} (numerical)"
         elif self._units:
             return f"{self.name} (physical)"
+    
+    @classmethod
+    def get_description(cls) -> str:
+        """
+        Return a string describing the object.
+        """
+        if cls.description=="":
+            return f"{cls.name}"
+        else:
+            return f"{cls.name} - {cls.description}"
         
     def get_units(self) -> bool:
         """
@@ -422,7 +422,7 @@ class Quantity:
 class Val(Quantity):
     def __init__(self, value : np.ndarray|float, sys : BGSystem):
         """
-        Create a new instance using a BGSystem
+        Create a new instance using a BGSystem.
 
         Parameters
         ----------
@@ -433,11 +433,11 @@ class Val(Quantity):
         """
         super().__init__(sys)
         self.value =  value
-        """A 1-D array of values in the units of the class instance."""
+        """The objects value in its respective units."""
 
     def __str__(self) -> str:
         """
-        The class represented as a string
+        The class instance as a string including its name, current units, and its value.
 
         Returns
         -------
@@ -592,7 +592,7 @@ class Func(Quantity):
         
         self._basefunc = func
 
-        self._arg_conversions = [(sys.H0**arg.u_H0*sys.MP**arg.u_MP)
+        self._arg_conversions = [(sys.omega**arg.u_omega*sys.mu**arg.u_mu)
                                  for arg in self.args]
         
     def get_basefunc(self) -> Callable:
@@ -640,8 +640,6 @@ class Func(Quantity):
 
     
 class Variable(Val):
-    """A `Val` that represents a variable with time."""
-
     dtype : ClassVar[np.floating] = np.float64
     """The data type of `value`."""
     
@@ -682,7 +680,6 @@ class Variable(Val):
      
      
 class Constant(Val):
-    """A `Val` that represents a constant with time."""
     def __init__(self, value : float, sys : BGSystem):
         """
         Create a new instance using a float and a BGSystem
@@ -697,22 +694,23 @@ class Constant(Val):
         super().__init__( value, sys)
     
     
-def BGVar(qname : str, H0 : int, MP : int, q_description:str="", q_dtype : np.dtype=np.float64):
+def BGVar(qname : str, q_u_omega : int, q_u_mu : int, q_description:str="", q_dtype : np.dtype=np.float64):
     """
-    Creates a subclass of `Val` with custom `Val.name`, `Val.u_H0` and `Val.u_MP`.
+    Creates a subclass of `Variable` with custom name, and scaling.
 
     Parameters
     ----------
     q_name : str
         the `name` attribute of the subclass
-    H0 : int
-        the `u_H0` attribute of the subclass
-    MP : int
-        the `u_MP` attribute of the subclass
-    q_dtype : Numpy Data Type
-        the `dtype` attribute of the subclass
+    q_u_omega : int
+        the `u_omega` attribute of the subclass
+    q_u_mu : int
+        the `u_mu` attribute of the subclass
     q_description : str
         a brief description of the subclass
+    q_dtype : Numpy Data Type
+        the `dtype` attribute of the subclass
+    
         
     Returns
     -------
@@ -729,10 +727,10 @@ def BGVar(qname : str, H0 : int, MP : int, q_description:str="", q_dtype : np.dt
         raise TypeError("BGVal's data-type must be a subtype of 'numpy.floating'.")
 
     class CustomVar(Variable):
-        __doc__ = docs_bgtypes.DOCS["BGVal.BGVal"]
+        __doc__ = docs_bgtypes.DOCS["BGVar.CustomVar"]
         name=qname
-        u_H0 = H0
-        u_MP = MP
+        u_omega = q_u_omega
+        u_mu = q_u_mu
         dtype = q_dtype
         description = q_description
         def __init__(self, value, sys):
@@ -742,18 +740,18 @@ def BGVar(qname : str, H0 : int, MP : int, q_description:str="", q_dtype : np.dt
 
     return CustomVar
 
-def BGConst(qname : str, H0 : int, MP : int, q_description:str=""):
+def BGConst(qname : str, q_u_omega : int, q_u_mu : int, q_description:str=""):
     """
-    Creates a subclass of `Val` with custom `Val.name`, `Val.u_H0` and `Val.u_MP`.
+    Creates a subclass of `Constant` with custom name, and scaling.
 
     Parameters
     ----------
     q_name : str
         the `name` attribute of the subclass
-    H0 : int
-        the `u_H0` attribute of the subclass
-    MP : int
-        the `u_MP` attribute of the subclass
+    q_u_omega : int
+        the `u_omega` attribute of the subclass
+    q_u_mu : int
+        the `u_mu` attribute of the subclass
     q_description : str
         a brief description of the subclass
         
@@ -761,18 +759,13 @@ def BGConst(qname : str, H0 : int, MP : int, q_description:str=""):
     -------
     CustomConst : class
         the custom subclass
-
-    Raises
-    ------
-    TypeError
-        if the data type is not a subtype of `numpy.floating`
     """
 
     class CustomConst(Constant):
-        __doc__ = docs_bgtypes.DOCS["BGVal.BGVal"]
+        __doc__ = docs_bgtypes.DOCS["BGConst.CustomConst"]
         name=qname
-        u_H0 = H0
-        u_MP = MP
+        u_omega = q_u_omega
+        u_mu = q_u_mu
         description = q_description
         def __init__(self, value, sys):
             super().__init__(value, sys)
@@ -783,18 +776,18 @@ def BGConst(qname : str, H0 : int, MP : int, q_description:str=""):
 
 
 
-def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_description:str="", q_dtype : np.dtype=np.float64):
+def BGFunc(qname : str, func_args : list[Val], q_u_omega : int, q_u_mu : int, q_description:str="", q_dtype : np.dtype=np.float64):
     """
-    Creates a subclass of `Func` with custom `Func.name`, `Func.u_H0` and `Func.u_MP`. and `Func.args`.
+    Creates a subclass of `Func` with custom name, scaling, and argument signature.
 
     Parameters
     ----------
     q_name : str
         the `name` attribute of the subclass
-    H0 : int
-        the `u_H0` attribute of the subclass
-    MP : int
-        the `u_MP` attribute of the subclass
+    q_u_omega : int
+        the `u_omega` attribute of the subclass
+    q_u_mu : int
+        the `u_mu` attribute of the subclass
     q_dtype : Numpy Data Type
         the `dtype` attribute of the subclass
     q_description : str
@@ -815,10 +808,10 @@ def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_description
         raise TypeError("BGFunc's data-type must be a subtype of 'np.floating'.")
     
     class CustomFunc(Func):
-        __doc__ = docs_bgtypes.DOCS["BGFunc.BGFunc"]
+        __doc__ = docs_bgtypes.DOCS["BGFunc.CustomFunc"]
         name=qname
-        u_H0 = H0
-        u_MP = MP
+        u_omega = q_u_omega
+        u_mu = q_u_mu
         args = func_args
         dtype = q_dtype
         description = q_description
@@ -830,13 +823,43 @@ def BGFunc(qname : str, func_args : list[Val], H0 : int, MP : int, q_description
 
     return CustomFunc
 
+class GaugeField:
+    """
+    A low level class defining some basic properties of gauge-field bilinear towers.
+    """
+    name : ClassVar[str] = ""
+    """The name of the class."""
+    associated : ClassVar[list[Variable]]= []
+    """
+    A list of the 0th order quantities which are associated with this class.
+    """
+    cutoff : Variable = None
+    """The UV-regulator cutoff scale associated with this class."""
+        
+    @classmethod
+    def get_description(cls) -> str:
+        """Return a string describing the object."""
+        return f"{cls.name} - associated with: {[a.name for a in cls.associated]}, UV cutoff: {cls.cutoff.name}"
+
+def BGGauge(qname : str, qassociated : list[Variable], qcutoff : Variable):
+    """
+    A class factory creating custom  `GaugeField` classes with new name, associated variables, and cutoff scale.
+    """
+    class CustomGaugeField(GaugeField):
+        name = qname
+        associated = qassociated
+        cutoff = qcutoff
+        
+    CustomGaugeField.__qualname__ = f"GaugeField_{qname}"
+    CustomGaugeField.__module__ = __name__
+    return CustomGaugeField
 
 #Add docstrings
 generate_docs(docs_bgtypes.DOCS)
     
 #Some usful pre-defined quantities
 #Space--time variables:
-t=BGVar("t", -1, 0, "physical time")
+t=BGVar("t", -1, 0, "cosmic time")
 N=BGVar("N", 0, 0, "e-folds")
 a=BGVar("a", 0, 0, "scale factor")
 H=BGVar("H", 1, 0, "Hubble rate")
@@ -851,8 +874,8 @@ V=BGFunc("V", [phi], 2, 2, "scalar potential")
 dV=BGFunc("dV", [phi], 2, 2, "scalar-potential derivative")
 
 #Gauge-field variables:
-E=BGVar("E", 4, 0, "electric field expectation value, E^2")
-B=BGVar("B", 4, 0, "magnetic field expectation value, B^2")
+E=BGVar("E", 4, 0, "electric-field expectation value, E^2")
+B=BGVar("B", 4, 0, "magnetic-field expectation value, B^2")
 G=BGVar("G", 4, 0, "Chern-Pontryagin expectation value, -E.B")
 
 #Auxiliary quantities:
@@ -861,3 +884,6 @@ kh=BGVar("kh", 1, 0, "instability scale")
 
 #constants
 beta=BGConst("beta", 0, -1, "inflaton--gauge-field coupling beta/Mp")
+
+#basic gauge-field
+GF = BGGauge("GF", [E, B, G], kh)

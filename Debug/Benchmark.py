@@ -22,13 +22,17 @@ def Benchmark(model, setting={}, loadGEF=True) -> BaseGEF:
         GEFPath = os.path.join(basepath, "Data/GEF+Classic_b25+m6e-6.dat")
 
     elif "SE" in model:
+        if "noscale" in model:
+            name = "SEOld"
+        else:
+            name = model
         if setting["pic"]=="mixed":
-            GEFPath = os.path.join(basepath, f"Data/GEF+{model}+mix_b25+m6e-6.dat")
+            GEFPath = os.path.join(basepath, f"Data/GEF+{name}+mix_b25+m6e-6.dat")
         elif setting["pic"]=="electric":
-            GEFPath = os.path.join(basepath, f"Data/GEF+{model}+elc_b25+m6e-6.dat")
+            GEFPath = os.path.join(basepath, f"Data/GEF+{name}+elc_b25+m6e-6.dat")
 
         elif setting["pic"]=="magnetic":
-            GEFPath = os.path.join(basepath, f"Data/GEF+{model}+mag_b25+m6e-6.dat")
+            GEFPath = os.path.join(basepath, f"Data/GEF+{name}+mag_b25+m6e-6.dat")
 
         indic.update({"rhoChi":0.})
     

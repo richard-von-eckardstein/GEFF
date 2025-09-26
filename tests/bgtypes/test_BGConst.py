@@ -32,8 +32,8 @@ class TestBGConst():
     def test_Class(self):
         x = BGConst("x", 2, 1)
         assert x.name == "x"
-        assert x.u_H0 == 2
-        assert x.u_MP == 1
+        assert x.u_omega == 2
+        assert x.u_mu == 1
 
     def test_Init(self, v1):
         x = self.inst(v1)
