@@ -70,23 +70,47 @@ bgfunc_addendum = """
     This is a subclass of `Func` with a custom name and scaling.
     """
 
+gaugefield_docs = r"""
+    A low level class defining some basic properties of gauge-field bilinear towers.
+
+    A gauge-field bilinear tower is defined as a collection of the following three objects,
+
+    $$ \mathcal{F}_\mathcal{E}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{{\rm UV}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2\, ,$$
+    $$ \mathcal{F}_\mathcal{G}^{(n)} = -\frac{a^4}{2 k_{{\rm UV}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf B} + {\bf B} \cdot \operatorname{rot}^n {\bf E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)} \frac{{\rm d} k}{k} \frac{a k^{n+4}}{2 \pi^2 k_{{\rm UV}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)] \, ,$$
+    $$ \mathcal{F}_\mathcal{B}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm UV}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2 \, ,$$
+
+    here $k_{\rm UV}$ is a UV cutoff scale, ${\bf E}$ and ${\bf B}$ are electric and magnetic field operators,
+      and $A_\lambda(t,k)$ is a gauge-field mode function. The integer $n$ varies between $0$ and a maximum value, $n_{\rm tr}$.
+
+    The `GaugeField` class collects important information about the collection $\mathcal{F}_\mathcal{X}^{(n)}$.
+    The `GEFF` code needs to know, which `Variable` sets the UV cutoff scale, and
+    which `Variable`s correspond to the zero-order quantities, $\langle {\bf E}^2\rangle$, $\langle {\bf B}^2\rangle$, and $-\langle {\bf E} \cdot {\bf B}\rangle$.
+
+    Note that a `GaugeField` is never part of a `BGSystem`, as the number of variables depends on $n_{\rm tr}$, which is not fixed a priori.
+    In fact, terms with $n>1$ are often only auxiliary and not used by the `GEFF` after the differential equations have been solved.
+    However, the quantities $\mathcal{F}_\mathcal{X}^{(n)}$ are defined to be unitless, so they do not need to be converted between numerical and physical units.
+
+    A custom `GaugeField` can be defined using `BGGauge`.
+    """
+
 
 DOCS = {
     "module":r"""
     This module defines base classes used throughout the `GEFF` module.
 
-    The main purpose of this module is to address the following situation:
-    Most cosmological quantities will scale according to an inverse-time scale, $\omega$, and an energy scale, $\mu$.
-    For example, a time derivative scales with inverse time, $\partial_t \sim \omega$, and therefore also a gauge field, $A_\mu \sim \omega$, as it appears in covariant derivatives.
+    The main purpose of these classes is to address the following.
+    Most quantities appearing in the GEF will scale according to an inverse-time scale, $\omega$, and an energy scale, $\mu$.
+    For example, a time derivative scales with inverse time, $\partial_t \sim \omega$. 
+    Consequently, also a gauge field, $A_\mu \sim \omega$, as it appears in covariant derivatives.
     On the other hand, the amplitude of a scalar field scales with energy, $\varphi \sim \mu$.
-    In typical inflationary contexts, $\omega = H_0$, some constant Hubble rate, and $\mu = M_{\rm P}$, the Planck mass.
+    In typical inflationary contexts, $\omega \equiv H_0$, some constant Hubble rate, and $\mu \equiv M_{\rm P}$, the Planck mass.
     
     For numerical applications, it is convenient to work with dimensionless quantities.
-    For example, it is useful to perform numerical computations using the *dimensionless* scalar amplitude $\bar{\varphi} = \varphi/\mu$, or the *dimensionless* gauge field, $\bar{A}_\mu = A_\mu / \omega$.
+    For example, it is useful to perform numerical computations using the dimensionless scalar amplitude $\bar{\varphi} = \varphi/\mu$, or the dimensionless gauge field, $\bar{A}_\mu = A_\mu / \omega$.
     Ultimately, the quantities we are interested in are obviously $\varphi$, $A_\mu$, etc. 
-    Therefore, we need an easy way to switch between $\bar{X}$ and $X$. This is the purpose of this module.
+    Therefore, we need an easy way to switch between $\bar{X}$ and $X$.
 
-    Throughout the code, we refer to the dimensionless variable, $\bar{X}$, as being in *numerical units*, while $X$ is in *physical units*. 
+    Throughout the code, we refer to the dimensionless variable, $\bar{X}$, as being in **numerical units**, while $X$ is in **physical units**. 
 
     To facilitate switching between these two unit systems throughout the code, this module provides the classes `BGSystem`, `Variable`, `Constant`, and `Func`. 
     The latter three are collectively referred to as `Quantity` objects.
@@ -94,7 +118,7 @@ DOCS = {
     A `BGSystem` is a collection of `Quantity` objects, which defines a common unit system by setting the value of $\omega$ and $\mu$.
 
     The user may define variables that evolve with cosmic time using the `BGVar` class factory, which creates subclasses of `Variable`. Examples of a `Variable` are the Hubble rate, scalar field amplitude etc.
-    In the same manner, the user can define constants of cosmic time using the `BGConst` class factory, which creates subclasses of `Constant`. Examples of a `constant` are, e.g., coupling strengths.
+    In the same manner, the user can define constants of cosmic time using the `BGConst` class factory, which creates subclasses of `Constant`. Examples of a `Constant` are, e.g., coupling strengths.
     Some quantities are functions of variables, for example, a scalar potential. These are defined by the factory `BGFunc`, which creates subclasses of `Func`.
 
     The following examples illustrates the basic use of these classes:
@@ -237,7 +261,7 @@ DOCS = {
     These objects are stored in `quantities`, and can can be initialise using `initialise`.
     Instances of these objects can be collectively converted between units by using the scales `omega` and `mu`. 
 
-    This class is the fundamental building block of the `geff` code. 
+    This class is the fundamental building block of the `GEFF` code. 
     """,
 
     "Quantity":r"""
@@ -265,7 +289,8 @@ DOCS = {
     "BGConst.CustomConst":variable_docs+bgvar_addendum,
 
     "Func":func_docs+ func_addendum,
-    "BGFunc.CustomFunc":val_docs+bgfunc_addendum
+    "BGFunc.CustomFunc":val_docs+bgfunc_addendum,
 
+    "GaugeField":gaugefield_docs,
 }
 

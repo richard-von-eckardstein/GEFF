@@ -7,7 +7,7 @@ DOCS = {
     $$\sqrt{2k} A_\lambda(t,k), \quad \sqrt{\frac{2}{k}}\, a(t)\dot{A}_\lambda(k, t), \quad \lambda = \pm 1$$
 
     where $A_\lambda(t,k)$ are the mode functions of helicity $\lambda$ and momentum $k$ for a canonically quantized Abelian gauge-field $A_\mu(t, {\bf x})$ in Coulomb & Weyl gauge.
-    The momentum variables $k$ are always returned in numerical units, i.e., $k_{\rm phys} = k_{\rm num} H_0$.
+    The momentum variables $k$ are always returned in numerical units, i.e., $\bar{k} = k/\omega$.
 
     The class `BaseModeSolver` is designed to solve the second order mode equation
 

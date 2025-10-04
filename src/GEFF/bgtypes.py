@@ -22,7 +22,7 @@ class BGSystem:
         self.omega : float = omega
         """A frequency scale (typically the Hubble rate at some reference time)"""
         self.mu : float = mu
-        """An energy scale(typically the Planck mass)"""
+        """An energy scale (typically the Planck mass)"""
         self._units=True
     
     @classmethod
@@ -173,8 +173,8 @@ class BGSystem:
 
         Returns
         -------
-        vals : list of Val
-            the list of `Val` instances.
+        vals : list of Variable
+            the list of `Variable` instances.
         """
 
         vals = []
@@ -206,7 +206,7 @@ class BGSystem:
         Returns
         -------
         vals : list of Val
-            the list of `Val` instances.
+            the list of `Constant` instances.
         """
 
         vals = []
@@ -692,23 +692,35 @@ class Constant(Val):
             the BGSystem to which the instance belongs
         """
         super().__init__( value, sys)
+
+class GaugeField:
+    name : ClassVar[str] = ""
+    """The name of the class."""
+    zeros : ClassVar[list[Variable]]= []
+    r"""A list of the associated 0$^{\rm th}$ order quantities."""
+    cutoff : Variable = None
+    """The associated UV cutoff scale."""
+        
+    @classmethod
+    def get_description(cls) -> str:
+        """Return a string describing the object."""
+        return f"{cls.name} - associated with: {[a.name for a in cls.zeros]}, UV cutoff: {cls.cutoff.name}"
     
-    
-def BGVar(qname : str, q_u_omega : int, q_u_mu : int, q_description:str="", q_dtype : np.dtype=np.float64):
+def BGVar(qname : str, qu_omega : int, qu_mu : int, qdescription:str="", qdtype : np.dtype=np.float64):
     """
     Creates a subclass of `Variable` with custom name, and scaling.
 
     Parameters
     ----------
-    q_name : str
+    qname : str
         the `name` attribute of the subclass
-    q_u_omega : int
+    qu_omega : int
         the `u_omega` attribute of the subclass
-    q_u_mu : int
+    qu_mu : int
         the `u_mu` attribute of the subclass
-    q_description : str
+    qdescription : str
         a brief description of the subclass
-    q_dtype : Numpy Data Type
+    qdtype : Numpy Data Type
         the `dtype` attribute of the subclass
     
         
@@ -723,16 +735,16 @@ def BGVar(qname : str, q_u_omega : int, q_u_mu : int, q_description:str="", q_dt
         if the data type is not a subtype of `numpy.floating`
     """
 
-    if not( np.issubdtype(q_dtype, np.floating) ):
+    if not( np.issubdtype(qdtype, np.floating) ):
         raise TypeError("BGVal's data-type must be a subtype of 'numpy.floating'.")
 
     class CustomVar(Variable):
         __doc__ = docs_bgtypes.DOCS["BGVar.CustomVar"]
         name=qname
-        u_omega = q_u_omega
-        u_mu = q_u_mu
-        dtype = q_dtype
-        description = q_description
+        u_omega = qu_omega
+        u_mu = qu_mu
+        dtype = qdtype
+        description = qdescription
         def __init__(self, value, sys):
             super().__init__(value, sys)
     CustomVar.__qualname__ = f"Val_{qname}"
@@ -740,19 +752,19 @@ def BGVar(qname : str, q_u_omega : int, q_u_mu : int, q_description:str="", q_dt
 
     return CustomVar
 
-def BGConst(qname : str, q_u_omega : int, q_u_mu : int, q_description:str=""):
+def BGConst(qname : str, qu_omega : int, qu_mu : int, qdescription:str=""):
     """
     Creates a subclass of `Constant` with custom name, and scaling.
 
     Parameters
     ----------
-    q_name : str
+    qname : str
         the `name` attribute of the subclass
-    q_u_omega : int
+    qu_omega : int
         the `u_omega` attribute of the subclass
-    q_u_mu : int
+    qu_mu : int
         the `u_mu` attribute of the subclass
-    q_description : str
+    qdescription : str
         a brief description of the subclass
         
     Returns
@@ -764,9 +776,9 @@ def BGConst(qname : str, q_u_omega : int, q_u_mu : int, q_description:str=""):
     class CustomConst(Constant):
         __doc__ = docs_bgtypes.DOCS["BGConst.CustomConst"]
         name=qname
-        u_omega = q_u_omega
-        u_mu = q_u_mu
-        description = q_description
+        u_omega = qu_omega
+        u_mu = qu_mu
+        description = qdescription
         def __init__(self, value, sys):
             super().__init__(value, sys)
     CustomConst.__qualname__ = f"Const_{qname}"
@@ -776,21 +788,21 @@ def BGConst(qname : str, q_u_omega : int, q_u_mu : int, q_description:str=""):
 
 
 
-def BGFunc(qname : str, func_args : list[Val], q_u_omega : int, q_u_mu : int, q_description:str="", q_dtype : np.dtype=np.float64):
+def BGFunc(qname : str, func_args : list[Val], qu_omega : int, qu_mu : int, qdescription:str="", qdtype : np.dtype=np.float64):
     """
     Creates a subclass of `Func` with custom name, scaling, and argument signature.
 
     Parameters
     ----------
-    q_name : str
+    qname : str
         the `name` attribute of the subclass
-    q_u_omega : int
+    qu_omega : int
         the `u_omega` attribute of the subclass
-    q_u_mu : int
+    qu_mu : int
         the `u_mu` attribute of the subclass
-    q_dtype : Numpy Data Type
+    qdtype : Numpy Data Type
         the `dtype` attribute of the subclass
-    q_description : str
+    qdescription : str
         a brief description of the subclass
 
     Returns
@@ -804,17 +816,17 @@ def BGFunc(qname : str, func_args : list[Val], q_u_omega : int, q_u_mu : int, q_
         if the data type is not a subtype of `numpy.floating`
     """
 
-    if not( np.issubdtype(q_dtype, np.floating) ):
+    if not( np.issubdtype(qdtype, np.floating) ):
         raise TypeError("BGFunc's data-type must be a subtype of 'np.floating'.")
     
     class CustomFunc(Func):
         __doc__ = docs_bgtypes.DOCS["BGFunc.CustomFunc"]
         name=qname
-        u_omega = q_u_omega
-        u_mu = q_u_mu
+        u_omega = qu_omega
+        u_mu = qu_mu
         args = func_args
-        dtype = q_dtype
-        description = q_description
+        dtype = qdtype
+        description = qdescription
         def __init__(self, func, sys):
             super().__init__(func, sys)
 
@@ -823,31 +835,27 @@ def BGFunc(qname : str, func_args : list[Val], q_u_omega : int, q_u_mu : int, q_
 
     return CustomFunc
 
-class GaugeField:
+def BGGauge(qname : str, qzeros : list[Variable], qcutoff : Variable):
     """
-    A low level class defining some basic properties of gauge-field bilinear towers.
-    """
-    name : ClassVar[str] = ""
-    """The name of the class."""
-    associated : ClassVar[list[Variable]]= []
-    """
-    A list of the 0th order quantities which are associated with this class.
-    """
-    cutoff : Variable = None
-    """The UV-regulator cutoff scale associated with this class."""
-        
-    @classmethod
-    def get_description(cls) -> str:
-        """Return a string describing the object."""
-        return f"{cls.name} - associated with: {[a.name for a in cls.associated]}, UV cutoff: {cls.cutoff.name}"
+    A class factory creating custom  `GaugeField` classes with new name, zero variables, and cutoff scale.
 
-def BGGauge(qname : str, qassociated : list[Variable], qcutoff : Variable):
-    """
-    A class factory creating custom  `GaugeField` classes with new name, associated variables, and cutoff scale.
+    Parameters
+    ----------
+    qname : str
+        the `name` attribute of the subclass
+    qzeros : list of Variable
+        the `zeros` attribute of the new subclass 
+    qcutoff : Variable
+        the `cutoff` attribute of the new subclass
+
+    Returns
+    -------
+    CustomGaugeField : class
+        the custom subclass
     """
     class CustomGaugeField(GaugeField):
         name = qname
-        associated = qassociated
+        zeros = qzeros
         cutoff = qcutoff
         
     CustomGaugeField.__qualname__ = f"GaugeField_{qname}"

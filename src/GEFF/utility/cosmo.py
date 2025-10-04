@@ -72,3 +72,6 @@ g_s_0 : float = g_s(T_0)
 omega_r : float = np.pi**2*g_rho_0/(90*M_pl**2*H0**2)*T_0**4
 """The density parameter for radiation today, $\Omega_r$."""
 
+feq = 2.1e-17
+"""Frequency corresponding to mattter-radiation equality"""
+

@@ -22,6 +22,20 @@ def friedmann(*rhos) -> float:
     Hsq = (1/3) * (sum(rhos)) 
     return np.sqrt(Hsq)
 
+def check_accelerated_expansion(rhos, ps):
+    """
+    Compute $$6 M_{\rm P}^2 \ddot{a}/a$$
+
+    Parameters
+    ----------
+    rhos : list
+        energy densities
+    ps : list
+        pressures
+    """
+    return -(sum(rhos) + 3*sum(ps))
+
+
 def klein_gordon(dphi : float, dV : float, H : float, friction : float) -> float:
     r"""
     Calculate the Klein&ndash;Gordon equation (including gauge-field friction).
