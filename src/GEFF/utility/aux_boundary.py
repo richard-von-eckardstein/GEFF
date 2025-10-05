@@ -18,17 +18,14 @@ from functools import lru_cache
 #set accuracy of mpmath
 mp.dps = 8
 
-#@lru_cache(maxsize=int(1e6))
+
+@lru_cache(maxsize=int(1e6))
 def whittaker_w(xi, s):
     r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
     w = whitw(-xi*1j, 1/2 + s, -2j*r)
-    return complex(w)
-
-#@lru_cache(maxsize=int(1e6))
-def whittaker_w_1(xi,s):
-    r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
     w1 = whitw(1-xi*1j, 1/2 + s, -2j*r)
-    return complex(w1)
+    return complex(w), complex(w1)
+    
 
 def boundary_exact(xi : float, s : float) -> np.ndarray:
     """
@@ -43,10 +40,9 @@ def boundary_exact(xi : float, s : float) -> np.ndarray:
     -------
     W : NDArray
     """
-    wp = whittaker_w(xi, s)
-    wm = whittaker_w(-xi, s)
-    w1p = whittaker_w_1(xi, s)
-    w1m = whittaker_w_1(-xi, s)
+    xi = float(xi)
+    wp, w1p = whittaker_w(xi, s)
+    wm, w1m = whittaker_w(-xi, s)
 
     w = np.array([wp, wm])
     w1 = np.array([w1p, w1m])

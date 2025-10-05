@@ -548,7 +548,7 @@ class Func(Quantity):
     
     def get_arg_conversions(self) -> list[float]:
         """
-        Get a list of conversion factors for each argument of `f(*args)`.
+        Get a list of conversion factors for each argument of `basefunc`.
 
         Returns
         -------

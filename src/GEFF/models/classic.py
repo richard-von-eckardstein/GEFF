@@ -42,8 +42,8 @@ from GEFF.mbm import ModeSolver
 
 from GEFF.utility.aux_eom import friedmann, gauge_field_ode, dlnkh, klein_gordon, check_accelerated_expansion
 from GEFF.utility.aux_mode import bd_classic, mode_equation_classic
-from GEFF.utility.boundary import boundary_approx
-from GEFF.utility.auxiliary import heaviside
+from GEFF.utility.aux_boundary import boundary_approx
+from GEFF.utility.aux_general import heaviside
 from GEFF._docs import generate_docs, docs_models
 
 

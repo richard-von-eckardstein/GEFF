@@ -47,8 +47,8 @@ from GEFF.mbm import ModeSolver
 
 from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh_schwinger, ddelta, drhoChi, gauge_field_ode_schwinger,
                                         conductivities_collinear, conductivities_mixed, check_accelerated_expansion)
-from GEFF.utility.boundary import boundary_approx_schwinger
-from GEFF.utility.auxiliary import heaviside
+from GEFF.utility.aux_boundary import boundary_approx_schwinger
+from GEFF.utility.aux_general import heaviside
 from GEFF.utility.aux_mode import mode_equation_SE_no_scale, damped_bd
 from GEFF._docs import generate_docs, docs_models
 

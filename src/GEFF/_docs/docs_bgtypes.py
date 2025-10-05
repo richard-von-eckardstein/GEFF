@@ -50,10 +50,10 @@ func_docs = """
     A `Quantity` subclass representing real functions of variables like the inflaton potential.
     
     An instance of this class can be used as a function,
-    evaluating the underlying method, `basefunction` depending on the state of `units`.
+    evaluating the underlying method, `basefunc` depending on the state of `units`.
 
-    In physical units, the call returns the result of `basefunction`.
-    In numerical units, the call instead returns `basefunction(*args)/conversion`.  
+    In physical units, the call returns the result of `basefunc`.
+    In numerical units, the call instead returns `basefunc(*args)/conversion`.  
     If called by a `Val` object, the argument is also converted according to the units of the `Val` instance
     (generically, identical to the ones of the `Func` instance).
     If instead called by a regular arithmetic data type (e.g., `float`),

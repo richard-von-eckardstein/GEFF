@@ -353,7 +353,8 @@ class BaseGEF(BGSystem):
             ref = [a.name for a in GF.associated]
             cut = GF.cutoff.name
 
-            errs, terr, _ = spec.estimate_GEF_error(vals, references=ref, cutoff=cut, err_thr=err_thr, binning=binning, **integrator_kwargs)
+            errs, terr, _ = spec.estimate_GEF_error(vals, references=ref, cutoff=cut,
+                                                     err_thr=err_thr, binning=binning, **integrator_kwargs)
 
             reinit_inds = []
             

@@ -5,6 +5,7 @@ from .mbm import SpecSlice
 from scipy.integrate import solve_ivp
 from typing import Callable, Tuple, ClassVar
 from ._docs import generate_docs, docs_solver
+from .utility.aux_general import AuxTol
 
 class BaseGEFSolver:
     known_variables : ClassVar[dict] = {"time":[t], "dynamical":[N], "static":[a], "constant":[H], "function":[], "gauge":[]}
@@ -387,15 +388,6 @@ class BaseGEFSolver:
 
     
     def _setup_events(self):
-        
-        #eventually reinstate this
-        """
-        def EventWrapper(t, y, vals):
-            def SolveIVPcompatibleEvent(func):
-                return func(t, y, vals, self.settings["atol"], self.settings["rtol"])
-            return SolveIVPcompatibleEvent
-        """
-
         event_funcs = []
         event_dict = {}
         for name, event in self.known_events.items():
@@ -526,8 +518,10 @@ class BaseGEFSolver:
             if setting not in self.settings.keys():
                 unknown_settings.append(setting)
             elif value != self.settings[setting]:
-                print(f"Changing {setting} from {self.settings[setting]} to {value}.")
+                print(f"Changing '{setting}' from {self.settings[setting]} to {value}.")
                 self.settings[setting] = value
+                if setting in ["atol", "rtol"]:
+                    setattr(AuxTol, setting, value)
         
         if len(unknown_settings) > 0:
             print(f"Unknown settings: {unknown_settings}")
@@ -535,7 +529,7 @@ class BaseGEFSolver:
     
     def _increase_ntr(self, val : int):
         self.ntr+=val
-        print(f"Increasing ntr by {val} to {self.ntr}.")
+        print(f"Increasing 'ntr' by {val} to {self.ntr}.")
         return
     
     
@@ -688,7 +682,6 @@ class ObserverEvent(Event):
     def __init__(self, name : str, func : Callable, direction : int):
         """Initialise the parent class."""
         super().__init__(name, "observer", func, False, direction)
-
 
 class TruncationError(Exception):
     """
