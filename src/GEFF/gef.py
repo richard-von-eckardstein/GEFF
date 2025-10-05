@@ -1,15 +1,12 @@
 import pandas as pd
 import numpy as np
+import inspect
 from ._docs import generate_docs, docs_gef
 from .bgtypes import BGSystem, Val, Func
-from .models import classic
-
-import importlib
-import os
+from .models import load_model, classic
 
 from numbers import Number
-from types import NoneType
-
+from typing import Callable
 
 class BaseGEF(BGSystem):
     
@@ -20,27 +17,14 @@ class BaseGEF(BGSystem):
     _input_signature = classic.input_dic
     define_units = staticmethod(classic.define_units)
 
-    def __init__(
-                self, consts : dict, init_data : dict, funcs : dict, 
-                GEFdata: NoneType|str = None, MbMdata: NoneType|str = None
-                ):
+    def __init__(self, **kwargs):
         """
-        Define values for input constants, initial data, and functions used by the GEF.
-
-        This also initializes the underlying `BGSystem` class using `define_units`.
+        Initialize the GEF from user-specified initial data, constants and functions.
 
         Parameters
         ----------
-        consts : dict
-            user specified values for constants
-        init_data : dict
-            user specified initial data for the GEF
-        funcs : dict
-            user specified functions of GEF variables
-        GEFdata : None or str:
-            file to path for GEF data
-        MbMdata : None or str:
-            file to path for mode data
+        kwargs 
+            To access a list of kwargs for this model use `print_kwargs`.
 
         Raises
         ------
@@ -48,53 +32,48 @@ class BaseGEF(BGSystem):
             if a necessary input is missing.
         TypeError
             if the input is of the wrong type.
-        """    
-        user_input = {"constants":consts, "initial data":init_data, "functions":funcs}
+        """
 
-        #Check that all necessary input is present and that its data type is correct
-        for input_type, input_dict  in user_input.items():
-            self._check_input(input_dict, input_type)
+        for val in self._input_signature:
+            if val.name not in kwargs.keys():
+                raise KeyError(f"Missing input '{val.name}'")
+            else:
+                key = val.name
+                item = kwargs[key]
+            if issubclass(val, Val) and not(isinstance(item, Number)):
+                raise TypeError(f"Input for '{key}' should be 'Number' type.")
+            elif issubclass(val, Func) and not(callable(item)):
+                raise TypeError(f"Input for '{key}' must be callable.")
 
-        omega, mu = self.define_units(*user_input.values())
+        #check which keys are needed for define_units
+        expected_keys = inspect.getfullargspec(self.define_units).args
+        omega, mu = self.define_units(**{key:kwargs[key] for key in expected_keys})
 
         known_objects = set().union(*[item for key, item in self.GEFSolver.known_variables.items() if key!="gauge"] )
 
         super().__init__(known_objects, omega, mu)
 
-        #Add initial data to BGSystem
-        for name, constant in user_input["constants"].items():
-            self.initialise(name)(constant)
-        for name, function in user_input["functions"].items():
-            self.initialise(name)(function)
-        for name, value in user_input["initial data"].items():
-            self.initialise(name)(value)
+        for key, item in kwargs.items():
+            self.initialise(key)(item)
 
         #initialise the other values with dummy variables.
         for obj in self.quantity_set():
-            if obj.name not in (self.variable_names() + self.function_names() + self.constant_names()):
+            if not(hasattr(self, obj.name)):
                 if issubclass(obj, Val):
                     self.initialise(obj.name)(0)
                 elif issubclass(obj, Func):
-                    self.initialise(obj.name)(lambda *x: 0)
+                    self.initialise(obj.name)(lambda *x: 0)    
 
-        #Add information about file paths
-        self.GEFdata = GEFdata
-        """Path to GEF data used by `load_GEFdata` and `save_GEFdata`."""
-        self.MbMdata = MbMdata
-        """Path to mode data. Load using `.mbm.GaugeSpec.read_spec`"""
-
-        self._completed=False
+        self._completed = False
 
     @classmethod
-    def print_input(cls):
+    def print_kwargs(cls):
         """
         Print the input required to initialize the class.
         """
         print("This GEF model expects the following input:\n")
-        for key, item in cls._input_signature.items():
-            print(f"{key.capitalize()}:")
-            for i in item:
-                print(f" * {i.get_description()}")
+        for i in cls._input_signature:
+            print(f" * {i.get_description()}")
         print()
         return
     
@@ -110,26 +89,6 @@ class BaseGEF(BGSystem):
                 for i in item:
                     print(f" * {i.get_description()}")
         print()
-        return
-
-    def _check_input(self, input_data : dict, input_type : str):
-        for val in self._input_signature[input_type]:
-            key = val.name
-            try:
-                assert key in input_data.keys()
-            except AssertionError:
-                raise KeyError(f"Missing input in '{input_type}': '{key}'")
-
-            if input_type == "functions":
-                try:
-                    assert callable(input_data[key])
-                except AssertionError:
-                    raise TypeError("Input 'functions' must be callable.")
-            else:
-                try:
-                    assert isinstance(input_data[key], Number)
-                except AssertionError:
-                    raise TypeError(f"Input '{input_type}' is '{type(input_data[key])}' but should be 'Number' type.")
         return
     
     def run(self, ntr:int=150, tend:float=120, nmodes:int=500, mbm_attempts:int=5,  resume_mbm:bool=True,
@@ -376,7 +335,7 @@ class BaseGEF(BGSystem):
 
         return agreement, reinit_slice
 
-    def load_GEFdata(self, path : NoneType|str=None):
+    def load_GEFdata(self, path : str):
         """
         Load data and store its results in the current GEF instance.
 
@@ -385,33 +344,21 @@ class BaseGEF(BGSystem):
         Parameters
         ----------
         path : None or str
-            If None, loads data from `GEFdata`. Otherwise, loads data from the specified path.
+            Path to load data from
 
         Raises
         ------
-        KeyError
-            if `path` is None but `GEFdata` is also None.
         FileNotFoundError
             if no file is found at `path`.
         AttributeError
             if the file contains a column labeled by a key which does not match any GEF-value name.
         """
-
-        if path is None:
-            path=self.GEFdata
-        else:
-            self.GEFdata=path
-
-        #Check if GEF has a file path associated with it
-        if path is None:
-            raise KeyError("You did not specify the file from which to load the GEF data. Set 'GEFdata' to the file's path from which you want to load your data.")
-        else:
-            #Check if file exists
-            try:
-                #Load from file
-                input_df = pd.read_table(path, sep=",")
-            except FileNotFoundError:
-                raise FileNotFoundError(f"No file found under '{path}'")
+        #Check if file exists
+        try:
+            #Load from file
+            input_df = pd.read_table(path, sep=",")
+        except FileNotFoundError:
+            raise FileNotFoundError(f"No file found under '{path}'")
         
         #Dictionary for easy access using keys
 
@@ -437,7 +384,7 @@ class BaseGEF(BGSystem):
 
         return
 
-    def save_GEFdata(self, path : NoneType|str=None):
+    def save_GEFdata(self, path : str):
         """
         Save the data in the current GEF instance in an output file.
 
@@ -446,98 +393,38 @@ class BaseGEF(BGSystem):
         Parameters
         ----------
         path : str
-            If None, stores data in `GEFdata`. Else, stores data in the specified file.
+            Path to store data in.
 
         Raises
         ------
-        KeyError
-            if 'path' is None but `GEFdata` is also None.
         ValueError
             if the GEF object has no data to store.
-        
         """
-        if path is None:
-            path=self.GEFdata
-        else:
-            self.GEFdata=path
-        
-        if path is None:
-            raise KeyError("You did not specify the file under which to store the GEF data. Set 'GEFdata' to the location where you want to save your data.")
 
         storeables = self.variable_names     
         #Check that all dynamic and derived quantities are initialised in this GEF instance
         if not(self._completed):
             raise ValueError("No data to store.")
-        else:
-            path = self.GEFdata
-
-            #Create a dictionary used to initialise the pandas DataFrame
-            dic = {}
-
-            #remember the original units of the GEF
-            og_units=self.units
-
-            #Data is always stored unitless
-            self.units = False
-
-            for key in storeables:
-                dic[key] = getattr(self, key).value
-            
-            #Create pandas data frame and store the dictionary under the user-specified path
-            output_df = pd.DataFrame(dic)  
-            output_df.to_csv(path)
-
-            #after storing data, restore original units
-            self.units = og_units
-        return
-
-
-
-def _load_model(model : str, user_settings : dict):
-    """
-    Import and execute a module defining a GEF model.
-
-    Parameters
-    ----------
-    model : str
-        The name of the GEF model or a full dotted import path (e.g., "path.to.module").
-    settings : dict
-        A dictionary containing updated settings for the module.
-
-    Returns
-    -------
-    ModuleType
-        The configured module.
-    """
-
-    # Case 1: Bare name, resolve to ./models/{name}.py
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    modelpath = os.path.join(current_dir, f"models/{model}.py")
-
-    if os.path.exists(modelpath):
-        spec = importlib.util.spec_from_file_location(model, modelpath)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-
-    else:
-        # Case 2: Try treating it as a dotted import path
-        try:
-            mod = importlib.import_module(model)
-        except ImportError as e:
-            raise FileNotFoundError(
-                f"No model file found at '{modelpath}' and failed to import '{model}'"
-                ) from e
         
-    if hasattr(mod, "settings") and isinstance(user_settings, dict):
-        for key, item in user_settings.items():
-            if key in mod.settings:
-                mod.settings[key] = item
-                print(f"Updating '{key}' to '{item}'.")
-            else:
-                print(f"Ignoring unknown model setting '{key}'.")
-        mod.interpret_settings()
+        #Create a dictionary used to initialise the pandas DataFrame
+        dic = {}
 
-    return mod
+        #remember the original units of the GEF
+        og_units=self.units
+
+        #Data is always stored unitless
+        self.units = False
+
+        for key in storeables:
+            dic[key] = getattr(self, key).value
+        
+        #Create pandas data frame and store the dictionary under the user-specified path
+        output_df = pd.DataFrame(dic)  
+        output_df.to_csv(path)
+
+        #after storing data, restore original units
+        self.units = og_units
+        return
 
 
 def GEF(modelname:str, settings:dict={}):
@@ -557,7 +444,15 @@ def GEF(modelname:str, settings:dict={}):
         a custom subclass of BaseGEF
         
     """
-    model = _load_model(modelname, settings)
+    model = load_model(modelname, settings)
+    signature  = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)]
+    for val in model.input_dic:
+        if issubclass(val, Func):
+            annotation = Callable
+        else:
+            annotation = float
+        signature.append(inspect.Parameter(val.name, inspect.Parameter.KEYWORD_ONLY, annotation=annotation))
+    
     class CustomGEF(BaseGEF):
         GEFSolver = model.solver
         """The solver used to solve the GEF equations in `run`."""
@@ -565,6 +460,8 @@ def GEF(modelname:str, settings:dict={}):
         """The mode solver used for mode-by-mode cross checks."""
         _input_signature = model.input_dic
         define_units = staticmethod(model.define_units)
+
+    CustomGEF.__init__.__signature__ = inspect.Signature(signature)
 
     CustomGEF.__qualname__ = model.name
     CustomGEF.__module__ = __name__

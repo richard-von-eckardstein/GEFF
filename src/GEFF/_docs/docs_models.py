@@ -3,15 +3,6 @@ DOCS = {
     
     * energy scale: $M_{\rm P}$ in Planck units
     * frequency scale: initial Hubble rate, $H_0$ (in Planck units)
-
-    Parameters
-    ----------
-    consts : dict
-        "constants" passed by the user
-    init : dict
-        "initial data" passed by the user
-    funcs : dict
-        "functions" passed by the user
     """,
 
     "initial_conditions":"""Define how to create an array of initial data to solve the ODE's.

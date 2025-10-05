@@ -5,7 +5,7 @@ from .mbm import SpecSlice
 from scipy.integrate import solve_ivp
 from typing import Callable, Tuple, ClassVar
 from ._docs import generate_docs, docs_solver
-from .utility.aux_general import AuxTol
+from .utility.general import AuxTol
 
 class BaseGEFSolver:
     known_variables : ClassVar[dict] = {"time":[t], "dynamical":[N], "static":[a], "constant":[H], "function":[], "gauge":[]}

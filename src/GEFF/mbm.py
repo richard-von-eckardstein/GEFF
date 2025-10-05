@@ -5,7 +5,7 @@ from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.integrate import solve_ivp
 from scipy.integrate import quad, simpson
 from .bgtypes import Variable, Constant, Func, BGSystem
-from .utility.aux_mode  import mode_equation_classic, bd_classic
+from .utility.mode  import mode_equation_classic, bd_classic
 from typing import Tuple, Callable, ClassVar
 from types import NoneType
 from ._docs import generate_docs, docs_mbm

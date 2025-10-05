@@ -23,8 +23,8 @@ def friedmann(*rhos) -> float:
     return np.sqrt(Hsq)
 
 def check_accelerated_expansion(rhos, ps):
-    """
-    Compute $$6 M_{\rm P}^2 \ddot{a}/a$$
+    r"""
+    Compute $6 M_{\rm P}^2 \ddot{a}/a$.
 
     Parameters
     ----------
@@ -382,7 +382,7 @@ def conductivities_collinear(a  : float, H  : float,
     float
         the magnetic damping, $\sigma_{\rm B}$
     float
-        the damping scale, $k_{\rm S}S
+        the damping scale, $k_{\rm S}$
     """     
     mu = (E+B)
     if mu<=0:
@@ -432,7 +432,7 @@ def conductivities_mixed(a  : float, H  : float,
     float
         the magnetic damping, $\sigma_{\rm B}$
     float
-        the damping scale, $k_{\rm S}S
+        the damping scale, $k_{\rm S}$
     """     
     Sigma = np.sqrt((E - B)**2 + 4*G**2)
     if Sigma<=0:

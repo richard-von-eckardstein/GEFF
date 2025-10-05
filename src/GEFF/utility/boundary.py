@@ -3,10 +3,10 @@ This module facilitates computing boundary terms which appear when computing the
 due to the time dependence of the UV-regulator scale $k_{\rm h}$.
 
 All functions in this module return the same quantities, namely
-$$E_\lambda = \frac{1}{r^2}\left| (i r - i \lambda \xi - s) W_{-i \lambda \xi, \frac{1}{2} + s}(-2 i r) + W_{1-i \lambda \xi, 1/2 + s}(-2 i r) \right|^2 \, , $$
-$$B_\lambda = \left| W_{-i \lambda \xi, \frac{1}{2} + s}(-2 i r) \right|^2 \, , $$
+$$E_\lambda(\xi, s) = \frac{1}{r^2}\left| (i r - i \lambda \xi - s) W_{-i \lambda \xi, \frac{1}{2} + s}(-2 i r) + W_{1-i \lambda \xi, 1/2 + s}(-2 i r) \right|^2 \, , $$
+$$B_\lambda(\xi, s) = \left| W_{-i \lambda \xi, \frac{1}{2} + s}(-2 i r) \right|^2 \, , $$
 $$G_\lambda(\xi, s) = \frac{1}{r}\left[\operatorname{Re}\left[W_{1-i \lambda \xi, 1/2 + s}(-2 i r) W_{i \lambda \xi, \frac{1}{2} + s}(2 i r)\right] -  s \left| W_{-i \lambda \xi, \frac{1}{2} + s}(-2 i r)\right|^2 \right]\, ,$$
-with $r = |\xi| + \sqrt{\xi^2 + s^2 + s}$, the Whittaker-W function $W_{\kappa, \mu}(x)$, $\xi$ the instability parameter, and $s= \sigma_{\rm E}/(2H)$ an effective electric conductivity.
+with $r = |\xi| + \sqrt{\xi^2 + s^2 + s}$, the Whittaker-W function $W_{\kappa, \mu}(x)$,the instability parameter  $\xi$ , and $s= \sigma_{\rm E}/(2H)$ an effective electric conductivity.
 
 The functions in this module return an array of shape (3,2), with the first index corresponding to $E$, $B$, $G$ and the second index to helicity $\lambda=\pm 1$.
 """

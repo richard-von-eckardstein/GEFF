@@ -40,10 +40,10 @@ from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, b
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
-from GEFF.utility.aux_eom import friedmann, gauge_field_ode, dlnkh, klein_gordon, check_accelerated_expansion
-from GEFF.utility.aux_mode import bd_classic, mode_equation_classic
-from GEFF.utility.aux_boundary import boundary_approx
-from GEFF.utility.aux_general import heaviside
+from GEFF.utility.eom import friedmann, gauge_field_ode, dlnkh, klein_gordon, check_accelerated_expansion
+from GEFF.utility.mode import bd_classic, mode_equation_classic
+from GEFF.utility.boundary import boundary_approx
+from GEFF.utility.general import heaviside
 from GEFF._docs import generate_docs, docs_models
 
 
@@ -60,17 +60,13 @@ quantities : dict={
             }
 
 #State which variables require input for initialisation
-input_dic = {
-        "initial data":[phi, dphi],
-        "constants":[beta],
-        "functions":[V, dV]
-        }
+input_dic = [ beta, phi, dphi, V, dV]
 
 #this functions is called upon initialisation of the GEF class
-def define_units(consts, init, funcs):
+def define_units(phi, dphi, V):
     #compute Hubble rate at t0
-    rhoK = 0.5*init["dphi"]**2
-    rhoV = funcs["V"](init["phi"])
+    rhoK = 0.5*dphi**2
+    rhoV = V(phi)
     H0 = friedmann( rhoK, rhoV )
     
     omega = H0 #Characteristic frequency is the initial Hubble rate in Planck units

@@ -44,11 +44,11 @@ from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, b
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
-from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh, drhoChi, gauge_field_ode_schwinger,
+from GEFF.utility.eom import (klein_gordon, friedmann, dlnkh, drhoChi, gauge_field_ode_schwinger,
                                         conductivities_collinear, conductivities_mixed, check_accelerated_expansion)
-from GEFF.utility.aux_boundary import boundary_approx
-from GEFF.utility.aux_general import heaviside
-from GEFF.utility.aux_mode  import bd_classic, mode_equation_SE_scale
+from GEFF.utility.boundary import boundary_approx
+from GEFF.utility.general import heaviside
+from GEFF.utility.mode  import bd_classic, mode_equation_SE_scale
 from GEFF._docs import generate_docs, docs_models
 
 name = "SE-kh"
@@ -100,24 +100,17 @@ quantities={
             }
 
 #State which variables require input for initialisation
-input_dic = {
-        "initial data":[phi, dphi, rhoChi],
-        "constants":[beta],
-        "functions":[V, dV]
-        }
-
+input_dic = [phi, dphi, rhoChi, beta, V, dV]
 
 #this functions is called upon initialisation of the GEF class
-def define_units(consts, init, funcs):
+def define_units(phi, dphi, V, rhoChi):
     #compute Hubble rate at t0
-    rhoK = 0.5*init["dphi"]**2
-    rhoV = funcs["V"](init["phi"])
-    rhochi = init["rhoChi"]
-    H0 = friedmann( rhoK, rhoV, rhochi )
+    rhoK = 0.5*dphi**2
+    rhoV = V(phi)
+    H0 = friedmann( rhoK, rhoV, rhoChi )
     
     omega = H0 #Characteristic frequency is the initial Hubble rate
     mu = 1. #Charatcterisic amplitude is the Planck mass
-
     
     return omega, mu
 

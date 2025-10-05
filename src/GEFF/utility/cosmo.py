@@ -1,5 +1,5 @@
 r"""
-This module defines constants and functions which are often times encountered in cosmology. These are primarily used in `GEFF.tools.GW`
+This module defines constants and functions which are often times encountered in cosmology. These are primarily used in `GEFF.tools.gw`
 """
 import natpy as nat
 import numpy as np
@@ -12,7 +12,7 @@ nat.set_active_units("HEP")
 
 #constants
 G : float = 6.67430e-11 * nat.convert(nat.m**3 * nat.kg**(-1) * nat.s**(-2), nat.GeV**(-2)) 
-"""Newtons constant in GeV (from [pdg.lbl.gov](https://pdg.lbl.gov/2024/reviews/rpp2024-rev-phys-constants.pdf)."""
+"""Newtons constant in GeV."""
 M_pl : float = (8*np.pi*G)**(-1/2) # reduced Planck mass in GeV
 """The reduced Planck mass in GeV."""
 
@@ -21,10 +21,10 @@ gev_to_hz : float = nat.convert(nat.GeV, nat.Hz)
 """The conversion factor between Hz and GeV."""
 
 #Planck results
-T_0 : float = 2.7255 * nat.convert(nat.K, nat.GeV) # DOI 10.1088/0004-637X/707/2/916
+T_0 : float = 2.7255 * nat.convert(nat.K, nat.GeV)
 """The temperatur of CMB photons today (in GeV)."""
-h : float = 0.674 #reduced Hubble parameter https://arxiv.org/abs/1807.06209
-"""The reduced Hubble parameter $h$ (from [Planck](https://arxiv.org/abs/1807.06209))."""
+h : float = 0.674
+"""The reduced Hubble parameter $h$ (from [Planck 2018](https://arxiv.org/abs/1807.06209))."""
 H0 : float = h*100*nat.convert(nat.km * nat.s**(-1) * nat.Mpc**(-1), nat.GeV)
 """The Hubble rate today (in GeV)."""
 
