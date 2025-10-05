@@ -45,9 +45,8 @@ from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, b
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
-from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh_schwinger,
-                                      ddelta, drhoChi, gauge_field_ode_schwinger,
-                                        conductivities_collinear, conductivities_mixed)
+from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh_schwinger, ddelta, drhoChi, gauge_field_ode_schwinger,
+                                        conductivities_collinear, conductivities_mixed, check_accelerated_expansion)
 from GEFF.utility.boundary import boundary_approx_schwinger
 from GEFF.utility.auxiliary import heaviside
 from GEFF.utility.aux_mode import mode_equation_SE_no_scale, damped_bd
@@ -168,8 +167,8 @@ def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
     #conductivities
     sigmaE, sigmaB, ks = conductivity(sys.a.value, sys.H.value, sys.E.value,
                                        sys.B.value, sys.G.value, sys.omega)
-    eps = np.maximum(abs(y[0])*rtol, atol)
-    GlobalFerm = heaviside(np.log(ks/(sys.a*sys.H)), eps)
+
+    GlobalFerm = heaviside(np.log(ks),np.log(sys.a*sys.H))
     sys.sigmaE.set_value(GlobalFerm*sigmaE)
     sys.sigmaB.set_value(GlobalFerm*sigmaB)
 
@@ -191,7 +190,6 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     dydt[2] = sys.ddphi.value
 
     #achieving dlnkhdt is monotonous requires some care
-    eps = max(abs(y[3])*rtol, atol)
     dlnkhdt = dlnkh_schwinger( sys.kh, sys.dphi, sys.ddphi, sys.beta,
                                         0., sys.xieff, sys.s, sys.a, sys.H )
     xieff = sys.xieff.value
@@ -199,7 +197,7 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     sqrtterm = np.sqrt(xieff**2 + s**2 + s)
     r = (abs(xieff) + sqrtterm)
     logfc = y[0] + np.log(r*dydt[0]) 
-    dlnkhdt *= heaviside(dlnkhdt, eps)*heaviside(logfc-y[3]+10*eps, eps)
+    dlnkhdt *= heaviside(dlnkhdt,0)*heaviside(logfc,y[3]*(1-1e-5))
     dydt[3] = dlnkhdt
 
     #the other derivatives are straight forwards
@@ -218,17 +216,21 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
 
     return dydt
 
-
-
 #Event 1: Track the end of inflation:
 def condition_EndOfInflation(t, y, sys):
-    ratio = sys.omega/sys.mu
-    dphi = y[2]
-    V = sys.V(y[1])
-    rhoEB = 0.5*(y[6]+y[7])*ratio**2*np.exp(4*(y[3]-y[0]))
-    rhoChi = y[5]*ratio**2
-    val = np.log(abs((dphi**2 + rhoEB + rhoChi)/V))
-    return val
+   #compute energy densities
+    rhoV = sys.V(y[1])
+    rhoK = y[2]**2/2
+    rhoEM = 0.5*(y[6]+y[7])*(sys.omega/sys.mu)**2*np.exp(4*(y[3]-y[0]))
+    rhoF = y[5]*(sys.omega/sys.mu)**2
+
+    #compute pressure
+    pV = -rhoV
+    pK = rhoK
+    pEM = 1/3*rhoEM
+    pF = 1/3*rhoF
+
+    return check_accelerated_expansion([rhoV, rhoK, rhoEM, rhoF], [pV, pK, pEM, pF])/(sys.H)**2
 
 def consequence_EndOfInflation(sys, occurance):
     if occurance:
@@ -241,7 +243,7 @@ def consequence_EndOfInflation(sys, occurance):
         tend  = np.round(sys.t + tdiff, 0)
         return "proceed", {"tend":tend}
     
-EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, 1, consequence_EndOfInflation)
+EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, -1, consequence_EndOfInflation)
 """Defines the 'End of inflation' event."""
 
 #Event 2: ensure energy densities that are positive definite do not become negative

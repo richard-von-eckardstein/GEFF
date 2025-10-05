@@ -20,16 +20,17 @@ class PT:
 
     Results are internally computed using numerical units, but are returned in physical units.
     """
-    def __init__(self, sys : BGSystem):
+    def __init__(self, insys : BGSystem):
         """
         Initialise the class from a GEF solution.
 
         Parameters
         ----------
-        sys : BGSystem
+        insys : BGSystem
             the GEF solution.
         """
         #Set GEF results to Hubble units.
+        sys = BGSystem.from_system(insys, copy=True)
         sys.set_units(False)
         
         #import the background evolution
@@ -383,7 +384,7 @@ class PT:
 
             tstart = []
             for k in ks:
-                ttmp  = self.__t[np.where(k >= 10**(pwr)*np.exp(logkH(self.__t)))[0][-1]]
+                ttmp  = self.__t[np.searchsorted(10**(pwr)*np.exp(logkH(self.__t)), k, "right")]
                 tstart.append(ttmp)
             tstart = np.array(tstart)
 
@@ -460,21 +461,23 @@ class PT:
 
         logAs = np.linspace(np.log(max(0.5, cutIR)), np.log(cutUV), momgrid)
 
-        Ax_real = PchipInterpolator(np.log(pgrid), A1.real)
-        Ax_imag = PchipInterpolator(np.log(pgrid), A1.imag)
-        dAx_real = PchipInterpolator(np.log(pgrid), dA1.real)
-        dAx_imag = PchipInterpolator(np.log(pgrid), dA1.imag)
+        Ax_rad = PchipInterpolator(np.log(pgrid), abs(A1))
+        Ax_phase = PchipInterpolator(np.log(pgrid), np.arccos(A1.real/abs(A1)))
+        
+        dAx_rad = PchipInterpolator(np.log(pgrid), abs(dA1))
+        dAx_phase = PchipInterpolator(np.log(pgrid), np.arccos(dA1.real/abs(dA1)))
 
-        Ay_real = PchipInterpolator(np.log(pgrid), A2.real)
-        Ay_imag = PchipInterpolator(np.log(pgrid), A2.imag)
-        dAy_real = PchipInterpolator(np.log(pgrid), dA2.real)
-        dAy_imag = PchipInterpolator(np.log(pgrid), dA2.imag)
+        Ay_rad = PchipInterpolator(np.log(pgrid), abs(A2))
+        Ay_phase = PchipInterpolator(np.log(pgrid), np.arccos(A2.real/abs(A2)))
+        
+        dAy_rad = PchipInterpolator(np.log(pgrid), abs(dA2))
+        dAy_phase = PchipInterpolator(np.log(pgrid), np.arccos(dA2.real/abs(dA2)))
 
-        def Afuncx(x): return Ax_real(x) + 1j*Ax_imag(x)
-        def dAfuncx(x): return dAx_real(x) + 1j*dAx_imag(x)
+        def Afuncx(x): return Ax_rad(x)*np.exp(1j*Ax_phase(x))
+        def dAfuncx(x): return dAx_rad(x)*np.exp(1j*dAx_phase(x))
 
-        def Afuncy(x): return Ay_real(x) + 1j*Ay_imag(x)
-        def dAfuncy(x): return dAy_real(x) + 1j*dAy_imag(x)
+        def Afuncy(x): return Ay_rad(x)*np.exp(1j*Ay_phase(x))
+        def dAfuncy(x): return dAy_rad(x)*np.exp(1j*dAy_phase(x))
 
         IntOuter = []
         for logA in logAs:

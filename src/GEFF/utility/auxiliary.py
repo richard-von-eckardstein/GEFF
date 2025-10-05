@@ -3,7 +3,19 @@ Some general purpose utility functions.
 """
 import numpy as np
 
-def heaviside(x : float, eps : float) -> float:
+class AuxTol:
+    atol = 1e-20
+    rtol = 1e-6
+
+    def __init__(self, func):
+        self.func = func
+
+    def __call__(self, *args):
+        return self.func(*args, self.rtol, self.atol)
+
+@AuxTol
+@np.vectorize
+def heaviside(x : float, y:float, rtol, atol) -> float:
     """
     A smoothed version of the heaviside function
 
@@ -19,4 +31,6 @@ def heaviside(x : float, eps : float) -> float:
     float
         heaviside(x)
     """
-    return 1/(1+np.exp(-x/eps))
+    eps = max(abs(x)*rtol, atol)
+    arg = np.clip((x-y)/eps, -1e2, 1e18)
+    return 1/(1+np.exp(-arg))

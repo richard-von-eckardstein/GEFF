@@ -284,7 +284,7 @@ class BaseGEF(BGSystem):
             return sol_new
         else:
             sol = sol_old
-            ind_overlap = np.where(sol_new.t[0] >= sol_old.t)[0][-1]
+            ind_overlap = np.searchsorted(sol_old.t, sol_new.t[0], "right")
             sol.t = np.concatenate([sol_old.t[:ind_overlap], sol_new.t])
 
             if sol_old.y.shape[0] < sol_new.y.shape[0]:
@@ -300,6 +300,25 @@ class BaseGEF(BGSystem):
             for attr in ["message", "success", "status"]:
                 setattr(sol, attr, getattr(sol_new, attr))
             return sol
+        
+    def initialize_modesolver(self):
+        """
+        Return a `ModeSolver` instance for the GEF
+
+        Returns
+        -------
+        mbm : ModeSolver
+            a mode solver instance initialized with the GEF solution.
+
+        Raises
+        ------
+        ValueError
+            if no solution is contained in the GEF.
+        """
+        if self._completed:
+            return self.ModeSolver(self)
+        else:
+            raise ValueError("No GEF solution for which the ModeSolver can be initialized.")
         
     def mbm_crosscheck(self, spec, vals:BGSystem, err_tol:float, err_thr:float, binning:int, **integrator_kwargs):
         """
@@ -343,15 +362,14 @@ class BaseGEF(BGSystem):
                 if max(err[-1], rmserr) > err_tol:
                     agreement=False
                     #find where the error is above 5%, take the earliest occurrence, reduce by 1
-                    inds = np.where(err > err_thr)
-                    err_ind = inds[0][0]-1               
+                    err_ind = np.where(err > err_thr)[0][0]-1             
                 else:
                     err_ind = len(terr)-1
                 reinit_inds.append( err_ind )
 
             t0 = terr[min(reinit_inds)]
 
-            ind = np.argmin(abs(spec["t"] - t0))
+            ind = np.searchsorted(spec["t"],t0, "left")
 
             reinit_slice = spec.tslice(ind)
 
@@ -370,7 +388,7 @@ class BaseGEF(BGSystem):
 
         Raises
         ------
-        Exception
+        KeyError
             if `path` is None but `GEFdata` is also None.
         FileNotFoundError
             if no file is found at `path`.
@@ -385,7 +403,7 @@ class BaseGEF(BGSystem):
 
         #Check if GEF has a file path associated with it
         if path is None:
-            raise Exception("You did not specify the file from which to load the GEF data. Set 'GEFdata' to the file's path from which you want to load your data.")
+            raise KeyError("You did not specify the file from which to load the GEF data. Set 'GEFdata' to the file's path from which you want to load your data.")
         else:
             #Check if file exists
             try:
@@ -431,8 +449,10 @@ class BaseGEF(BGSystem):
 
         Raises
         ------
-        Exception
+        KeyError
             if 'path' is None but `GEFdata` is also None.
+        ValueError
+            if the GEF object has no data to store.
         
         """
         if path is None:
@@ -441,35 +461,33 @@ class BaseGEF(BGSystem):
             self.GEFdata=path
         
         if path is None:
-            raise Exception("You did not specify the file under which to store the GEF data. Set 'GEFdata' to the location where you want to save your data.")
+            raise KeyError("You did not specify the file under which to store the GEF data. Set 'GEFdata' to the location where you want to save your data.")
 
+        storeables = self.variable_names     
+        #Check that all dynamic and derived quantities are initialised in this GEF instance
+        if not(self._completed):
+            raise ValueError("No data to store.")
         else:
-            storeables = self.variable_names     
-            #Check that all dynamic and derived quantities are initialised in this GEF instance
-            if len(storeables)==0:
-                print("No data to store.")
-                return
-            else:
-                path = self.GEFdata
+            path = self.GEFdata
 
-                #Create a dictionary used to initialise the pandas DataFrame
-                dic = {}
+            #Create a dictionary used to initialise the pandas DataFrame
+            dic = {}
 
-                #remember the original units of the GEF
-                units=self.get_units()
+            #remember the original units of the GEF
+            units=self.get_units()
 
-                #Data is always stored unitless
-                self.set_units(False)
+            #Data is always stored unitless
+            self.set_units(False)
 
-                for key in storeables:
-                    dic[key] = getattr(self, key).value
-                
-                #Create pandas data frame and store the dictionary under the user-specified path
-                output_df = pd.DataFrame(dic)  
-                output_df.to_csv(path)
+            for key in storeables:
+                dic[key] = getattr(self, key).value
+            
+            #Create pandas data frame and store the dictionary under the user-specified path
+            output_df = pd.DataFrame(dic)  
+            output_df.to_csv(path)
 
-                #after storing data, restore original units
-                self.set_units(units)
+            #after storing data, restore original units
+            self.set_units(units)
         return
 
 

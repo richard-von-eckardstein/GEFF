@@ -13,9 +13,22 @@ The functions in this module return an array of shape (3,2), with the first inde
 import numpy as np
 from scipy.special import gamma
 from mpmath import whitw, mp
+from functools import lru_cache
 
 #set accuracy of mpmath
 mp.dps = 8
+
+#@lru_cache(maxsize=int(1e6))
+def whittaker_w(xi, s):
+    r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
+    w = whitw(-xi*1j, 1/2 + s, -2j*r)
+    return complex(w)
+
+#@lru_cache(maxsize=int(1e6))
+def whittaker_w_1(xi,s):
+    r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
+    w1 = whitw(1-xi*1j, 1/2 + s, -2j*r)
+    return complex(w1)
 
 def boundary_exact(xi : float, s : float) -> np.ndarray:
     """
@@ -30,27 +43,25 @@ def boundary_exact(xi : float, s : float) -> np.ndarray:
     -------
     W : NDArray
     """
-    r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
-    
-    Whitt1Plus = whitw(-xi*(1j), 1/2 + s, -2j*r)
-    Whitt2Plus = whitw(1-xi*(1j), 1/2 + s, -2j*r)
+    wp = whittaker_w(xi, s)
+    wm = whittaker_w(-xi, s)
+    w1p = whittaker_w_1(xi, s)
+    w1m = whittaker_w_1(-xi, s)
 
-    Whitt1Minus = whitw(xi*(1j), 1/2 + s, -2j*r)
-    Whitt2Minus = whitw(1+xi*(1j), 1/2 + s, -2j*r)
-        
-    exptermPlus = np.exp(np.pi*xi)
-    exptermMinus = np.exp(-np.pi*xi)
+    w = np.array([wp, wm])
+    w1 = np.array([w1p, w1m])
+
+    lam = np.array([1, -1])
+
+    expterm = np.exp(np.pi*xi*lam)
+
+    r = (abs(xi) + np.sqrt(xi**2 + s**2 + s))
     
     Fterm = np.zeros((3, 2))
 
-    Fterm[0,0] = exptermPlus*abs((1j*r - 1j*xi -s) * Whitt1Plus + Whitt2Plus)**2/r**2
-    Fterm[0,1] = exptermMinus*abs((1j*r + 1j*xi -s) * Whitt1Minus + Whitt2Minus)**2/r**2
-
-    Fterm[1,0] = exptermPlus*abs(Whitt1Plus)**2
-    Fterm[1,1] = exptermMinus*abs(Whitt1Minus)**2
-
-    Fterm[2,0] = exptermPlus*((Whitt2Plus*Whitt1Plus.conjugate()).real - s * abs(Whitt1Plus)**2)/r
-    Fterm[2,1] = exptermMinus*((Whitt2Minus*Whitt1Minus.conjugate()).real - s * abs(Whitt1Minus)**2)/r
+    Fterm[0,:] = expterm*abs((1j*r - 1j**lam*xi -s) * w + w1)**2/r**2
+    Fterm[1,:] = expterm*abs(w)**2
+    Fterm[2,:] = expterm*((w1*w.conjugate()).real - s*abs(w)**2)/r
 
     return Fterm
 
@@ -127,7 +138,7 @@ def boundary_approx(xi : float) -> np.ndarray:
         t4 = -6003491/(2**31*xi**6)
         Fterm[2, 1-sgnsort] = -np.sqrt(2)/(32*xi)*(t1 + t2 + t3 + t4) 
     else:
-        Fterm = boundary_exact(xi, 0.)
+        Fterm = boundary_exact(xi, 0)
     return Fterm
 
 def boundary_approx_schwinger(xi :float, s : float) -> np.ndarray:

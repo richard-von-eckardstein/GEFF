@@ -20,15 +20,15 @@ class GaugeSpec(dict):
         Parameters
         ----------
         in_dict : dict
-            dictionary with keys 't', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'
+            dictionary with keys `'t'`, `'N'`, `'k'`, `'Ap'`, `'dAp'`, `'Am'`, `'dAm'`
 
         Raises
         ------
         KeyError
-            if a key in {'t', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'} is missing.
+            if one of the necessary keys is missing.
         ValueError
-            if `len(in_dict['t'])` does not match `len(in_dict['N'])` or if
-            `in_dict['X']).shape` does not match `(len(in_dict['k']),len(in_dict['t']))` for 'X' in {'Ap', 'dAp', 'Am', 'dAm'}.
+            if `len(in_dict['t']) != len(in_dict['N'])` or if
+            `in_dict['X']).shape != (len(in_dict['k']),len(in_dict['t']))` for `'X'` in `['Ap', 'dAp', 'Am', 'dAm']`.
         """
         for key in ["t", "N", "k", "Ap", "dAp", "Am", "dAm"]:
             if key not in in_dict.keys():
@@ -245,7 +245,7 @@ class GaugeSpec(dict):
         """
         assert (spec["k"] == self["k"]).all()
 
-        ind = np.where(self["t"]<=spec["t"][0])[0][-1]
+        ind = np.searchsorted(self["t"],spec["t"][0], "right")
 
         if "cut" in self.keys():
             self.pop("cut")
@@ -377,7 +377,7 @@ class GaugeSpec(dict):
         errs = []
 
         for i, spl in enumerate(Fref):
-            err =  np.minimum(1e3, abs( 1 - FMbM[:,i,0]/ spl ))
+            err =  np.minimum(1e3, abs( 1 - FMbM[:,i,0]/(spl+1e-20) )) #avoid divide by zero
             errs.append(np.where(np.isnan(err), 10.0, err))
 
         return errs
@@ -584,7 +584,7 @@ class BaseModeSolver:
         self.__eta = soleta.y[0,:]
 
         #find lowest t value corresponding to kh(t) = 10^4 kh(0)
-        self.__tmin = self.__t[np.where(kh >= 10**4*kh[0])][0]
+        self.__tmin = self.__t[np.searchsorted(kh, 10**4*kh[0], "right")]
         
         return
     
@@ -646,18 +646,19 @@ class BaseModeSolver:
             the updated gauge-field spectrum
         """
         
-        indstart = np.where(tstart <= self.__t)[0][0]
+        indstart = np.searchsorted(self.t, tstart, "left")
         teval = self.__t[indstart:]
         Neval = self.__N[indstart:]
         
         tend = teval[-1]
-        indstart = np.where(spec["t"]<teval[0])[0][-1]
+        indstart = np.searchsorted(spec["t"], teval[0], "left")
         startspec = spec.tslice(indstart)
         tstart = startspec["t"]
 
         #keep mode-evolution from old spectrum for modes with k < 10*kh(tstart)
-        old = np.where(spec["k"] < 10*self.__khf(tstart))[0]
-        new = np.where(spec["k"] > 10*self.__khf(tstart))[0]
+        mask = np.where(spec["k"] < 10*self.__khf(tstart))
+        old = mask[0]
+        new = mask[1]
 
         #Remove modes which need to be renewed from old spectrum:
         spec.remove_momenta(new)
@@ -760,7 +761,7 @@ class BaseModeSolver:
 
         teval = self.__t
 
-        istart = np.where(teval>tstart)[0][0]
+        istart = np.searchsorted(teval, tstart, "right")
 
         yp, dyp, ym, dym = self._evolve_mode(tstart, yini, k, teval[istart:], atol, rtol)
 
@@ -900,7 +901,7 @@ class BaseModeSolver:
             
             tstart = []
             for k in ks:
-                ttmp  = self.__t[np.where(k >= 10**(5/2)*self.__khf(self.__t))[0][-1]]
+                ttmp  = self.__t[np.searchsorted(10**(5/2)*self.__khf(self.__t), k, "right")]
                 tstart.append(ttmp)
             tstart = np.array(tstart)
 

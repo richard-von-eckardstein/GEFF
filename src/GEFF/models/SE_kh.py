@@ -44,9 +44,8 @@ from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, b
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
-from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh, drhoChi,
-                                      gauge_field_ode_schwinger,
-                                        conductivities_collinear, conductivities_mixed)
+from GEFF.utility.aux_eom import (klein_gordon, friedmann, dlnkh, drhoChi, gauge_field_ode_schwinger,
+                                        conductivities_collinear, conductivities_mixed, check_accelerated_expansion)
 from GEFF.utility.boundary import boundary_approx
 from GEFF.utility.auxiliary import heaviside
 from GEFF.utility.aux_mode  import bd_classic, mode_equation_SE_scale
@@ -152,7 +151,7 @@ def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
     sys.phi.set_value(y[1])
     sys.dphi.set_value(y[2])
     sys.kh.set_value(np.exp(y[3]))
-    sys.kS.set_value(np.exp(y[3]))
+    
     sys.rhoChi.set_value(y[4])
 
     #the gauge-field terms in y are not stored, save these values here
@@ -167,8 +166,8 @@ def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
     #conductivities
     sigmaE, sigmaB, ks = conductivity(sys.a.value, sys.H.value, sys.E.value,
                                        sys.B.value, sys.G.value, sys.omega) 
-    eps = np.vectorize(max)(abs(y[0])*rtol, atol)
-    GlobalFerm = heaviside(np.log(ks/(sys.a*sys.H)), eps)
+    sys.kS.set_value(ks)
+    GlobalFerm = heaviside(np.log(ks), np.log(sys.a*sys.H))
     sys.sigmaE.set_value(GlobalFerm*sigmaE)
     sys.sigmaB.set_value(GlobalFerm*sigmaB)
 
@@ -189,12 +188,11 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     dydt[2] = sys.ddphi.value
 
     #achieving dlnkhdt is monotonous requires some care
-    eps = max(abs(y[3])*rtol, atol)
     dlnkhdt = dlnkh( sys.kh, sys.dphi, sys.ddphi, sys.beta,
                        0., sys.xi, sys.a, sys.H )
     r = 2*abs(sys.xi)
     logfc = y[0] + np.log(r*dydt[0]) 
-    dlnkhdt *= heaviside(dlnkhdt, eps)*heaviside(logfc-y[3]+10*eps, eps)
+    dlnkhdt *= heaviside(dlnkhdt, 0)*heaviside(logfc, y[3]*(1-1e-5))
     dydt[3] = dlnkhdt
 
     #ode for rhoChi
@@ -204,10 +202,9 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     #compute boundary terms and then the gauge-field bilinear ODEs
     Fcol = y[5:].shape[0]//3
     F = y[5:].reshape(Fcol,3)
-    W = boundary_approx(sys.xi)
+    W = boundary_approx(float(sys.xi.value))
     dFdt = gauge_field_ode_schwinger( F, sys.a, sys.kh, 2*sys.H*sys.xieff,
-                    sys.sigmaE, 1.0,
-                        W, dlnkhdt )
+                    sys.sigmaE, 1.0, W, dlnkhdt )
     #reshape to fit dydt
     dydt[5:] = dFdt.reshape(Fcol*3)
 
@@ -216,13 +213,19 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
 
 #Event 1: Track the end of inflation:
 def condition_EndOfInflation(t, y, sys):
-    ratio = sys.omega/sys.mu
-    dphi = y[2]
-    V = sys.V(y[1])
-    rhoEB = 0.5*(y[5]+y[6])*ratio**2*np.exp(4*(y[3]-y[0]))
-    rhoChi = y[4]*ratio**2
-    val = np.log(abs((dphi**2 + rhoEB + rhoChi)/V))
-    return val
+    #compute energy densities
+    rhoV = sys.V(y[1])
+    rhoK = y[2]**2/2
+    rhoEM = 0.5*(y[5]+y[6])*(sys.omega/sys.mu)**2*np.exp(4*(y[3]-y[0]))
+    rhoF = y[4]*(sys.omega/sys.mu)**2
+
+    #compute pressure
+    pV = -rhoV
+    pK = rhoK
+    pEM = 1/3*rhoEM
+    pF = 1/3*rhoF
+
+    return check_accelerated_expansion([rhoV, rhoK, rhoEM, rhoF], [pV, pK, pEM, pF])/(sys.H)**2
 
 def consequence_EndOfInflation(sys, occurance):    
     if occurance:
@@ -235,7 +238,7 @@ def consequence_EndOfInflation(sys, occurance):
         tend  = np.round(sys.t + tdiff, 0)
         return "proceed", {"tend":tend}
     
-EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, 1, consequence_EndOfInflation)
+EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, -1, consequence_EndOfInflation)
 """Defines the 'End of inflation' event."""
 
 #Event 2: ensure energy densities that are positive definite do not become negative

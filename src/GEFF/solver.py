@@ -8,7 +8,7 @@ from typing import Callable, Tuple, ClassVar
 from ._docs import generate_docs, docs_solver
 
 class BaseGEFSolver:
-    known_variables : ClassVar[dict] = {"time":{t}, "dynamical":{N}, "static":{a}, "constant":{H}, "function":{}, "gauge":{}}
+    known_variables : ClassVar[dict] = {"time":[t], "dynamical":[N], "static":[a], "constant":[H], "function":[], "gauge":[]}
     """
     Classifies variables used by the solver according to:
     * 'time': the name of the time parameter of the ODE's (should be "t") 
@@ -55,6 +55,26 @@ class BaseGEFSolver:
 
         #initial conditions on initialisation
         self.set_initial_conditions_to_default()
+
+    @classmethod
+    def toggle_event(self, event_name : str, toggle : bool):
+        """
+        Disable or enable an `Event` for the solver.
+
+        Parameters
+        ----------
+        event_name : str
+            the name of the target
+        toggle : bool
+            if the event should be active or inactive
+        """
+        if event_name in [event for event in self.known_events.keys()]:
+            self.known_events[event_name].active = toggle
+            humanreadable = {True:"active", False:"inactive"}
+            print(f"The event '{event_name}' is now {humanreadable[toggle]}")
+        else:
+            print(f"Unknown event: '{event_name}'")
+        return
 
     def compute_GEF_solution(self):
         """
@@ -202,7 +222,7 @@ class BaseGEFSolver:
     @staticmethod
     def update_vals(t : float, y : np.ndarray, vals : BGSystem, atol : float=1e-20, rtol : float=1e-6):
         """
-        Translate an array of data at time t into a BGSystem.
+        Translate an array of data at time t into a `BGSystem`.
 
         Parameters
         ----------
@@ -231,7 +251,7 @@ class BaseGEFSolver:
     @staticmethod
     def timestep(t : float, y : np.ndarray, vals : BGSystem, atol : float=1e-20, rtol : float=1e-6) -> np.ndarray:
         """
-        Compute time derivatives for data at time t using a BGSystem.
+        Compute time derivatives for data at time t using a `BGSystem`.
 
         Parameters
         ----------
@@ -336,10 +356,10 @@ class BaseGEFSolver:
                     raise TruncationError
             #find 
             except KeyboardInterrupt:
-                print(f"The run failed at t={vals.t.value[0]:.2f}, N={vals.N.value[0]:.2f}.")
-                raise KeyboardInterrupt
+                raise KeyboardInterrupt(f"Interrupted solver at t={float(vals.t.value):.2f}, N={float(vals.N.value):.2f}.")
             except Exception as e:
-                print(f"While solving the GEF ODE, an error occured at t={vals.t.value[0]:.2f}, N={vals.N.value[0]:.2f}: \n \t {e}")
+                print(f"While solving the GEF ODE, an error occured at t={float(vals.t.value):.2f}, N={float(vals.N.value):.2f}):")
+                print(e)
                 raise TruncationError
             
             else:
@@ -516,25 +536,6 @@ class BaseGEFSolver:
         
         if len(unknown_settings) > 0:
             print(f"Unknown settings: {unknown_settings}")
-        return
-
-    def toggle_event(self, event_name : str, toggle : bool):
-        """
-        Disable or enable an `Event` instance of a given name.
-
-        Parameters
-        ----------
-        event_name : str
-            the name of the target
-        toggle : bool
-            if the event should be active or inactive
-        """
-        if event_name in [event for event in self.known_events.keys()]:
-            self.known_events[event_name].active = toggle
-            humanreadable = {True:"active", False:"inactive"}
-            print(f"The event '{event_name}' is now {humanreadable[toggle]}")
-        else:
-            print(f"Unknown event: '{event_name}'")
         return
     
     def _increase_ntr(self, val : int):

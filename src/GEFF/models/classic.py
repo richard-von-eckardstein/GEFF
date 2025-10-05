@@ -1,7 +1,7 @@
 r"""
 Defines the GEF model "classic" corresponding to pure axion inflation.
 
-For more details on this model, see e.g., [2109.01651](https://arxiv.org/abs/2109.01651).
+For more details on this model, see e.g., [arXiv:2109.01651](https://arxiv.org/abs/2109.01651).
 
 ---
 
@@ -40,7 +40,7 @@ from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, b
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
-from GEFF.utility.aux_eom import friedmann, gauge_field_ode, dlnkh, klein_gordon
+from GEFF.utility.aux_eom import friedmann, gauge_field_ode, dlnkh, klein_gordon, check_accelerated_expansion
 from GEFF.utility.aux_mode import bd_classic, mode_equation_classic
 from GEFF.utility.boundary import boundary_approx
 from GEFF.utility.auxiliary import heaviside
@@ -135,8 +135,7 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
                        0., sys.xi, sys.a, sys.H )
     
     logfc = y[0] + np.log( 2*abs(sys.xi)*dydt[0])
-    eps = max(abs(y[3])*rtol, atol) 
-    dlnkhdt *= heaviside(dlnkhdt, eps)*heaviside(logfc-y[3]+10*eps, eps)
+    dlnkhdt *= heaviside(dlnkhdt,0)*heaviside(logfc,y[3]*(1-1e-5))
     dydt[3] = dlnkhdt
 
     #compute boundary terms and then the gauge-field bilinear ODEs
@@ -144,6 +143,7 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     F = y[4:].reshape(Fcol,3)
     W = boundary_approx(sys.xi.value)
     dFdt = gauge_field_ode(F, sys.a, sys.kh, 2*sys.H*sys.xi, W, dlnkhdt, L=20)
+
     #reshape to fit dydt
     dydt[4:] = dFdt.reshape(Fcol*3)
 
@@ -151,11 +151,17 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
 
 #Event 1: Track the end of inflation:
 def condition_EndOfInflation(t, y, sys):
-    dphi = y[2]
-    V = sys.V(y[1])
-    rhoEB = 0.5*(y[4]+y[5])*(sys.omega/sys.mu)**2*np.exp(4*(y[3]-y[0]))
-    val = np.log(abs((dphi**2 + rhoEB)/V))
-    return val
+    #compute energy densities
+    rhoV = sys.V(y[1])
+    rhoK = y[2]**2/2
+    rhoEM = 0.5*(y[4]+y[5])*(sys.omega/sys.mu)**2*np.exp(4*(y[3]-y[0]))
+
+    #compute pressure
+    pV = -rhoV
+    pK = rhoK
+    pEM = 1/3*rhoEM
+
+    return check_accelerated_expansion([rhoV, rhoK, rhoEM], [pV, pK, pEM])/(sys.H)**2
 
 def consequence_EndOfInflation(sys, occurrence):
     if occurrence:
@@ -168,7 +174,7 @@ def consequence_EndOfInflation(sys, occurrence):
         tend  = np.round(sys.t + tdiff, 0)
         return "proceed", {"tend":tend}
 
-EndOfInflation : TerminalEvent = TerminalEvent("End of inflation", condition_EndOfInflation, 1, consequence_EndOfInflation)
+EndOfInflation : TerminalEvent = TerminalEvent("End of inflation", condition_EndOfInflation, -1, consequence_EndOfInflation)
 """Defines the 'End of inflation' event."""
 
 #Event 2: ensure energy densities that are positive definite do not become negative
