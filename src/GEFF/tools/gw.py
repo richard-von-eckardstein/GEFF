@@ -58,7 +58,7 @@ def omega_gw(PT:np.ndarray, k:np.ndarray,  Nend:float, Hend:float, Trh:None|floa
 
     return h2OmegaGW, f
 
-def k_to_f(self, k:np.ndarray, Nend:float, Hend:float, Trh:None|float=None) -> ArrayLike:
+def k_to_f(k:np.ndarray, Nend:float, Hend:float, Trh:None|float=None) -> ArrayLike:
     r"""
     Compute frequency today from momentum at the end of inflation
 
@@ -80,15 +80,15 @@ def k_to_f(self, k:np.ndarray, Nend:float, Hend:float, Trh:None|float=None) -> A
     """
 
     if Trh is None:
-        Trh = np.sqrt(3*Hend*self.__omega/np.pi)*(10/106.75)**(1/4)*M_pl
+        Trh = np.sqrt(3*Hend/np.pi)*(10/106.75)**(1/4)*M_pl
         Trh = Trh*(106.75/g_rho(Trh))**(1/4)
         Nrh = 0
     else:
         wrh = 0
-        Nrh = np.log( 90*(Hend*self.__omega*M_pl**2)**2 / (np.pi**2*g_rho(Trh)*Trh**4 ) ) / ( 3 * (1 + wrh) )
+        Nrh = np.log( 90*(Hend*M_pl**2)**2 / (np.pi**2*g_rho(Trh)*Trh**4 ) ) / ( 3 * (1 + wrh) )
 
 
-    f = k*self.__omega*M_pl*gev_to_hz/(2*np.pi*np.exp(Nend)) * T_0/Trh * (g_s_0/g_s(Trh))**(1/3) * np.exp(-Nrh)
+    f = k*M_pl*gev_to_hz/(2*np.pi*np.exp(Nend)) * T_0/Trh * (g_s_0/g_s(Trh))**(1/3) * np.exp(-Nrh)
 
     return f
 

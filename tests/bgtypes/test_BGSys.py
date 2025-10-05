@@ -34,9 +34,15 @@ class TestBGSystem():
         assert V.omega == U.omega
         assert V.mu == U.mu
         assert V.quantity_names() == U.quantity_names()
-        assert V.variable_list() == U.variable_list()
-        assert V.function_list() == U.function_list()
-        assert V.constant_list() == U.constant_list()
+        assert V.variable_names() == U.variable_names()
+        assert V.function_names() == U.function_names()
+        assert V.constant_names() == U.constant_names()
+
+        V.units = False
+
+        assert not(U.units) == V.units
+
+        assert V.x.value == U.x.value*U.x.conversion**(-U.x.units)
 
         #check empty copy
         V = BGSystem.from_system(U, copy=False)
@@ -58,7 +64,7 @@ class TestBGSystem():
         U.initialise("x")(10)
         assert isinstance(U.x, Val)
         assert U.x.value == 10
-        assert U.x.get_conversion() == 0.55**2 * 0.32
+        assert U.x.conversion == 0.55**2 * 0.32
 
     def test_initialise_func(self):
         U = self.init()
@@ -66,8 +72,8 @@ class TestBGSystem():
         U.initialise("f")(func)
         assert isinstance(U.f, Func)
         assert callable(U.f)
-        assert U.f.get_basefunc()(0.3421) == func(0.342) 
-        assert U.f.get_conversion() == 0.55**2 * 0.32
+        assert U.f.basefunc(0.3421) == func(0.342) 
+        assert U.f.conversion == 0.55**2 * 0.32
     
     def test_initialise_unknown(self):
         U = self.init()
@@ -136,10 +142,10 @@ class TestBGSystem():
         U.initialise("x")(10)
         U.initialise("f")(lambda x: 5)
 
-        U.set_units(False)
+        U.units = False
 
-        assert not(U.x.get_units())
-        assert not(U.f.get_units())
+        assert not(U.x.units)
+        assert not(U.f.units)
     
     def test_set_unitsTrue(self):
         U = self.init()
@@ -147,10 +153,10 @@ class TestBGSystem():
         U.initialise("x")(10)
         U.initialise("f")(lambda x: 5)
 
-        U.set_units(True)
+        U.units = True
 
-        assert U.x.get_units()
-        assert U.f.get_units()
+        assert U.x.units
+        assert U.f.units
     
 
         

@@ -332,8 +332,8 @@ class GaugeSpec(dict):
             return True, mask
     
     def _add_cutoff(self, BG : BGSystem, cutoff="kh"):
-        units = BG.get_units()
-        BG.set_units(False)
+        units = BG.units
+        BG.units = (False)
 
         scale = getattr(BG, cutoff)
 
@@ -344,13 +344,13 @@ class GaugeSpec(dict):
         else:
             self["cut"] = CubicSpline(BG.t, scale)(self["t"])
         
-        BG.set_units(units)
+        BG.units = (units)
 
         return self["cut"]
     
     def _get_reference(self, BG : BGSystem, references=["E", "B", "G"], cutoff="kh"): 
-        units = BG.get_units()
-        BG.set_units(False)
+        units = BG.units
+        BG.units = (False)
 
         scale = getattr(BG, cutoff)
 
@@ -364,7 +364,7 @@ class GaugeSpec(dict):
             else:
                 Fref.append( CubicSpline(BG.t, val_arr)(self["t"]) ) 
 
-        BG.set_units(units)
+        BG.units = (units)
 
         return Fref
     
@@ -510,7 +510,7 @@ class BaseModeSolver:
     mode_equation = staticmethod(mode_equation_classic)
     initialise_in_bd = staticmethod(bd_classic)
 
-    def __init__(self, insys : BGSystem):
+    def __init__(self, sys : BGSystem):
         """
         Import the evolution of the background dynamics to configure the solver.
 
@@ -528,8 +528,8 @@ class BaseModeSolver:
         ValueError:
             if the keys in `necessary_keys` are not `Val` or `Func` objects.
         """
-        sys = BGSystem.from_system(insys, copy=True)
-        sys.set_units(False)
+        og_units = sys.units
+        sys.units = False
 
         #Check that all necessary keys are there:
         for key in self.necessary_keys:
@@ -585,6 +585,8 @@ class BaseModeSolver:
 
         #find lowest t value corresponding to kh(t) = 10^4 kh(0)
         self.__tmin = self.__t[np.searchsorted(kh, 10**4*kh[0], "right")]
+
+        sys.units = og_units
         
         return
     

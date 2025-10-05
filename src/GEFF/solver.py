@@ -3,7 +3,6 @@ import numpy as np
 from .bgtypes import BGSystem, t, N, a, H
 from .mbm import SpecSlice
 from scipy.integrate import solve_ivp
-from copy import deepcopy
 from typing import Callable, Tuple, ClassVar
 from ._docs import generate_docs, docs_solver
 
@@ -35,7 +34,7 @@ class BaseGEFSolver:
         self.init_vals : BGSystem = BGSystem.from_system(init_sys, copy=True)
         """Initial data for the EoM's defined at $t_0 = 0$."""
 
-        self.init_vals.set_units(False)
+        self.init_vals.units = False
 
         self.settings : dict ={"atol":1e-20, "rtol":1e-6, "attempts":5, "solvermethod":"RK45", "ntrstep":10}
         """
@@ -149,7 +148,7 @@ class BaseGEFSolver:
         yini : NDarray
             an array of initial data
         """
-        vals.set_units(False) #ensure the system is in numerical units
+        vals.units = False #ensure the system is in numerical units
 
         #In the simple version, ntr has no meaning, as there are no gauge fields
         yini = np.zeros((1)) 
@@ -166,8 +165,8 @@ class BaseGEFSolver:
             Compute initial data with `init_vals` using `vals_to_yini`.
             """
             t0 = 0
-            vals = deepcopy(self.init_vals)
-            vals.set_units(False)
+            vals = BGSystem.from_system(self.init_vals, True)
+            vals.units = False
             yini = self.vals_to_yini(vals, self.ntr)
             return t0, yini, vals
         self.initial_conditions = staticmethod(default_initial_conditions)
@@ -220,7 +219,7 @@ class BaseGEFSolver:
     ### Define ODE ###
     
     @staticmethod
-    def update_vals(t : float, y : np.ndarray, vals : BGSystem, atol : float=1e-20, rtol : float=1e-6):
+    def update_vals(t : float, y : np.ndarray, vals : BGSystem):
         """
         Translate an array of data at time t into a `BGSystem`.
 
@@ -239,17 +238,17 @@ class BaseGEFSolver:
         """
 
         #parse dynamical variables back to vals:
-        vals.t.set_value(t)
-        vals.N.set_value(y[0])
+        vals.t.value = t
+        vals.N.value = y[0]
 
         #compute static variables from y:
-        vals.a.set_value(np.exp(y[0]))
+        vals.a.value = (np.exp(y[0]))
 
         #in case heaviside functions are needed in update_vals, atol and rtol are passed
         return
     
     @staticmethod
-    def timestep(t : float, y : np.ndarray, vals : BGSystem, atol : float=1e-20, rtol : float=1e-6) -> np.ndarray:
+    def timestep(t : float, y : np.ndarray, vals : BGSystem) -> np.ndarray:
         """
         Compute time derivatives for data at time t using a `BGSystem`.
 
@@ -294,10 +293,8 @@ class BaseGEFSolver:
         dydt : NDArray
             the time derivative of y
         """
-        atol = self.settings["atol"]
-        rtol = self.settings["rtol"]
-        self.update_vals(t, y, vals, atol=atol, rtol=rtol)
-        dydt = self.timestep(t, y, vals, atol=atol, rtol=rtol)
+        self.update_vals(t, y, vals)
+        dydt = self.timestep(t, y, vals)
         return dydt
     
     ### solve EoMs ###
@@ -515,10 +512,8 @@ class BaseGEFSolver:
         vals : BGSystem
             the target system
         """
-        ts = deepcopy(t)
-        ys = deepcopy(y)
-        vals.set_units(False)
-        self.update_vals(ts, ys, vals)
+        vals.units = False
+        self.update_vals(t, y, vals)
         return
     
     def update_settings(self, **new_settings):

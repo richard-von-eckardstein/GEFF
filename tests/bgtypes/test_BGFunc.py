@@ -64,18 +64,18 @@ class TestBGFunc():
     def test_init(self, func1, func2, v1, v2):
         #Initialise single-variable function
         f = self.inst(func1, 1)
-        assert f.get_basefunc()(v1) == func1(v1) 
-        assert f.get_units()
-        assert f.get_conversion() == 0.55**3 * 0.32**1
+        assert f.basefunc(v1) == func1(v1) 
+        assert f.units
+        assert f.conversion == 0.55**3 * 0.32**1
         assert len(f.get_arg_conversions()) == 1
         for argconversion in f.get_arg_conversions():
             assert argconversion == 0.55**1 * 0.32**1
 
         #Initialise multivariate function
         f = self.inst(func2, 2)
-        assert f.get_basefunc()(v1, v2) == func2(v1, v2) 
-        assert f.get_units()
-        assert f.get_conversion() == 0.55**1 * 0.32**3
+        assert f.basefunc(v1, v2) == func2(v1, v2) 
+        assert f.units
+        assert f.conversion == 0.55**1 * 0.32**3
         assert len(f.get_arg_conversions()) == 2
         expectargconversion = [0.55**1 * 0.32**1, 0.55**1 * 0.32**0]
         for i, argconversion in enumerate(f.get_arg_conversions()):
@@ -99,10 +99,10 @@ class TestBGFunc():
 
     def test_Units(self, func1):
         f = self.inst(func1, 1)
-        f.set_units(True)
-        assert f.get_units()
-        f.set_units(False)
-        assert not(f.get_units())
+        f.units = True
+        assert f.units
+        f.units = False
+        assert not(f.units)
 
     #evaluate function
     def test_Call_single(self, func1, v1):
@@ -110,25 +110,25 @@ class TestBGFunc():
         x = self.instarg("x", v1)
 
         #With Units:
-        f.set_units(True)
+        f.units = True
         assert f(v1) == func1(v1)
-        x.set_units(True)
+        x.units = True
         assert f(x) == func1(v1)
-        x.set_units(False)
+        x.units = False
         assert f(x) == func1(v1)
 
         #Without Units:
-        f.set_units(False)
-        assert f(v1) == func1(v1*f.get_arg_conversions()[0])/f.get_conversion()
-        x.set_units(True)
-        assert f(x) == func1(v1)/f.get_conversion()
-        x.set_units(False)
-        assert f(x) == func1(v1)/f.get_conversion()
+        f.units = False
+        assert f(v1) == func1(v1*f.get_arg_conversions()[0])/f.conversion
+        x.units = True
+        assert f(x) == func1(v1)/f.conversion
+        x.units = False
+        assert f(x) == func1(v1)/f.conversion
 
         #Check that error occurs when calling with BGVal and incorrect signature:
         y = self.instarg("y", v1)
         with pytest.raises(AssertionError) :
-            f.set_units(True)
+            f.units = True
             f(y)
 
         #Check call with multiple args:
@@ -141,36 +141,36 @@ class TestBGFunc():
         y = self.instarg("y", v2)
 
         #With Units:
-        f.set_units(True)
+        f.units = True
         assert f(v1, v2) == func2(v1, v2)
         #All permutations of units
         bools = [True, False]
         for boolx in bools:
             for booly in bools:
-                x.set_units(boolx)
-                y.set_units(booly)      
+                x.units = boolx
+                y.units = booly      
                 assert f(v1, y) == func2(v1, v2)
                 assert f(x, v2) == func2(v1, v2)
                 assert f(x, y) == func2(v1, v2)
 
         #Without Units:
-        f.set_units(False)
+        f.units = False
         #All permutations of units
         assert f(v1, v2) == func2(v1*f.get_arg_conversions()[0],
-                                   v2*f.get_arg_conversions()[1])/f.get_conversion()
+                                   v2*f.get_arg_conversions()[1])/f.conversion
         #All permutations of units
         bools = [True, False]
         for boolx in bools:
             for booly in bools:
-                x.set_units(boolx)
-                y.set_units(booly)      
+                x.units = boolx
+                y.units = booly    
                 assert f(v1, y) == func2(v1*f.get_arg_conversions()[0],
-                                   v2)/f.get_conversion()
+                                   v2)/f.conversion
                 assert f(x, v2) == func2(v1,
-                                   v2*f.get_arg_conversions()[1])/f.get_conversion()
-                assert f(x, y) == func2(v1, v2)/f.get_conversion()
+                                   v2*f.get_arg_conversions()[1])/f.conversion
+                assert f(x, y) == func2(v1, v2)/f.conversion
 
-        f.set_units(True)
+        f.units = True
         #Check that inverting order of args yields Error
         with pytest.raises(AssertionError) :
             assert f(1/137, 2.0) == f(2.0, 1/137)

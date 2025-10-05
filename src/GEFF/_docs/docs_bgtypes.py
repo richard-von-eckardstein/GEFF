@@ -1,19 +1,19 @@
-val_docs = r"""
+val_docs = """
     A `Quantity` subclass used as basis for defining real-valued variables and constants.
      
     In addition to the basic structure defined by `Quantity`, this class can be used like an arithmetic type.
     It defines basic arithmetic operations on its instances as operations on their underlying `value` attribute.
 
-    As a subclass of `Quantity` it inherits all its attributes and methods, but re-defines the `set_units` method
-    such that changing units converts `value` according to `Quantity.get_conversion`.
+    As a subclass of `Quantity` it inherits all its attributes and methods, ensuring 
+     that `value` is changed according to `units` by using `conversion`.
 
     The class serves as a parent for `Variable` and `Constant`. 
     """
 
-variable_docs = r"""
+variable_docs = """
     A `Val` subclass representing real-valued variables evolving with cosmic time.
 
-    Instances of this class can be used like a 1-D Numpy-Array for mathematical operations as defined by `Val`.
+    Instances of this class can be used like a `Val` with `value` as a 1-D Numpy-Array.
      Indexed returns the associated index of `value`.
     """
 
@@ -28,7 +28,7 @@ bgvar_addendum = """
     This is a subclass of `Variable` with a custom name and scaling.
     """
 
-constant_docs = r"""
+constant_docs = """
     A `Val` subclass representing a constant of cosmic time.
 
     Instances of this class can be used like a float for mathematical operations as defined by `Val`.
@@ -46,15 +46,14 @@ bgconst_addendum = """
     """
 
 
-func_docs = r"""
+func_docs = """
     A `Quantity` subclass representing real functions of variables like the inflaton potential.
     
     An instance of this class can be used as a function,
-    evaluating the underlying method, `f(*args)` depending on the current units.
+    evaluating the underlying method, `basefunction` depending on the state of `units`.
 
-    In physical units, the call returns the result of the underlying function, `f(*args)`.
-    In numerical units, the call instead returns `f(*args)/conversion_factor`, 
-    with `conversion_factor` defined by `Quantity.get_conversion`.  
+    In physical units, the call returns the result of `basefunction`.
+    In numerical units, the call instead returns `basefunction(*args)/conversion`.  
     If called by a `Val` object, the argument is also converted according to the units of the `Val` instance
     (generically, identical to the ones of the `Func` instance).
     If instead called by a regular arithmetic data type (e.g., `float`),
@@ -127,11 +126,11 @@ DOCS = {
     --------
     1. Defining a `BGSystem`
     ```python
-    from GEFF.bgtypes import BGSystem, BGVal
+    from GEFF.bgtypes import BGSystem, BGVar
 
     # define two variables corresponding to physical time and Hubble rate.
-    time = BGVar("t", q_u_omega=-1, q_u_mu=0)
-    Hubble = BGVar("H", q_u_omega=1, q_u_mu=0)
+    time = BGVar("t", qu_omega=-1, qu_mu=0)
+    Hubble = BGVar("H", qu_omega=1, qu_mu=0)
 
     # Create a BGSystem with 'time' and 'Hubble'
     # We set the reference frequency to 1e-5*Mpl
@@ -151,23 +150,24 @@ DOCS = {
     print(U.variable_names()) # prints ["t", "H"] 
 
     # The BGSystem now recognizes "t" and "H" as keys:
-    print(f"In Planck units, the Hubble rate at time {U.t} is {U.H}.")
+    print(f"In Planck units, the Hubble rate at time {U.t.value:.1e} is {U.H.value:.1e}.")
     # gives U.t=1e5, U.H=1e-5
 
     # Convert everything to numerical units
-    U.set_units(False)
-    print(f"In numerical units, the Hubble rate at time {U.t} is {U.H}.") 
+    U.units = False
+    print(f"In numerical units, the Hubble rate at time {U.t.value} is {U.H.value:.1e}.") 
     # gives U.t=1, U.H=1
+
     ```
 
     2. Adding a new `Variable` 
 
     ```python
     #Let us reset the units of U:
-    U.set_units(True)
+    U.units = True
 
     # add a new Val: the electric-field expectation value E^2
-    U.add_variable("E0", q_u_omega=4, q_u_mu=0) #since A_mu scales like d / dx^mu 
+    U.add_variable("E0", qu_omega=4, qu_mu=0) #since A_mu scales like d / dx^mu 
 
     # initialise E0 with some value in Planck units:
     U.initialise("E0")( 6e-10 )
@@ -191,12 +191,27 @@ DOCS = {
     print(U.E0 + U.BConst) #gives 6.5e-10 = 6e-10 + 5e-11
     ```
 
-    4. Adding a new `Func`
+    4. Changing the value of a `Variable`
+    ```python
+    # The value of a `Variable` can be passed directly
+    U.BConst.value = 1e-3
+    print(str(U.BConst))
+
+    # if we change to numerical units,
+    # the argument which is passed is treated in numerical units
+    U.units = False
+    U.BConst.value = 1
+    print(U.BConst)
+    ```
+
+    5. Adding a new `Func`
 
     ```python
+    #first, return to physical units
+    U.units = True
 
     # define a new Func: rhoE, the electric-field energy density
-    rhoE = U.add_function("rhoE", func_args=[U.E0], q_u_omega=2, q_u_mu=2) # since 3 * M_pl^2 * H^2 = rho
+    rhoE = U.add_function("rhoE", args=[U.E0], qu_omega=2, qu_mu=2) # since 3 * M_pl^2 * H^2 = rho
     #Note how E0 is passed for creation to indicate the scaling of the argument
 
     # define rhoE as a function of E0:
@@ -205,7 +220,7 @@ DOCS = {
     # U.rhoE is now a Callable function with a single argument
     ```
 
-    2. Calling a `Func` with a `Val`
+    6. Calling a `Func` with a `Val`
 
     ```python
     # Calling rhoE in physical units is straight forwards:
@@ -215,30 +230,30 @@ DOCS = {
     print( func(6e-10) )  # gives 3e-10 (the result in Planck units)
 
     # Switching E0 to numerical units, nothing changes since rhoE is in physical units:
-    U.E0.set_units(False) # E0.value = 6e10
+    U.E0.units = False # E0.value = 6e10
     print( U.rhoE(U.E0) ) # gives 3e-10 (still in Planck units)
 
     # Only switching U.rhoE to numerical units changes the result:
-    U.rhoE.set_units(False)
+    U.rhoE.units = False
     print( U.rhoE(U.E0) ) # gives 3. = 3e-10 / (U.omega*U.mu)**2 (now in numerical units)
 
     # Again, this outcome does not depend on the units of E0:
-    U.E0.set_units(True)
+    U.E0.units = False
     print( U.rhoE(U.E0) ) # gives 3. = 3e-10 / (U.omega*U.mu)**2 (in numerical units)
     ```
 
-    3: Calling a `Func` with a `float`
+    7. Calling a `Func` with a `float`
 
     ```python
     # instead of calling rhoE by E0, we can call it by a float:
     val = 6e-10
 
     # First the behavior if rhoE is in physical units:
-    U.rhoE.set_units(True)
+    U.rhoE.units = True
     print( U.rhoE( val ) ) # gives 3e-10 (in Planck units)
 
     # The behavior is different compared to a Val if rhoE is in numerical units:
-    U.rhoE.set_units(False)
+    U.rhoE.units = False
     print( U.rhoE(val) ) #gives 3e-20 = 0.5* (6e-10*U.omega**4) / (U.omega*U.mu)**2
 
     # Unlike a Val, the float does not track units
@@ -247,7 +262,7 @@ DOCS = {
     print( U.rhoE(val/U.omega**4) ) # gives 3., the expected result in numerical units.
 
     # Overall, its safer to just keep everything in the same units:
-    U.set_units(True)
+    U.units = True
     ```
     """,
 
@@ -255,11 +270,11 @@ DOCS = {
     A collection of cosmological variables sharing a system of units.
 
     Instances of this class define two base unit systems,
-    *physical units* and *numerical units*, by setting an energy scale, `omega` and an inverse time scale, `mu`. 
+    *physical units* and *numerical units*, by setting an energy scale, `mu`, and an inverse time scale, `omega`. 
 
     The cosmological variables (time, Hubble rate, etc.) are represented by `Quantity` objects.
     These objects are stored in `quantities`, and can can be initialise using `initialise`.
-    Instances of these objects can be collectively converted between units by using the scales `omega` and `mu`. 
+    Instances of these objects can be collectively converted between units by setting `units`. 
 
     This class is the fundamental building block of the `GEFF` code. 
     """,

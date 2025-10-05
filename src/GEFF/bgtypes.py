@@ -1,6 +1,5 @@
 from ._docs import generate_docs, docs_bgtypes
 import numpy as np
-from copy import deepcopy
 from typing import Callable, ClassVar
 
 class BGSystem:
@@ -19,11 +18,35 @@ class BGSystem:
         """
         self.quantities : dict = {q.name:q for q in quantity_set}
         """A dictionary of all `Quantity` objects for this BGSystem"""
-        self.omega : float = omega
-        """A frequency scale (typically the Hubble rate at some reference time)"""
-        self.mu : float = mu
-        """An energy scale (typically the Planck mass)"""
+        self._omega : float = omega
+        self._mu : float = mu
         self._units=True
+
+    @property
+    def omega(self) -> float:
+        """A frequency scale (typically the Hubble rate at some reference time)"""
+        return self._omega
+    
+    @property 
+    def mu(self) -> float:
+        """An energy scale (typically the Planck mass)"""
+        return self._mu
+
+    @property
+    def units(self) -> bool:
+        """Indicates the current units of the BGSystem. `True`:physical units, `False`:numerical units"""
+        return self._units
+    
+    @units.setter
+    def units(self, newunits:bool):
+        """Change the units of the BGSystem and its `Quantity` instances."""
+        for var in vars(self):
+            obj = getattr(self, var)
+            if isinstance(obj, Quantity):
+                obj.units = newunits
+        self._units=bool(newunits)
+        return
+
     
     @classmethod
     def from_system(cls, sys : 'BGSystem', copy : bool=False) -> 'BGSystem':
@@ -48,9 +71,9 @@ class BGSystem:
 
         if copy:
             #store units of original sys
-            units = sys.get_units()
+            units = sys.units
             #match units of new system
-            sys.set_units(True)
+            sys.units = True
 
             #Copy values and functions
             values = sys.variable_list()
@@ -58,19 +81,19 @@ class BGSystem:
             consts = sys.constant_list()
 
             for const in consts:
-                obj = deepcopy(const)
+                obj = const
                 newinstance.initialise(obj.name)(obj.value)
 
             for value in values:
-                obj = deepcopy(value)
+                obj = value
                 newinstance.initialise(obj.name)(obj.value)
 
             for func in funcs:
-                obj = deepcopy(func)
-                newinstance.initialise(obj.name)(obj.get_basefunc())
+                obj = func
+                newinstance.initialise(obj.name)(obj.basefunc)
             
             #restore old units
-            sys.set_units(units)
+            sys.units = units
         
         return newinstance
     
@@ -96,7 +119,7 @@ class BGSystem:
             the list of names.
         """
 
-        return self.quantities.keys()
+        return list(self.quantities.keys())
     
 
     def initialise(self, quantity : str) -> Callable:
@@ -137,35 +160,6 @@ class BGSystem:
             return
         
         return init
-        
-    def set_units(self, units : bool):
-        """
-        Change the units of the BGSystem and its `Quantity` instances.
-
-        Parameters
-        ----------
-        units : bool
-            `True`: physical units, `False`:  numerical units.
-        """
-
-        for var in vars(self):
-            obj = getattr(self, var)
-            if isinstance(obj, Quantity):
-                obj.set_units(units)
-        self._units=units
-        return
-
-    def get_units(self) -> bool:
-        """
-        Get a boolean indicating the current units of the BGSystem.
-
-        Returns
-        -------
-        units : bool
-            `True`: physical units, `False`:  numerical units.
-        """
-
-        return self._units
     
     def variable_list(self) -> list['Variable']:
         """
@@ -277,7 +271,7 @@ class BGSystem:
         self.quantities.pop(name)
         return
     
-    def add_variable(self, name : str, omega_scaling : int, mu_scaling : int):
+    def add_variable(self, name : str, qu_omega : int, qu_mu : int):
         """
         Define a new `Variable` object and add it to `quantities`.
 
@@ -285,16 +279,16 @@ class BGSystem:
         ----------
         name : str
             the name of the new object.
-        omega_scaling : int
+        qu_omega : int
             the 'u_omega' parameter of the new object.
-        mu_scaling : int
+        qu_mu : int
             the 'u_mu' parameter of the new object.
         """
 
-        self.quantities[name] = BGVar(name, omega_scaling, mu_scaling)
+        self.quantities[name] = BGVar(name, qu_omega, qu_mu)
         return
     
-    def add_constant(self, name : str, omega_scaling : int, mu_scaling : int):
+    def add_constant(self, name : str, qu_omega : int, qu_mu : int):
         """
         Define a new `Constant` object and add it to `quantities`.
 
@@ -302,16 +296,16 @@ class BGSystem:
         ----------
         name : str
             the name of the new object.
-        omega_scaling : int
+        qu_omega : int
             the 'u_omega' parameter of the new object.
-        mu_scaling : int
+        qu_mu : int
             the 'u_mu' parameter of the new object.
         """
 
-        self.quantities[name] = BGConst(name, omega_scaling, mu_scaling)
+        self.quantities[name] = BGConst(name, qu_omega, qu_mu)
         return
     
-    def add_function(self, name : str, args : list['Val'], omega_scaling : int, mu_scaling : int):
+    def add_function(self, name : str, args : list['Val'], qu_omega : int, qu_mu : int):
         """
         Define a new `Func` object and add it to `quantities`.
 
@@ -321,13 +315,13 @@ class BGSystem:
             the name of the new object.
         args : list of BGVal
             the 'args' parameter of the new object.
-        omega_scaling : int
+        qu_omega : int
             the 'u_omega' parameter of the new object.
-        mu_scaling : int
+        qu_mu : int
             the 'u_mu' parameter of the new object.
         """
 
-        self.quantities[name] = BGFunc(name, args, omega_scaling, mu_scaling)
+        self.quantities[name] = BGFunc(name, args, qu_omega, qu_mu)
         return
     
 class Quantity:
@@ -352,71 +346,46 @@ class Quantity:
             the BGSystem to which the object belongs
         """
 
-        self._units = sys.get_units()
+        self._units = sys.units
         self._conversion = (sys.omega**self.u_omega*sys.mu**self.u_mu)
 
     def __repr__(self):
-        r"""
-        A string representing the class, giving its name and scaling with frequency ($\omega$) and energy ($\mu$).
-        """
+        r"""A string representing the class, giving its name and scaling with frequency ($\omega$) and energy ($\mu$)."""
         return f"{self.name}({self.u_omega},{self.u_mu})"
 
     def __str__(self) -> str:
-        """
-        The class instance as a string including its name and current units.
-        """
+        """The class instance as a string including its name and current units."""
 
         if not(self._units):
             return f"{self.name} (numerical)"
         elif self._units:
             return f"{self.name} (physical)"
     
+    
+    @property
+    def units(self) -> bool:
+        """Indicates the current units of the Quantity. `True`:physical units, `False`:numerical units"""
+        return self._units
+    
+    @units.setter
+    def units(self, units : bool):
+        """Convert the object between numerical and physical units."""
+        self._units = bool(units)
+        return
+    
+    @property
+    def conversion(self) -> float:
+        """A conversion factor between numerical and physical units."""
+        return self._conversion
+    
     @classmethod
     def get_description(cls) -> str:
-        """
-        Return a string describing the object.
-        """
+        """Return a string describing the object."""
         if cls.description=="":
             return f"{cls.name}"
         else:
             return f"{cls.name} - {cls.description}"
         
-    def get_units(self) -> bool:
-        """
-        Return a boolean corresponding to the units of the object.
-
-        Returns
-        -------
-        units : bool
-            `True`: physical units, `False`: numerical units.
-        """
-
-        return self._units
-    
-    def set_units(self, units : bool):
-        """
-        Convert the object between numerical and physical units.
-
-        Parameters
-        ----------
-        units : bool
-            `True`: physical units, `False`: numerical units.
-        """
-
-        self._units = units
-        return
-    
-    def get_conversion(self) -> float:
-        """
-        Get the objects conversion factor between numerical and physical units.
-
-        Returns
-        -------
-        conversion : float
-            the conversion factor
-        """
-
-        return self._conversion
 
     
 class Val(Quantity):
@@ -432,8 +401,7 @@ class Val(Quantity):
             the BGSystem to which the instance belongs
         """
         super().__init__(sys)
-        self.value =  value
-        """The objects value in its respective units."""
+        self._value =  value*self._conversion**(-sys.units)
 
     def __str__(self) -> str:
         """
@@ -450,37 +418,15 @@ class Val(Quantity):
         elif self._units:
             return f"{self.name} (physical): {self.value}"
     
-    def set_units(self, units : bool):
-        """
-        Convert the object between numerical and physical units.
-
-        Parameters
-        ----------
-        units : bool
-            `True`: physical units, `False`: numerical units.
-        """
-
-        if isinstance(self.value, type(None)):
-            self._units=units
-            return
-        if units and not(self._units):
-            self.value *= self._conversion
-        elif not(units) and self._units:
-            self.value /= self._conversion
-        self._units=units
-        return
+    @property
+    def value(self) -> float:
+        """The objects value in its respective units."""
+        return self._value*self._conversion**self._units
     
-    def set_value(self, value : np.ndarray):
-        """
-        Overwrite the `value` attribute.
-
-        Parameters
-        ----------
-        value : NDArray or float
-            the new value.
-        """
-
-        self.value = value
+    @value.setter
+    def value(self, newval):
+        """Overwrite the `value` attribute (assuming its current units)."""
+        self._value = newval*self._conversion**(-self._units)
         return
     
     #Define all mathematical operations as operations acting on self.value
@@ -595,15 +541,9 @@ class Func(Quantity):
         self._arg_conversions = [(sys.omega**arg.u_omega*sys.mu**arg.u_mu)
                                  for arg in self.args]
         
-    def get_basefunc(self) -> Callable:
-        """
-        Get the underlying function which defines the `__call__` method.
-
-        Returns
-        -------
-        basefunc : Callable
-            the function
-        """
+    @property
+    def basefunc(self) -> Callable:
+        """The underlying function which defines the `__call__` method."""
         return self._basefunc
     
     def get_arg_conversions(self) -> list[float]:
@@ -622,21 +562,19 @@ class Func(Quantity):
         """
         Define the call method of the class as outlined in its documentation.
         """
-        units = self.get_units()
         def float_handler(x, i):
-            return x*self._arg_conversions[i]**(1-units)
+            return x*self._arg_conversions[i]**(1-self._units)
         
         def val_handler(x, i):
-            conv = x.get_conversion()
+            conv = x.conversion
             assert self._arg_conversions[i] == conv
-            pow = (1 - x.get_units())
-            return x*conv**pow
+            return x*conv**(1-x.units)
 
         typedic = {Variable : val_handler, Val : val_handler, Constant: val_handler}
 
         args = [typedic.get(arg.__class__.__bases__[0], float_handler)(arg, i) for i, arg in enumerate(args)]
 
-        return self._basefunc(*args)/self._conversion**(1-units)
+        return self._basefunc(*args)/self._conversion**(1-self._units)
 
     
 class Variable(Val):
@@ -663,24 +601,20 @@ class Variable(Val):
     
     def __len__(self):
         return len(self.value)
+    
+    @property
+    def value(self) -> np.ndarray:
+        """The objects value in its respective units."""
+        return self._value*self._conversion**(self._units)
 
-    def set_value(self, value : np.ndarray):
-        """
-        Overwrite the `value` attribute.
-
-        Parameters
-        ----------
-        value : NDArray or float
-            the new value.
-        """
-
-        self.value = np.asarray(value)
+    @value.setter
+    def value(self, newval):
+        """Overwrite the `value` attribute ensuring it is an array"""
+        self._value = np.asarray(newval*self._conversion**(-self._units), dtype=self.dtype)
         return
      
-     
-     
 class Constant(Val):
-    def __init__(self, value : float, sys : BGSystem):
+    def __init__(self, value, sys : BGSystem):
         """
         Create a new instance using a float and a BGSystem
 
@@ -690,8 +624,13 @@ class Constant(Val):
             the underlying array of the instance
         sys : BGSystem
             the BGSystem to which the instance belongs
+
+        Raises
+        ------
+        TypeError 
+            if value cannot be converted to a float
         """
-        super().__init__( value, sys)
+        super().__init__( float(value), sys)
 
 class GaugeField:
     name : ClassVar[str] = ""

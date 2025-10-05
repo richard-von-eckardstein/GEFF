@@ -241,10 +241,10 @@ class BaseGEF(BGSystem):
                 self._print_summary(sol)
             if sol.success:
                 print("\nStoring results in GEF instance.")
-                self.set_units(False)
+                self.units = False
                 for obj in self.variable_list():
-                    obj.set_value(getattr(vals, obj.name).value)
-                self.set_units(True)
+                    obj.value = (getattr(vals, obj.name).value)
+                self.units = True
                 self._completed = True
             else:
                 print("The run terminated on with an error, check output for details.")
@@ -423,15 +423,15 @@ class BaseGEF(BGSystem):
                 raise AttributeError(f"The data table you tried to load contains an unknown quantity: '{key}'")
         
         #Store current units to switch back to later
-        units=self.get_units()
+        og_units=self.units
 
         #GEF data is always stored untiless, thus it is assumed to be untiless when loaded.
-        self.set_units(False)
+        self.units = False
         #Load data into background-value attributes
         for key, values in data.items():
             self.initialise(key)(values)
 
-        self.set_units(units)
+        self.units = og_units
         self._completed=True
 
         return
@@ -474,10 +474,10 @@ class BaseGEF(BGSystem):
             dic = {}
 
             #remember the original units of the GEF
-            units=self.get_units()
+            og_units=self.units
 
             #Data is always stored unitless
-            self.set_units(False)
+            self.units = False
 
             for key in storeables:
                 dic[key] = getattr(self, key).value
@@ -487,7 +487,7 @@ class BaseGEF(BGSystem):
             output_df.to_csv(path)
 
             #after storing data, restore original units
-            self.set_units(units)
+            self.units = og_units
         return
 
 

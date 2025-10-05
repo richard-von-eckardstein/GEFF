@@ -20,7 +20,7 @@ class PT:
 
     Results are internally computed using numerical units, but are returned in physical units.
     """
-    def __init__(self, insys : BGSystem):
+    def __init__(self, sys : BGSystem):
         """
         Initialise the class from a GEF solution.
 
@@ -30,8 +30,8 @@ class PT:
             the GEF solution.
         """
         #Set GEF results to Hubble units.
-        sys = BGSystem.from_system(insys, copy=True)
-        sys.set_units(False)
+        og_units = sys.units
+        sys.units = False
         
         #import the background evolution
         N = sys.N.value
@@ -66,6 +66,8 @@ class PT:
         soleta = solve_ivp(deta, [min(self._t), max(self._t)], np.array([0]), t_eval=self._t)
 
         self._etaf = CubicSpline(self._t, soleta.y[0,:])
+
+        sys.units = og_units
         return
     
     def compute_pt(self, nmodes : int, mbm_file : str, FastGW : bool=True,

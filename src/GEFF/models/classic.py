@@ -94,34 +94,34 @@ def initial_conditions(sys, ntr):
     return yini
 
 #define update_sys for GEFSolver
-def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
+def update_values(t, y, sys):
     #spacetime variables
-    sys.t.set_value(t)
-    sys.N.set_value(y[0])
-    sys.a.set_value(np.exp(y[0]))
+    sys.t.value = t
+    sys.N.value = y[0]
+    sys.a.value = np.exp(y[0])
 
     #parse for convenience
-    sys.phi.set_value(y[1])
-    sys.dphi.set_value(y[2])
-    sys.kh.set_value(np.exp(y[3]))
+    sys.phi.value = y[1]
+    sys.dphi.value =  y[2]
+    sys.kh.value = np.exp(y[3])
 
     #the gauge-field terms in y are not stored, save these values here
-    sys.E.set_value( y[4]*np.exp(4*(y[3]-y[0])))
-    sys.B.set_value( y[5]*np.exp(4*(y[3]-y[0])))
-    sys.G.set_value( y[6]*np.exp(4*(y[3]-y[0])))
+    sys.E.value = y[4]*np.exp(4*(y[3]-y[0]))
+    sys.B.value = y[5]*np.exp(4*(y[3]-y[0]))
+    sys.G.value = y[6]*np.exp(4*(y[3]-y[0]))
 
     #Hubble rate
-    sys.H.set_value( friedmann(0.5*sys.dphi**2, sys.V(sys.phi), 0.5*(sys.E+sys.B)*sys.omega**2) )
+    sys.H.value = friedmann(0.5*sys.dphi**2, sys.V(sys.phi), 0.5*(sys.E+sys.B)*sys.omega**2)
 
     #boundary term parameter
-    sys.xi.set_value( sys.beta*(sys.dphi/(2*sys.H)))
+    sys.xi.value = sys.beta*(sys.dphi/(2*sys.H))
 
     #acceleration for convenience
-    sys.ddphi.set_value( klein_gordon(sys.dphi, sys.dV(sys.phi), sys.H, -sys.G*sys.beta*sys.omega**2)  )
+    sys.ddphi.value = klein_gordon(sys.dphi, sys.dV(sys.phi), sys.H, -sys.G*sys.beta*sys.omega**2)
     return
 
 #define timestep for GEFSolver
-def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
+def compute_timestep(t, y, sys):
 
     dydt = np.zeros(y.shape)
 

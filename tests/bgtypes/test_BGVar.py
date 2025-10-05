@@ -39,8 +39,8 @@ class TestBGVar():
     def test_Init(self, v1):
         x = self.inst(v1)
         assert np.issubdtype(x.value.dtype, np.floating)
-        assert x.get_units()
-        assert x.get_conversion() == 0.55**2 * 0.32
+        assert x.units
+        assert x.conversion == 0.55**2 * 0.32
 
     def test_InitFroma1(self, a1):
         x = self.inst(a1)
@@ -48,21 +48,21 @@ class TestBGVar():
 
     def test_Units(self, v1):
         x = self.inst(v1)
-        x.set_units(True)
-        assert x.get_units()
+        x.units = True
+        assert x.units
         assert x.value == v1
 
-        x.set_units(False)
-        assert not(x.get_units())
+        x.units = False
+        assert not(x.units)
         assert x.value == v1/(0.55**2 * 0.32)
 
     def test_str(self, v1):
         x = self.inst(v1)
-        x.set_units(True)
+        x.units = True
         assert x.__str__() == f"{x.name} (physical): {v1}"
 
-        x.set_units(False)
-        assert x.__str__() == f"{x.name} (numerical): {v1/(x.get_conversion())}"
+        x.units = False
+        assert x.__str__() == f"{x.name} (numerical): {v1/(x.conversion)}"
 
     def test_getitem(self, a1):
         x = self.inst(a1)
@@ -221,8 +221,13 @@ class TestBGVar():
 
     def test_set_value(self, v1, a1):
         x = self.inst(v1)
-        x.set_value(a1)
+        x.value = a1
 
+        assert (x.value == a1).all()
+        assert (x._value == a1/x.conversion).all()
+
+        x.units = False
+        x.value = a1
         assert (x.value == a1).all()
 
 
