@@ -11,7 +11,7 @@ Execute these models by calling `GEFF.gef.GEF` with its name and settings.
 import importlib
 import os
 
-def load_model(model : str, user_settings : dict):
+def load_model(model : str):
     """
     Import and execute a module defining a GEF model.
 
@@ -45,17 +45,4 @@ def load_model(model : str, user_settings : dict):
             raise FileNotFoundError(
                 f"No model file found at '{modelpath}' and failed to import '{model}'"
                 ) from e
-        
-    if hasattr(mod, "settings") and isinstance(user_settings, dict):
-        for key, item in user_settings.items():
-            if key in mod.settings:
-                mod.settings[key] = item
-                print(f"Updating '{key}' to '{item}'.")
-            else:
-                print(f"Ignoring unknown model setting '{key}'.")
-        mod.interpret_settings()
-
     return mod
-
-def _validate_model():
-    pass

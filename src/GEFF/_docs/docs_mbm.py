@@ -227,7 +227,7 @@ DOCS = {
     -------
     ```python
         import numpy as np
-        from GEFF.bgtypes import BGSystem, BGVal
+        from GEFF.bgtypes import BGSystem, BGVar, t, N, kh
 
         # Define a new mode equation:
         def custom_mode_eq(t, y, k, a, X, Y):
@@ -263,17 +263,16 @@ DOCS = {
                                          custom_bd_init, custom_init_keys)
 
         # To initialise CustomModeSolver we need a BGSystem. 
-        # Its Val instances need to have the right names however:
-        # The default: 't', 'N', 'kh' (we did not rename 'cutoff')
-        t = BGVal("t", -1, 0)
-        N = BGVal("N", 0, 0)
-        kh = BGVal("kh", 1, 0)
-        # Because of custom_mode_eq we need 'a', 'X', 'Y'
-        a = BGVal("a", 0, 0)
-        X = BGVal("X", 2, 0)
-        Y = BGVal("Y", 2, 0)
-        # Because of custom_bd_init we need 'alpha'
-        alpha = BGVal("alpha", 0, 0)
+        # Its Variables need to have the right names however:
+        # The default: 't', 'N', 'kh' were loaded from GEFF.bgtypes
+
+        # Because of custom_mode_eq we also need 'a', 'X', 'Y'
+        a = BGVar("a", 0, 0)
+        X = BGVar("X", 2, 0)
+        Y = BGVar("Y", 2, 0)
+
+        # For custom_bd_init we need 'alpha'
+        alpha = BGVar("alpha", 0, 0)
 
         # When in doubt, consult necessary_keys:
         print(CustomModeSolver.necessary_keys)
@@ -287,7 +286,8 @@ DOCS = {
         MbM = CustomModeSolver(sys)
 
         # Let's compute a spectrum using the new setup:
-        MbM.compute_spectrum(100)
+        spec = MbM.compute_spectrum(100)
+        ...
         ```
     """
 }

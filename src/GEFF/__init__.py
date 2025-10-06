@@ -28,23 +28,22 @@ If this is the first time you encounter the GEF, here are some useful articles o
 * ...
 * ...
 
-The primary application of the GEF is to solve the (charge-free) Maxwell's equations in an expanding spacetime,
+The strategy behind the GEF is to take Maxwell's equations in an expanding spacetime,
 
 <a name="max">$$\operatorname{div} {\bf E} = 0\, , \qquad \operatorname{div} {\bf B} = 0\, ,$$</a>
 $$\dot{{\bf E}} + 2 H {\bf E} - \frac{1}{a}\operatorname{rot} {\bf B} + {\bf J} = 0 \, ,$$
 $$\dot{{\bf B}}  + 2 H {\bf B} + \frac{1}{a}\operatorname{rot} {\bf E} = 0 \,$$
 
-where ${\bf E}$ and ${\bf B}$ are magnetic and electric field-strength operators and ${\bf J}$ is an operator linear in ${\bf E}$ and ${\bf B}$.
-
-The GEF strategy is to introduce a tower of gauge-field bilinear expectation values,
+and use them to formulate a tower of ODEs for the quantities
 
 $$ \mathcal{F}_{E}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{{\rm UV}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2\, ,$$
 $$ \mathcal{F}_{G}^{(n)} = -\frac{a^4}{2 k_{{\rm UV}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf B} + {\bf B} \cdot \operatorname{rot}^n {\bf E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)} \frac{{\rm d} k}{k} \frac{a k^{n+4}}{2 \pi^2 k_{{\rm UV}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)] \, ,$$
-$$ \mathcal{F}_{B}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm UV}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2 \, ,$$
+$$ \mathcal{F}_{B}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle {\bf B} \cdot \operatorname{rot}^n {\bf B}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm UV}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2 \, ,$$
 
-where, for completeness, we have also given the expression for $\mathcal{F}_{X}^{(n)}$ in terms of the mode functions $A_\lambda(t,k)$. The scale $k_{\rm UV}$ is a suitably chosen UV regulator which can vary with time.
+where, $k_{\rm UV}$ is a suitably chosen UV regulator which can vary with time. 
+For completeness, we have also given the expression for $\mathcal{F}_{X}^{(n)}$ in terms of the mode functions $A_\lambda(t,k)$.
 
-The advantage of the quantities $\mathcal{F}_{X}^{(n)}$ are that their evolution is given by simple ODE's,
+The ODE for the $\mathcal{F}_{X}^{(n)}$'s are then given by
 
 $$\frac{\rm d}{{\rm d} t} \mathcal{F}_{E}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_{E}^{(n)}  + 2\frac{k_{\rm UV}}{a}\mathcal{F}_{G}^{(n+1)} + 2 \frac{a^4}{k_{\rm UV}^{n+4}} \langle {\bf J} \cdot \operatorname{rot}^n {\bf E} \rangle =  S_{\mathcal{E}}^{(n)}\, , $$
 $$\frac{\rm d}{{\rm d} t} \mathcal{F}_{G}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_{G}^{(n)} - \frac{k_{\rm UV}}{a}\left(\mathcal{F}_{E}^{(n+1)} - \mathcal{F}_{B}^{(n+1)}\right) + \frac{a^4}{k_{\rm UV}^{n+4}} \langle {\bf J} \cdot \operatorname{rot}^n {\bf B} \rangle= S_{\mathcal{G}}^{(n)}\, , $$
@@ -52,23 +51,23 @@ $$\frac{\rm d}{{\rm d} t} \mathcal{F}_{B}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm 
 
 Although these are infinitely many ODE's, one can typically determine an analytical closing condition, such that they may be truncated at some order $n_{\rm tr}$.
 
-The ODEs for $\mathcal{F}_{X}^{(n)}$ may also be coupled to other equations, for example the evolution equation for the inflaton field, to determine the backreaction of gauge-fields on the inflationary dynamics.
-Once the dynamical background has been computed in this manner, it can be used to determine a variety of interesting results, e.g., the tensor power spectrum induced by gauge fields.
+These ODEs for $\mathcal{F}_{X}^{(n)}$ can now be simply solved alongside those of the inflationary background.
+This way, one can handle gauge-field backreaction onto the background dynamics of inflation.
 
 The GEFF package is designed to help the user in the process of solving these equations in the following way
  - pre-defined and ready-to-use [GEF flavors](#basics)
  - tailored [algorithm](#algorithm) to solve the background dynamics
  - options to [implement your own GEF flavor](#model_creation)
 
-
 <a name="basics">
 # Sampling the GEF flavors
 
-In the first part of our tour, we explore the basic usage of the GEFF code.
+GEF models come in various flavors, some of the most intresting applications of the GEF are already implemented in this package.
+As the first part of our tour, we explore the basic usage of the GEFF code.
 
 ## Choosing your flavor
 
-We start by sampling a first GEF flavor of our choice. Let's try "classic" (corresponds to PAI):
+We start by sampling a first flavor of our choice; the model "classic", which corresponds to PAI:
 
 ```python
 from GEFF import GEF
@@ -76,19 +75,23 @@ from GEFF import GEF
 # Create the GEF model of your choice
 ClassicGEF = GEFModel("classic")
 ``` 
-Next up, we initialize `ClassicGEF`. It expects information on the inflaton--gauge-field coupling strength $\beta / M_{\rm P}$, 
+To use `ClassicGEF`, we need to initialize it by passing initial conditions for our background evolution. 
+The model expects information on the inflaton--vector coupling $\beta / M_{\rm P}$, 
 initial conditions for the inflaton field, $\varphi(0)$, $\dot\varphi(0)$, and the shape of the inflaton potential, $V(\varphi)$.
-Let's configure the model to start on the slow-roll attractor of a chaotic inflation potential:
 
-$$\beta = 15,\, \qquad  m = 6.16 \times 10^{-6} M_{\rm P}$$
+In this example, we configure the model to start on the slow-roll attractor of a chaotic inflation potential:
+
 $$ \varphi(0) = 15.55 M_{\rm P}, \qquad \dot{\varphi}(0) = -\sqrt{\frac{2}{3}} m M_{\rm P}, \qquad V(\varphi) = \frac{1}{2}m^2 \varphi^2$$
 
-We can pass all the required information in the form of three dictionaries:
+where we set $m = 6.16 \times 10^{-6} M_{\rm P}$. We set the coupling to $\beta = 15$.
+
+The necessary information is passed to `ClassicGEF` as keyword arguments:
 ```python
 import numpy as np
 
 m = 6.16e-6
 beta = 15
+
 phi = 15.55
 dphi = -np.sqrt(2/3)*m
 
@@ -110,7 +113,7 @@ If you want to know what input is expected by the GEF model, use the `print_kwar
 
 ## Getting a taste
 
-Now, that our model is initialized, we can start our first GEF run:
+Now, that our model is initialized, we can start determine the inflationary background evolution starting from the initial conditions:
 ```python
 sol, spec = G.run()
 ```
@@ -142,13 +145,15 @@ If you need a brief description of the variable `X`, use `G.X.get_description()`
 
 We did not only get back a `sol` object, but also `spec`. This object contains the gauge-field mode functions $A_\lambda(t,k)$.
 The code computes these mode functions after having solved the dynamics of the background system ($H(t)$, $\varphi(t)$ etc.),
-and uses them for estimating the convergence of the background solution. For details, see `.mbm`.
+and uses them for estimating the convergence of the background solution. 
+We briefly discuss this algorithm in [the next section](#algorithm).
+
 The object `spec` is an instance of the `GaugeSpec` class, which defines useful methods for handling time-dependent gauge-field spectra.
+For details, see `mbm.GaugeSpec`.
 
 > **A note on gauge-field spectra**
 > If you are only interested in the background evolution and not in the gauge-field spectrum, set `nmodes=None` in `run()`.
-> However, it is advised to compute gauge-field spectra to ensure the convergence of `run()`.
-> For a quick glimpse into `run` see the [next section](#algorithm).
+> However, it is advised to compute gauge-field spectra to ensure consistency between the background evolution and the spectra.
 
 Next, let us store our GEF and mode solutions in a file:
 ```python
@@ -177,7 +182,8 @@ ks, pt_dic =  PT(G).compute_pt(100, mbmpath)
 # from the power spectrum, we can then compute the gravitational-wave spectrum:
 f, h2omega_gw = omega_gw(ks, pt_dic["tot"], Nend=G.N[-1], Hend=G.H[-1])
 ``` 
-We can just pass `G` to `PT` and all relevant information on the background solution is extracted. It's that easy!
+We can just use  `G` to extract the relevant information on the background solution.
+It's that easy!
 
 To finish this first part of our tour, let us sample a second GEF flavor, "SE_kh":
 ```python
@@ -187,13 +193,13 @@ FermionGEF = GEFModel("SE_kh", settings={"picture":"electric"})
 This model comes in three varieties ("pictures") corresponding to the effective treatment of fermions in the model.
 We specified the particular variety py passing a `settings` dictionary upon creating the model.
 
-You can get a summary of all GEF flavors at your disposal by using `GEFF.take_a_tour`.
+For more details on the available models, see `GEFF.models`.
 
 <a name="algorithm">
 # On the factory floor
 
 Next on the tour of the GEF factory, we visit the production line.
-The following diagram sketches the basic algorithm of `run`.
+The following diagram sketches the basic algorithm behind the `run` method.
 
 ```mermaid
 ---
@@ -227,12 +233,14 @@ graph TB
     end
 ```
 
-The `run` process is defined by the `GEFModel`.
+As we have seen in the [first section](#basics), the `run` method is executed as part of a `GEFModel`.
 Each `GEFModel` consists of two components, the `GEFSolver` and the `ModeSolver`. The former determines the time-dependent inflationary background, 
 the latter computes the mode functions $A_\lambda(t,k)$.
 The two results can then be compared to eachother, to assess the convergence of the background dynamics.
 If the two disagree, the GEF will attempt to self-correct using $A_\lambda(t,k)$.
-If you use `run(nmodes=None)`, the dotted lines are ignored; the background solution is returned without a comparison.
+
+Note that, if you use `run(nmodes=None)`, the dotted lines in the diagram can be ignored; the background solution is immediately returned without
+computing the gauge-field spectrum.
 
 For more details on the `GEFSolver`, see `GEFF.solver`, while for the `ModeSolver` see `GEFF.mbm`.
 
@@ -251,7 +259,11 @@ The ODE tower for the gauge-field bilinears are then given by:
 $$\frac{\rm d}{{\rm d} t} \mathcal{F}_{E}^{(n)} + \left[(4+n)\frac{{\rm d} \ln k_{\rm h}}{{\rm d} t} + 2 \frac{\dot{f}}{f}\right] \mathcal{F}_{E}^{(n)}  + 2\frac{k_{\rm h}}{a}\mathcal{F}_{G}^{(n+1)}  =  S_{\mathcal{E}}^{(n)}\, , $$
 $$\frac{\rm d}{{\rm d} t} \mathcal{F}_{G}^{(n)} + \left[(4+n)\frac{{\rm d} \ln k_{\rm h}}{{\rm d} t} +\frac{\dot{f}}{f}\right]  \mathcal{F}_{G}^{(n)} - \frac{k_{\rm h}}{a}\left(\mathcal{F}_{E}^{(n+1)} - \mathcal{F}_{B}^{(n+1)}\right)= S_{\mathcal{G}}^{(n)}\, , $$
 $$\frac{\rm d}{{\rm d} t} \mathcal{F}_{B}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm h}}{{\rm d} t} \mathcal{F}_{B}^{(n)} - 2\frac{k_{\rm h}}{a}\mathcal{F}_{G}^{(n+1)}  =  S_{\mathcal{B}}^{(n)}\, .$$
-One can determine that a sensible regularization scale for this model is given by $k_{\rm h}(t) = 2aH \underset{s \leq t}{\max}(|\xi(s)|)$.
+
+One can determine that a sensible regularization scale for this model is given by $k_{\rm h}(t) = 2aH \underset{s \leq t}{\max}(|\xi(s)|)$. 
+
+The boundary terms $S_\mathcal{X}^{(n)}$ are a consequence of the time dependence of $k_{\rm h}$. They are expressed in terms of Whittaker functions,
+but the GEFF has a module that takes care of them. We will see this later.
 
 Once we have worked out the equations, we can turn to writing a new model file.
 
@@ -272,15 +284,15 @@ Next, we need to define define and categorize the variables which appear in our 
 The `bgtypes` module also contains some pre-defined variables, which are often encountered in GEF models.
 
 There are three variables which every GEF model needs to define:
-* $t$ - *cosmic time*: all ODE's are solved in terms of $t$ starting from $t=0$.
-* $N$ - *$e$-folds*: needed by most internal methods. It should be defined such that $N(t=0)=0$.
-* $H$ - *Hubble rate*: needed by most internal methods.
+* $t$ - *cosmic time* : all ODE's are solved in terms of $t$ starting from $t=0$.
+* $N$ - *$e$-folds* : needed by most internal methods. It should be defined such that $N(t=0)=0$.
+* $H$ - *Hubble rate* : needed by most internal methods.
 
 Beyond these staples, some extra variables appear in our ODE's:
 * $\mathcal{F}_{X}^{(n)}$ - *the gauge-field bilinears*
-* $k_{\rm h}(t)$ - *the UV regulator*
+* $k_{\rm h}$ - *the UV regulator*
 * $\xi(t)$ -  *the instability parameter as a function of time*
-* $\dot{\xi}$ - *the time derivative of $\xi$ (needed to compute ${\rm d} \ln k_{\rm h} / {\rm d}t$)*
+* $\dot{\xi}(t)$ - *the time derivative of $\xi$ (needed to compute ${\rm d} \ln k_{\rm h} / {\rm d}t$)*
 
 To properly account for the gauge-fields, we also need to add in the following three variables:
 * $\mathcal{E}^{(0)} = \langle {\bf E}^2 \rangle$ - *called `E` by the GEF*
@@ -289,9 +301,9 @@ To properly account for the gauge-fields, we also need to add in the following t
 
 > **Note on gauge field bilinears** The time evolution of the variables $\mathcal{F}_{X}^{(n)}$ will not be saved by the GEFF code,
 > since we are typically only interest in the quantities with $n=0$. The output `sol` returned by the `run` method contains the full information on the $\mathcal{F}_{X}^{(n)}$,
-> but only the information on $n=0$ is stored in the GEF object in the form of  `E`, `B` and `G`. Also see `.bgtypes.GaugeField`.
+> but only the information on $n=0$ is stored in the GEF object in the form of  `E`, `B` and `G`.
 
-All these variables are defined in our model file as follows:
+All these variables and function nned to be defined in our model file. This is done as follows:
 ```python
 from GEFF.bgtypes import BGConst, BGFunc
 
@@ -303,10 +315,12 @@ H = BGConst("H", qu_omega=1, qu_mu=0) # Hubble rate (scales like inverse time)
 xi = BGFunc("xi", [t], qu_omega=0, qu_mu=0) # dimensionless function of t
 dxi = BGFunc("xi", [t], qu_omega=0, qu_mu=0) # dimensionless function of t
 ```
-We use `BGConst` to define a new constant for our model, the Hubble rate $H$. It has dimensions one, and scales with an inverse time-scale $\omega$ as, $H = \bar{H} \omega$,
-while it does not scale with the amplitude $\mu$.
-The new quantities $\xi$ and $\dot{\xi}$ are dimensionless functions of time.
-All other quantities are pre-defined by the GEF code.
+We use `BGConst` to define a new constant for our model, the Hubble rate $H$.
+The Hubble rate has mass dimension one, and scales with an inverse time-scale $\omega$ as, $H = \bar{H} \omega$.
+It does not scale like an amplitude $\mu$. Hence, `qu_omega=1` and `qu_mu=0`.
+This information needs to be passed to properly allow for unit conversions in the code.
+In the same way, we define $\xi$ and $\dot{\xi}$ as dimensionless functions of time by using `BGFunc`.
+More information on units and scaling is given in `.bgtypes`.
 
 All the variables we have defined serve a specific purpose in our GEF model. To inform the GEFF of this, we need to classify each of them in one of these categories:
 * **time**: a time variable (needs to be `t`)
@@ -334,11 +348,10 @@ With the variables defined, an important step towards our GEF model is already t
 
 Internally, the GEFF package uses `scipy.integrate.solve_ivp` to solve differential equations. 
 This requires that ODE's are formulated as $\dot{\vec{y}} = f(t, \vec{y})$ with $\vec{y}$ as a `numpy` array.
-However, the GEFF prefers the `BGSystem` class, which takes care of unit conversions.
+However, the GEFF prefers the `.bgtypes.BGSystem` class, which takes care of unit conversions.
 So, we need to define how to translate between the two.
 
 First up, we define how to interpret user input to initialize the array $\vec{y}$:
-We can assume that all our input is stored in `sys`, and we should return an array:
 ```python
 def initial_conditions(sys, ntr):
     yini = np.zeros(1 + 3*(ntr+1))
@@ -347,6 +360,8 @@ def initial_conditions(sys, ntr):
 
     return yini
 ``` 
+Note how `sys` has attributes `xi` and `H`. These correspond to the variables we have defined in the previous step.
+
 Importantly, upon defining `initial_conditions`, we also make a choice; which entries in $\vec{y}$ correspond to which dynamical variable.
 In our simple toy model, there actually is no choice to be made: The GEFF package expects that the gauge-field variables are stored *after* all
 dynamical variables, as the number of the $\mathcal{F}_\mathcal{X}^{(n)}$'s will vary depending on $n_{\rm tr}$.
@@ -429,15 +444,15 @@ MbM = BaseModeSolver
 
  The last thing we need to do is define how our new GEF model is initialized.
 
-First, we need to declare, what input our GEF model expects from the user:
+First, we need to declare, what input our GEF model expects from the user.
 The user should definately tell us the value of the Hubble rate.
 Also, the instability function $\xi(t)$, and its derivative, $\dot{\xi}$, need to be passed on initialization,
-similarly to how the "classic" model needed $V$ and $V_{,\varphi}$ as input.
-All other values are not needed; $\mathcal{F}_{\mathcal{X}}^{(n)}$ is initially set to zero, and $k_h$ is determined from $t$ and $\xi$. 
-Our model file therefore states 
+similarly to how the "classic" model needed $V$ and $V_{,\varphi}$ as input:
 ```python
 model_input = [H, xi, dxi]
 ``` 
+Our model does not require other input; $\mathcal{F}_{\mathcal{X}}^{(n)}$ is initially set to zero, and $k_h$ is determined from $t$ and $\xi$. 
+
 The last step is to define the units of our GEF model based on the user input. This is achieved by the `define_units` function:
 ```python
 def define_units(H):
@@ -447,7 +462,8 @@ def define_units(H):
     amp = 1. 
     return freq, amp
 ```
-The arguments of `define_units` necessarily needs to be a subset of `model_input`. In this case, we only need the Hubble rate, `H`.
+The arguments of `define_units` necessarily needs to be a subset of `model_input`. In this case, we only need the Hubble rate, `H` to define our unit system:
+The energy scale $\mu$ is the Planck mass in Planck units, while the inverse time scale is the constant Hubble rate $H$.
 
 We are finally done! We can put everything we defined above in a file, let's call it "tutorial.py", and we are good to go!
 
@@ -474,17 +490,7 @@ G.run()
   mermaid.registerLayoutLoaders(elkLayouts);
 </script>
 """
-
-
-
 from .gef import GEF, BaseGEF
-"""from GEFF import gef, bgtypes, mbm, models, tools, solver, utility
 
-__all__ = [gef, bgtypes, mode_by_mode, models, tools, solver, utility]"""
 __version__ = "0.1"
-
-def take_a_tour():
-    """**TODO**"""
-    pass
-
 

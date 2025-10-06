@@ -19,7 +19,8 @@ DOCS = {
     This makes use of the `GEFF.bgtypes.BGSystem` module to simplify conversions between numerical and physical units.
 
     While the `BaseGEFSolver`is solving the ODE's it can track one or multiple `Event` objects. These events correspond to certain conditions, for example, the end of inflation.
-    Occurrences of these events can be designed to influence the solver. For example, an 'end of inflation' `Event` may demand that the solver reach the end of inflation.
+    Occurrences of these events can be designed to influence the solver. For example, an 'end of inflation' `Event` may check if
+     the solver has reached the end of inflation, and terminate it if it has.
 
     The `BaseGEFSolver` class can be used to configure customized solvers using the class factory `GEFSolver` to adapt it to a specific GEF model.
     """,
@@ -27,7 +28,7 @@ DOCS = {
     "BaseGEFSolver":r"""
     A class used to solve the equations of motion defined by a GEF model.
 
-    The main purpose of the class is to provide the `compute_GEF_solution` method to `GEFF.GEFClass.BaseGEF.run`. 
+    The main purpose of the class is to provide the `compute_GEF_solution` method to `run`. 
     Internally, the method uses `solve_eom`, which wraps `scipy.integrate.solve_ivp`.
     
     All specifications on the GEF model are encoded in the attributes `known_variables` and `known_events`, as well as
@@ -47,9 +48,11 @@ DOCS = {
     
     The `new_init` needs to obey the following rules:
     1. The call signature and output matches `vals_to_yini`.
-    2. The return array `yini` has a shape: #${\rm dynamical\, vars.} + 3(n_{\rm tr}+1) \times$#${\rm gauge\, fields}$.
-    3. All dynamical variables are reflected in the first #${\rm dynamical\, vars.}$-indices of `yini`.
-    4. All gauge variables are reflected in the last $3(n_{\rm tr}+1) \times$#${\rm gauge\, fields}$-indices of `yini`.
+    2. The return array `yini` has a shape: $n_{\rm dynam.} + 3(n_{\rm tr}+1) \times n_{\rm gauge}$.
+    3. All dynamical variables are reflected in the first $n_{\rm dynam.}$-indices of `yini`.
+    4. All gauge variables are reflected in the last $3(n_{\rm tr}+1) \times n_{\rm gauge}$-indices of `yini`.
+
+    Above, $n_{\rm dynam.}$ and $n_{\rm gauge}$ are, respectively, the number of dynamical and gauge-field variables.
 
     The `new_update_vals` needs to obey the following rules:
     1. The call signature and output matches `update_vals`.
