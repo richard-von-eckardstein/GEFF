@@ -14,7 +14,7 @@ class BaseGEF(BGSystem):
     """The solver used to solve the GEF equations in `run`."""
     ModeSolver = classic.MbM
     """The mode solver used for mode-by-mode cross checks."""
-    _input_signature = classic.input_dic
+    _input_signature = classic.model_input
     define_units = staticmethod(classic.define_units)
 
     def __init__(self, **kwargs):
@@ -187,8 +187,7 @@ class BaseGEF(BGSystem):
                 
                 else:
                     t_reinit = reinit_spec["t"]
-                    print(f"Attempting to solve GEF using self-correction starting from \
-                          t={reinit_spec['t']:.1f}, N={reinit_spec['N']:.1f}.\n")
+                    print(f"Attempting to solve GEF using self-correction starting from t={reinit_spec['t']:.1f}, N={reinit_spec['N']:.1f}.\n")
 
                     solver.set_initial_conditions_to_MbM(sol, reinit_spec)
                 
@@ -446,7 +445,7 @@ def GEF(modelname:str, settings:dict={}):
     """
     model = load_model(modelname, settings)
     signature  = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)]
-    for val in model.input_dic:
+    for val in model.model_input:
         if issubclass(val, Func):
             annotation = Callable
         else:
@@ -458,7 +457,7 @@ def GEF(modelname:str, settings:dict={}):
         """The solver used to solve the GEF equations in `run`."""
         ModeSolver = model.MbM
         """The mode solver used for mode-by-mode cross checks."""
-        _input_signature = model.input_dic
+        _input_signature = model.model_input
         define_units = staticmethod(model.define_units)
 
     CustomGEF.__init__.__signature__ = inspect.Signature(signature)

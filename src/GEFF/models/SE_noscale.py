@@ -102,7 +102,7 @@ quantities={
             }
 
 #State which variables require input for initialisation
-input_dic = [phi, dphi, rhoChi, beta, V, dV]
+model_input = [phi, dphi, rhoChi, beta, V, dV]
 
 #this functions is called upon initialisation of the GEF class
 def define_units(phi, dphi, V, rhoChi):

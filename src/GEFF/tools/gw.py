@@ -17,16 +17,16 @@ __doc__ = DOCS["module"]
 
 basepath = os.path.join(os.path.dirname(os.path.abspath(GEFF.__file__)), "data/")
         
-def omega_gw(PT:np.ndarray, k:np.ndarray,  Nend:float, Hend:float, Trh:None|float=None) -> Tuple[np.ndarray, np.ndarray]:
+def omega_gw(k:np.ndarray, PT:np.ndarray, Nend:float, Hend:float, Trh:None|float=None) -> Tuple[np.ndarray, np.ndarray]:
     r"""
     Compute $h^2 \Omega_{\rm GW}(f)$ from a tensor power spectrum.
 
     Parameters
     ----------
+    k : NDarray
+        momenta in Planck units
     PT : NDarray
         the tensor power spectrum at the end of inflation as a function of momentum
-    k : NDarray
-        momenta for pt, in Planck units
     Nend : float
         the number of e-folds at the end of inflation
     Hend : float
@@ -36,10 +36,10 @@ def omega_gw(PT:np.ndarray, k:np.ndarray,  Nend:float, Hend:float, Trh:None|floa
 
     Returns
     -------
-    h2OmegaGw : NDarray
-        the gravitational-wave spectrum as a function of frequency today
     f : NDarray
         frequencies today (in Hz)
+    h2OmegaGw : NDarray
+        the gravitational-wave spectrum as a function of frequency today
     """
 
     f = k_to_f(k, Nend, Trh)
@@ -56,7 +56,7 @@ def omega_gw(PT:np.ndarray, k:np.ndarray,  Nend:float, Hend:float, Trh:None|floa
 
     h2OmegaGW = h**2*omega_r/24  * PT * (g_rho_freq(f)/g_rho_0) * (g_s_0/g_s_freq(f))**(4/3) * TransferMD * TransferRH
 
-    return h2OmegaGW, f
+    return f, h2OmegaGW
 
 def k_to_f(k:np.ndarray, Nend:float, Hend:float, Trh:None|float=None) -> ArrayLike:
     r"""
