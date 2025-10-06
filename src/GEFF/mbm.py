@@ -245,7 +245,7 @@ class GaugeSpec(dict):
         """
         assert (spec["k"] == self["k"]).all()
 
-        ind = np.searchsorted(self["t"],spec["t"][0], "right")
+        ind = np.searchsorted(self["t"], spec["t"][0], "left")
 
         if "cut" in self.keys():
             self.pop("cut")
@@ -648,7 +648,7 @@ class BaseModeSolver:
             the updated gauge-field spectrum
         """
         
-        indstart = np.searchsorted(self.t, tstart, "left")
+        indstart = np.searchsorted(self.__t, tstart, "left")
         teval = self.__t[indstart:]
         Neval = self.__N[indstart:]
         
@@ -658,9 +658,8 @@ class BaseModeSolver:
         tstart = startspec["t"]
 
         #keep mode-evolution from old spectrum for modes with k < 10*kh(tstart)
-        mask = np.where(spec["k"] < 10*self.__khf(tstart))
-        old = mask[0]
-        new = mask[1]
+        old = np.where(spec["k"] < 10*self.__khf(tstart))
+        new = np.where(spec["k"] >= 10*self.__khf(tstart))
 
         #Remove modes which need to be renewed from old spectrum:
         spec.remove_momenta(new)

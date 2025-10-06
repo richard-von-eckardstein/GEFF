@@ -78,7 +78,7 @@ class BaseGEF(BGSystem):
         return
     
     @classmethod
-    def print_known_variables(cls):
+    def print_known_quantities(cls):
         """
         Print a list of known variables for this model
         """
@@ -109,23 +109,23 @@ class BaseGEF(BGSystem):
         tend : float
             initial target time for `GEFSolver.tend`
         nmodes : int or None
-            The number of modes computed by `ModeSolver`. If None, no cross-check is performed.
+            the number of modes computed by `ModeSolver`. If None, no cross-check is performed.
         mbm_attempts : int
             number of mode-by-mode self correction attempts
         resume_mbm : bool
-            If `True` use `ModeSolver.update_spectrum` in case multiple mode-by-mode comparisons are needed.
+            if `True` use `ModeSolver.update_spectrum` in case successive mode-by-mode comparisons are needed.
         err_tol : float
-            Passed to `mbm_crosscheck`.
+            passed to `mbm_crosscheck`.
         err_thr : float
-            Passed to `mbm_crosscheck`.
+            passed to `mbm_crosscheck`.
         binning : int
-            Passed to `mbm_crosscheck`.
+            passed to `mbm_crosscheck`.
         integrator : str
             integrator for `mbm_crosscheck` ('simpson' is advised)
         print_stats : bool
-            If `True`, a summary report is printed for the returned solution.
+            if `True`, a summary report is printed for the returned solution.
         solver_kwargs
-            he `settings` of `GEFSolver` (see `GEFSolver.settings`)
+            the `settings` of `GEFSolver` (see `GEFSolver.settings`)
 
         Returns
         -------
@@ -243,7 +243,7 @@ class BaseGEF(BGSystem):
             return sol_new
         else:
             sol = sol_old
-            ind_overlap = np.searchsorted(sol_old.t, sol_new.t[0], "right")
+            ind_overlap = np.searchsorted(sol_old.t, sol_new.t[0], "left")
             sol.t = np.concatenate([sol_old.t[:ind_overlap], sol_new.t])
 
             if sol_old.y.shape[0] < sol_new.y.shape[0]:
@@ -309,7 +309,7 @@ class BaseGEF(BGSystem):
         agreement=True
 
         for GF in GFs:
-            ref = [a.name for a in GF.associated]
+            ref = [a.name for a in GF.zeros]
             cut = GF.cutoff.name
 
             errs, terr, _ = spec.estimate_GEF_error(vals, references=ref, cutoff=cut,
