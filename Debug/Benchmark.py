@@ -1,13 +1,11 @@
-from GEFF import GEF, BaseGEF
+from GEFF import make_model, BaseGEF
 import numpy as np
 
 import os
-abspath = os.path.dirname(__file__)
-
 
 basepath = os.path.dirname(__file__)
 
-def Benchmark(model, setting={}, loadGEF=True) -> BaseGEF:
+def get_model(model, setting={}) -> BaseGEF:
     beta = 25
     m = 6e-6
     phi = 15.55
@@ -17,30 +15,30 @@ def Benchmark(model, setting={}, loadGEF=True) -> BaseGEF:
 
     indic = {"phi":phi, "dphi":dphi, "V":V, "dV":dV, "beta":beta}
 
-    if model=="classic":
-        GEFPath = os.path.join(basepath, "Data/GEF+Classic_b25+m6e-6.dat")
+    if "fai" in model:
+        if "basic" in model:
+            indic.update({"delta":1})
+        indic.update({"rhoChi":0.})
 
-    elif "SE" in model:
-        if "noscale" in model:
-            name = "SEOld"
-        else:
-            name = model
+    model = make_model(model, setting)(**indic)
+
+    return model
+
+def get_data(model, setting={}):
+    sys = get_model(model, setting)
+
+    if model=="pai":
+        GEFPath = os.path.join(basepath, f"Data/GEF+{model}_b25+m6e-6.dat")
+
+    elif "fai" in model:
         if setting["pic"]=="mixed":
-            GEFPath = os.path.join(basepath, f"Data/GEF+{name}+mix_b25+m6e-6.dat")
+            GEFPath = os.path.join(basepath, f"Data/GEF+{model}+mix_b25+m6e-6.dat")
         elif setting["pic"]=="electric":
-            GEFPath = os.path.join(basepath, f"Data/GEF+{name}+elc_b25+m6e-6.dat")
+            GEFPath = os.path.join(basepath, f"Data/GEF+{model}+elc_b25+m6e-6.dat")
 
         elif setting["pic"]=="magnetic":
-            GEFPath = os.path.join(basepath, f"Data/GEF+{name}+mag_b25+m6e-6.dat")
+            GEFPath = os.path.join(basepath, f"Data/GEF+{model}+mag_b25+m6e-6.dat")
 
-        indic.update({"rhoChi":0.})
+    return sys.load_GEFdata(GEFPath)
     
-    if model=="SE_noscale":
-        indic.update({"delta":1})
 
-    G = GEF(model, setting)(**indic)
-
-    if loadGEF:
-        G.load_GEFdata(GEFPath)
-
-    return G

@@ -47,7 +47,7 @@ from GEFF.utility.general import heaviside
 from GEFF._docs import generate_docs, docs_models
 
 
-name : str = "classic"
+name : str = "PAI"
 """The models name."""
 
 quantities : dict={
@@ -187,7 +187,7 @@ solver = GEFSolver(initial_conditions, update_values, compute_timestep, quantiti
 """The solver used by the GEF model."""
 
 #define mode-by-mode solver
-MbM = ModeSolver(mode_equation_classic, ["a","xi", "H"], bd_classic, [])
+MbM = ModeSolver(mode_equation_classic, {"a":a,"xi":xi, "H":H}, bd_classic, {})
 """The mode solver used by the GEF model."""
 
 

@@ -3,7 +3,8 @@ Welcome to our visitors tour of the **Gradient Expansion Formalism Factory**!
 
 # GEFF: Established in 2025
 
-Use this python package to investigate gauge-field production during cosmic inflation.
+This python package is designed to tackle gauge-field production during cosmic inflation
+using the *gradient expansion formalism* (GEF).
 
 If you are interested in axion inflation, the package comes with everything you need:
 - **a variety of flavors**
@@ -21,7 +22,7 @@ It is indeed a true GEF *factory* !
 
 # The refreshing taste of GEF
 
-The *gradient expansion formalism* (or GEF) is a numerical technique to determine the dynamics and backreaction of gauge-fields during inflation
+The GEF is a numerical technique to determine the dynamics and backreaction of gauge-fields during inflation
 by directly evolving the time-dependent quantum expectation values of the gauge field, 
 e.g., $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, $\langle {\bf E} \cdot {\bf B} \rangle$ etc.
 If this is the first time you encounter the GEF, here are some useful articles on the topic:
@@ -490,7 +491,7 @@ G.run()
   mermaid.registerLayoutLoaders(elkLayouts);
 </script>
 """
-from .gef import GEF, BaseGEF
+from .gef import make_model, BaseGEF
 
 __version__ = "0.1"
 

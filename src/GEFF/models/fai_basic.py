@@ -1,7 +1,7 @@
 r"""
-Defines the GEF model "SE-kh" corresponding to fermionic axion inflation with a heuristic scale dependence model through the instability scale $k_{\rm h}$.
+Module defining the GEF model "SE no-scale" corresponding to fermionic axion inflation without a heuristic scale dependence.
 
-For more details on this model, see e.g., [2408.16538](https://arxiv.org/abs/2408.16538).
+For more details on this model, see e.g., [2109.01651](https://arxiv.org/abs/2109.01651).
 
 ---
 
@@ -11,6 +11,7 @@ The model knows the following variables:
     * `N` - *$e$-folds*,  $N$
     * `phi`, `dphi` - *inflaton amplitude, $\varphi$, and velocity, $\dot{\varphi}$* 
     * `kh` -  *the instability scale, $k_{\rm h}$*
+    * `delta` - *cumulative electric damping, $\Delta$*
     * `rhoChi` - *fermion energy density, $\rho_{\chi}$*
 * static variables:
     * `a` - *scale factor, $a$* 
@@ -20,7 +21,7 @@ The model knows the following variables:
     * `xi` - *instability parameter, $\xi$* 
     * `sigmaE`, `sigmaB` - *electric and magnetic conductivities, $\sigma_{\rm E}$, $\sigma_{\rm B}$*
     * `xieff` - *effective instability parameter, $\xi_{\rm eff}$*
-    * `kS` - *fermion momentum scale, $k_{\rm S}$*
+    * `s` - *electric damping parameter, $s = \sigma_{\rm E}/(2H)$*
 * constants: 
     * `beta` - *coupling strength, $\beta$*
 * functions: 
@@ -44,14 +45,14 @@ from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, b
 from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
 from GEFF.mbm import ModeSolver
 
-from GEFF.utility.eom import (klein_gordon, friedmann, dlnkh, drhoChi, gauge_field_ode_schwinger,
+from GEFF.utility.eom import (klein_gordon, friedmann, dlnkh_schwinger, ddelta, drhoChi, gauge_field_ode_schwinger,
                                         conductivities_collinear, conductivities_mixed, check_accelerated_expansion)
-from GEFF.utility.boundary import boundary_approx
+from GEFF.utility.boundary import boundary_approx_schwinger
 from GEFF.utility.general import heaviside
-from GEFF.utility.mode  import bd_classic, mode_equation_SE_scale
+from GEFF.utility.mode import mode_equation_SE_no_scale, damped_bd
 from GEFF._docs import generate_docs, docs_models
 
-name = "SE-kh"
+name = "FAI basic"
 """The models name."""
 
 settings = {"pic":"mixed"}
@@ -82,21 +83,22 @@ def interpret_settings():
     conductivity = define_conductivity()
     return
 
-#Define additional variables
+#Define all additional variables
 sigmaE=BGVar("sigmaE", 1, 0, "electric damping")
 sigmaB=BGVar("sigmaB", 1, 0, "magnetic damping")
-xieff=BGVar("xieff", 0, 0, "effective instability parameter")
+delta=BGVar("delta", 0, 0, "cumulative electric damping") 
+xieff=BGVar("xieff", 0, 0, "effective instabilty parameter") 
+s=BGVar("s", 0, 0, "electric damping parameter")
 rhoChi=BGVar("rhoChi", 4, 0, "fermion energy density")
-kS=BGVar("kS", 1, 0, "fermion momentum scale")#Fermion energy density 
 
 #Assign quantities to a dictionary, classifying them by their role:
 quantities={
-            "time":[t], #time coordinate according to which EoMs are expressed
-            "dynamical":[N, phi, dphi, kh, rhoChi], #variables which evolve in time according to an EoM
-            "static":[a, H, xi, E, B, G, ddphi, sigmaE, sigmaB, xieff, kS], #variables which are derived from dynamical variables
-            "constant":[beta], #constant quantities in the model
-            "function":[V, dV], #functions of variables such as scalar potentials
-            "gauge":[GF] #Gauge fields whose dynamics is given in terms of bilinear towers of expectation values
+            "time":[t],
+            "dynamical":[N, phi, dphi, kh, delta, rhoChi],
+            "static":[a, H, xi, E, B, G, ddphi, sigmaE, sigmaB, xieff, s],
+            "constant":[beta],
+            "function":[V, dV],
+            "gauge":[GF]
             }
 
 #State which variables require input for initialisation
@@ -115,8 +117,8 @@ def define_units(phi, dphi, V, rhoChi):
     return omega, mu
 
 #the new function for sys_to_yini in GEFSolver
-def initial_conditions(sys, ntr):   
-    yini = np.zeros((ntr+1)*3+5)
+def initial_conditions(sys, ntr):
+    yini = np.zeros((ntr+1)*3+6)
 
     #from the 'input' dictionary
     yini[0] = sys.N.value
@@ -127,8 +129,9 @@ def initial_conditions(sys, ntr):
     sys.initialise("kh")( abs(sys.dphi)*sys.beta )
     yini[3] = np.log(sys.kh.value)
 
-    #initialise rhoChi
-    yini[4] = sys.rhoChi.value
+    #initialise delta and rhoChi
+    yini[4] = sys.delta.value
+    yini[5] = sys.rhoChi.value
 
     #all gauge-field expectation values are assumed to be 0 at initialisation
     return yini
@@ -144,32 +147,33 @@ def update_values(t, y, sys, atol=1e-20, rtol=1e-6):
     sys.phi.value = y[1]
     sys.dphi.value = y[2]
     sys.kh.value = np.exp(y[3])
-    
-    sys.rhoChi.value = y[4]
+    sys.delta.value = y[4]
+    sys.rhoChi.value = y[5]
 
     #the gauge-field terms in y are not stored, save these values here
-    sys.E.value = y[5]*np.exp(4*(y[3]-y[0]))
-    sys.B.value = y[6]*np.exp(4*(y[3]-y[0]))
-    sys.G.value = y[7]*np.exp(4*(y[3]-y[0]))
+    sys.E.value = y[6]*np.exp(4*(y[3]-y[0]))
+    sys.B.value = y[7]*np.exp(4*(y[3]-y[0]))
+    sys.G.value = y[8]*np.exp(4*(y[3]-y[0]))
 
     #Hubble rate
-    sys.H.value = friedmann(0.5*sys.dphi**2, sys.V(sys.phi), 
-                                0.5*(sys.E+sys.B)*sys.omega**2, sys.rhoChi*sys.omega**2)
-    
+    sys.H.value = ( friedmann(0.5*sys.dphi**2, sys.V(sys.phi), 
+                                0.5*(sys.E+sys.B)*sys.omega**2, sys.rhoChi*sys.omega**2) )
+
     #conductivities
     sigmaE, sigmaB, ks = conductivity(sys.a.value, sys.H.value, sys.E.value,
-                                       sys.B.value, sys.G.value, sys.omega) 
-    sys.kS.value = ks
-    GlobalFerm = heaviside(np.log(ks), np.log(sys.a*sys.H))
-    sys.sigmaE.value = GlobalFerm*sigmaE
-    sys.sigmaB.value = GlobalFerm*sigmaB
+                                       sys.B.value, sys.G.value, sys.omega)
+
+    GlobalFerm = heaviside(np.log(ks),np.log(sys.a*sys.H))
+    sys.sigmaE.value = (GlobalFerm*sigmaE)
+    sys.sigmaB.value = (GlobalFerm*sigmaB)
 
     #boundary term parameters
+    sys.s.value = sys.sigmaE/(2*sys.H)
     sys.xi.value = sys.beta*(sys.dphi/(2*sys.H))
     sys.xieff.value = sys.xi + sys.sigmaB/(2*sys.H)
 
     #acceleration for convenience
-    sys.ddphi.value = klein_gordon(sys.dphi, sys.dV(sys.phi),  sys.H, -sys.G*sys.beta*sys.omega**2)
+    sys.ddphi.value = klein_gordon(sys.dphi, sys.dV(sys.phi), sys.H, -sys.G*sys.beta*sys.omega**2)
     return
 
 def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
@@ -181,36 +185,39 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     dydt[2] = sys.ddphi.value
 
     #achieving dlnkhdt is monotonous requires some care
-    dlnkhdt = dlnkh( sys.kh, sys.dphi, sys.ddphi, sys.beta,
-                       0., sys.xi, sys.a, sys.H )
-    r = 2*abs(sys.xi)
+    dlnkhdt = dlnkh_schwinger( sys.kh, sys.dphi, sys.ddphi, sys.beta,
+                                        0., sys.xieff, sys.s, sys.a, sys.H )
+    xieff = sys.xieff.value
+    s = sys.s.value
+    sqrtterm = np.sqrt(xieff**2 + s**2 + s)
+    r = (abs(xieff) + sqrtterm)
     logfc = y[0] + np.log(r*dydt[0]) 
-    dlnkhdt *= heaviside(dlnkhdt, 0)*heaviside(logfc, y[3]*(1-1e-5))
+    dlnkhdt *= heaviside(dlnkhdt,0)*heaviside(logfc,y[3]*(1-1e-5))
     dydt[3] = dlnkhdt
 
-    #ode for rhoChi
-    dydt[4] = drhoChi( sys.rhoChi, sys.E, sys.G,
-                         sys.sigmaE, sys.sigmaB, sys.H )
+    #the other derivatives are straight forwards
+    dydt[4] = ddelta( sys.delta, sys.sigmaE )
+    dydt[5] = drhoChi( sys.rhoChi, sys.E, sys.G, sys.sigmaE, sys.sigmaB, sys.H )
 
     #compute boundary terms and then the gauge-field bilinear ODEs
-    Fcol = y[5:].shape[0]//3
-    F = y[5:].reshape(Fcol,3)
-    W = boundary_approx(float(sys.xi.value))
+    Fcol = y[6:].shape[0]//3
+    F = y[6:].reshape(Fcol,3)
+    W = boundary_approx_schwinger(sys.xieff.value, sys.s.value)
     dFdt = gauge_field_ode_schwinger( F, sys.a, sys.kh, 2*sys.H*sys.xieff,
-                    sys.sigmaE, 1.0, W, dlnkhdt )
+                                            sys.sigmaE, sys.delta,
+                                                W, dlnkhdt )
     #reshape to fit dydt
-    dydt[5:] = dFdt.reshape(Fcol*3)
+    dydt[6:] = dFdt.reshape(Fcol*3)
 
     return dydt
 
-
 #Event 1: Track the end of inflation:
 def condition_EndOfInflation(t, y, sys):
-    #compute energy densities
+   #compute energy densities
     rhoV = sys.V(y[1])
     rhoK = y[2]**2/2
-    rhoEM = 0.5*(y[5]+y[6])*(sys.omega/sys.mu)**2*np.exp(4*(y[3]-y[0]))
-    rhoF = y[4]*(sys.omega/sys.mu)**2
+    rhoEM = 0.5*(y[6]+y[7])*(sys.omega/sys.mu)**2*np.exp(4*(y[3]-y[0]))
+    rhoF = y[5]*(sys.omega/sys.mu)**2
 
     #compute pressure
     pV = -rhoV
@@ -220,7 +227,7 @@ def condition_EndOfInflation(t, y, sys):
 
     return check_accelerated_expansion([rhoV, rhoK, rhoEM, rhoF], [pV, pK, pEM, pF])/(sys.H)**2
 
-def consequence_EndOfInflation(sys, occurance):    
+def consequence_EndOfInflation(sys, occurance):
     if occurance:
         #stop solving once the end of inflation is reached
         return "finish", {}
@@ -236,12 +243,10 @@ EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, -1,
 
 #Event 2: ensure energy densities that are positive definite do not become negative
 def condition_NegativeEnergies(t, y, sys):
+    return min(y[6], y[7])
     
-    return min(y[5], y[6])
-    
-NegativeEnergies = ErrorEvent("Negative energies", condition_NegativeEnergies, -1)#
+NegativeEnergies = ErrorEvent("Negative energies", condition_NegativeEnergies, -1)
 """Defines the 'Negative energy' event."""
-
 
 events = [EndOfInflation, NegativeEnergies]
 
@@ -251,8 +256,8 @@ solver = GEFSolver(initial_conditions, update_values, compute_timestep, quantiti
 """The solver used by the GEF model."""
 
 #define mode-by-mode solver
-MbM = ModeSolver(mode_equation_SE_scale, ["a", "xi", "H", "sigmaE", "sigmaB", "kS"],
-                         bd_classic, [], default_atol=1e-5)
+MbM = ModeSolver(mode_equation_SE_no_scale, {"a":a, "xieff":xieff, "H":H, "sigmaE":sigmaE},
+                         damped_bd, {"a":a, "sigmaE":sigmaE, "delta":delta}, default_atol=1e-5)
 """The mode solver used by the GEF model."""
 
 

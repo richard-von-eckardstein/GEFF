@@ -495,8 +495,8 @@ class SpecSlice(dict):
             return np.nan*np.ones((2))
 
 class BaseModeSolver:    
-    _ode_kwargs : dict = {"a": None, "H":None, "xi":None}
-    _bd_kwargs = {}
+    _ode_dict : dict = {"a": "a", "H":"H", "xi":"xi"}
+    _bd_dict = {}
 
     cutoff : ClassVar[str] = "kh"
     r"""The name of $k_{\rm UV}(t)$ in the GEF solution."""
@@ -544,47 +544,51 @@ class BaseModeSolver:
                 raise KeyError(f"'sys' needs to own an attribute called '{key}'.")
 
         #store the relevant background evolution parameters
-        self.__t = sys.t.value
-        self.__N = sys.N.value
+        self._t = sys.t.value
+        self._N = sys.N.value
         kh = getattr(sys, self.cutoff)
-        a = np.exp(self.__N)
+        a = np.exp(self._N)
 
-        self.__khf = CubicSpline(self.__t, kh)
+        self._khf = CubicSpline(self._t, kh)
+
+        self._kwargs_ode = {kwarg:None for kwarg in self._ode_dict.values()}
+        self._kwargs_bd = {kwarg:None for kwarg in self._bd_dict.values()}
 
         #import the values for the mode equation and interpolate
-        for key in self.necessary_keys:
-            if key not in ["t", "N", self.cutoff]: 
-                obj = getattr(sys, key)
-                if isinstance(obj, Variable):
-                    value = getattr(sys, key).value
-                    func = CubicSpline(self.__t, value)
-                elif isinstance(obj, Func):
-                    arg_vals = []
-                    for arg in Func.args:
-                        arg_vals.append(getattr(sys, arg.name))
-                    value = obj(*arg_vals)
-                    func =  CubicSpline(self.__t, value)
-                elif isinstance(obj, Constant):
-                    value = getattr(sys, key).value
-                    def func(t): return value
-                else:
-                    raise ValueError(f"'{key}' should refer to either a 'Val' or 'Func' subclass.")
+        for key in self.necessary_keys: 
+            obj = getattr(sys, key)
+            if isinstance(obj, Variable):
+                value = getattr(sys, key).value
+                func = CubicSpline(self._t, value)
+            elif isinstance(obj, Func):
+                arg_vals = []
+                for arg in Func.args:
+                    arg_vals.append(getattr(sys, arg.name))
+                value = obj(*arg_vals)
+                func =  CubicSpline(self._t, value)
+            elif isinstance(obj, Constant):
+                value = getattr(sys, key).value
+                def func(t): return value
+            else:
+                raise ValueError(f"'{key}' should refer to either a 'Val' or 'Func' subclass.")
                 
-                if key in self._ode_kwargs.keys():
-                    self._ode_kwargs[key] = func
-                if key in self._bd_kwargs.keys():
-                    self._bd_kwargs[key] = func
+            if key in self._ode_dict.keys():
+                kwarg = self._ode_dict[key]
+                self._kwargs_ode[kwarg] = func
+            if key in self._bd_dict.values():
+                kwarg = self._bd_dict[key]
+                self._kwargs_bd[kwarg] = func
         
         #compute the evolution of conformal time for the phases
-        self.__af = CubicSpline(self.__t, a)
-        def deta(t, y): return 1/self.__af(t)
+        af = CubicSpline(self._t, a)
+        def deta(t, y): return 1/af(t)
         
-        soleta = solve_ivp(deta, [min(self.__t), max(self.__t)], np.array([0]), t_eval=self.__t)
+        soleta = solve_ivp(deta, [min(self._t), max(self._t)], np.array([0]), t_eval=self._t)
 
         self.__eta = soleta.y[0,:]
 
         #find lowest t value corresponding to kh(t) = 10^4 kh(0)
-        self.__tmin = self.__t[np.searchsorted(kh, 10**4*kh[0], "right")]
+        self.__tmin = self._t[np.searchsorted(kh, 10**4*kh[0], "right")]
 
         sys.units = og_units
         
@@ -614,13 +618,13 @@ class BaseModeSolver:
         """
 
         if t_interval is None:
-            t_interval = (self.__tmin, max(self.__t))
+            t_interval = (self.__tmin, max(self._t))
         ks, tstart = self._find_tinit_bd(self._create_k_array(nvals, t_interval), mode="k")
 
         modes = np.array([self._evolve_from_bd(k, tstart[i], **SolverKwargs)
                   for i, k in enumerate(ks)])
         
-        spec = GaugeSpec({"t":self.__t, "N":self.__N, "k":ks,
+        spec = GaugeSpec({"t":self._t, "N":self._N, "k":ks,
                     "Ap":modes[:,0,:], "dAp":modes[:,1,:], "Am":modes[:,2,:], "dAm":modes[:,3,:]})
 
         return spec
@@ -648,9 +652,9 @@ class BaseModeSolver:
             the updated gauge-field spectrum
         """
         
-        indstart = np.searchsorted(self.__t, tstart, "left")
-        teval = self.__t[indstart:]
-        Neval = self.__N[indstart:]
+        indstart = np.searchsorted(self._t, tstart, "left")
+        teval = self._t[indstart:]
+        Neval = self._N[indstart:]
         
         tend = teval[-1]
         indstart = np.searchsorted(spec["t"], teval[0], "left")
@@ -658,8 +662,8 @@ class BaseModeSolver:
         tstart = startspec["t"]
 
         #keep mode-evolution from old spectrum for modes with k < 10*kh(tstart)
-        old = np.where(spec["k"] < 10*self.__khf(tstart))
-        new = np.where(spec["k"] >= 10*self.__khf(tstart))
+        old = np.where(spec["k"] < 10*self._khf(tstart))
+        new = np.where(spec["k"] >= 10*self._khf(tstart))
 
         #Remove modes which need to be renewed from old spectrum:
         spec.remove_momenta(new)
@@ -758,9 +762,9 @@ class BaseModeSolver:
         """
 
         #Initial conditions for y and dydt for both helicities (rescaled appropriately)
-        yini = self.initialise_in_bd(tstart, k, **self._bd_kwargs)
+        yini = self.initialise_in_bd(tstart, k, **self._kwargs_bd)
 
-        teval = self.__t
+        teval = self._t
 
         istart = np.searchsorted(teval, tstart, "right")
 
@@ -770,7 +774,7 @@ class BaseModeSolver:
         eta = self.__eta
         
         #the mode was in vacuum before tstart
-        yvac = np.array([self.initialise_in_bd(t, k, **self._bd_kwargs) for t in teval[:istart]]).T 
+        yvac = np.array([self.initialise_in_bd(t, k, **self._kwargs_bd) for t in teval[:istart]]).T 
         phasevac = (np.exp(-1j*k*eta[:istart]))
         vac = yvac * phasevac
 
@@ -814,7 +818,7 @@ class BaseModeSolver:
             the derivative of the negative helicity mode
         """
         #Define ODE
-        def ode(t, y): return self.mode_equation(t, y, k, **self._ode_kwargs)
+        def ode(t, y): return self.mode_equation(t, y, k, **self._kwargs_ode)
 
         if atol is None:
             atol = self.atol
@@ -853,7 +857,7 @@ class BaseModeSolver:
         """
 
         #create an array of values log(10*kh(t))
-        logks = np.round( np.log(10*self.__khf(np.linspace(t_interval[0], t_interval[1], nvals))), 3)
+        logks = np.round( np.log(10*self._khf(np.linspace(t_interval[0], t_interval[1], nvals))), 3)
         #filter out all values that are repeating (kh is not strictly monotonous)
         logks = np.unique((logks))
 
@@ -895,20 +899,20 @@ class BaseModeSolver:
 
         if mode=="t":
             tstart = init
-            ks = 10**(5/2)*self.__khf(tstart)
+            ks = 10**(5/2)*self._khf(tstart)
 
         elif mode=="k":
             ks = init
             
             tstart = []
             for k in ks:
-                ttmp  = self.__t[np.searchsorted(10**(5/2)*self.__khf(self.__t), k, "right")]
+                ttmp  = self._t[np.searchsorted(10**(5/2)*self._khf(self._t), k, "right")]
                 tstart.append(ttmp)
             tstart = np.array(tstart)
 
         elif mode=="N":
-            tstart = CubicSpline(self.__N, self.__t)(init)
-            ks = 10**(5/2)*self.__khf(tstart)
+            tstart = CubicSpline(self._N, self._t)(init)
+            ks = 10**(5/2)*self._khf(tstart)
 
         else:
             raise KeyError("'mode' must be 't', 'k' or 'N'")
@@ -933,13 +937,13 @@ def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Calla
         
         #Overwrite class attibutes of ModeByMode with new mode equations, boundary conditions and default tolerances.
         mode_equation = staticmethod(new_mode_eq)
-        _ode_kwargs = dict(zip(ode_keys, [None for x in ode_keys]))
+        _ode_dict = {attr.name:kwarg for kwarg, attr in ode_keys.items()}
 
         initialise_in_bd = staticmethod(new_bd_init)
-        _bd_kwargs = dict(zip(init_keys, [None for x in init_keys]))
+        _bd_dict = {attr.name:kwarg for kwarg, attr in init_keys.items()}
         cutoff = new_cutoff
 
-        necessary_keys = list( {"t", "N", new_cutoff}.union(set(ode_keys)).union(set(init_keys)) )
+        necessary_keys = list( {"t", "N", new_cutoff}.union(set(_ode_dict.keys())).union(set(_bd_dict.keys())) )
 
         atol=default_atol
 

@@ -1,6 +1,7 @@
 from ._docs import generate_docs, docs_bgtypes
 import numpy as np
 from typing import Callable, ClassVar
+import pandas as pd
 
 class BGSystem:
     def __init__(self, quantity_set : set, omega : float, mu : float):
@@ -323,6 +324,101 @@ class BGSystem:
 
         self.quantities[name] = BGFunc(name, args, qu_omega, qu_mu)
         return
+    
+    def save_variables(self, path : str):
+        """
+        Save the data in the current GEF instance in an output file.
+
+        Note, data is always stored in numerical units.
+        The save will not store constants or functions, only variables.
+
+        Parameters
+        ----------
+        path : str
+            Path to store data in.
+
+        Raises
+        ------
+        ValueError
+            if the GEF object has no data to store.
+        """
+
+        storeables = self.variable_names()    
+        #Check that all dynamic and derived quantities are initialised in this GEF instance
+        if len(storeables) == 0:
+            raise ValueError("No data to store.")
+        
+        #Create a dictionary used to initialise the pandas DataFrame
+        dic = {}
+
+        #remember the original units of the GEF
+        og_units=self.units
+
+        #Data is always stored unitless
+        self.units = False
+
+        for key in storeables:
+            dic[key] = getattr(self, key).value
+        
+        #Create pandas data frame and store the dictionary under the user-specified path
+        output_df = pd.DataFrame(dic)  
+        output_df.to_csv(path)
+
+        #after storing data, restore original units
+        self.units = og_units
+        return
+    
+    def load_variables(self, path : str):
+        """
+        Load data and store its results in the BGSystem.
+
+        Note, data is always loaded assuming numerical units.
+        Data is only loaded for variables, not for functions or constants.
+
+        Parameters
+        ----------
+        path : None or str
+            Path to load data from
+
+        Raises
+        ------
+        FileNotFoundError
+            if no file is found at `path`.
+        AttributeError
+            if the file contains a column labeled by a key which does not match any BGSystem variable.
+        """
+        #Check if file exists
+        try:
+            #Load from file
+            input_df = pd.read_table(path, sep=",")
+        except FileNotFoundError:
+            raise FileNotFoundError(f"No file found under '{path}'")
+        
+        #Dictionary for easy access using keys
+
+        data = dict(zip(input_df.columns[1:],input_df.values[:,1:].T))
+
+        #Before starting to load, check that the file is compatible with the GEF setup.
+        names = self.quantity_names()
+        for key in data.keys():
+            if key not in names:
+                raise AttributeError(f"The data table you tried to load contains an unknown quantity: '{key}'")
+        
+        #Store current units to switch back to later
+        og_units=self.units
+
+        #GEF data is always stored untiless, thus it is assumed to be untiless when loaded.
+        self.units = False
+        #Load data into background-value attributes
+        for key, values in data.items():
+            if key in self.variable_names():
+                getattr(self, key).value = values
+            else: 
+                self.initialise(key)(values)
+
+        self.units = og_units
+        return
+
     
 class Quantity:
     name : ClassVar[str]= ""
