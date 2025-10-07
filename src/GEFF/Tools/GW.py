@@ -119,7 +119,7 @@ def IntegrateGW(f, h2OmegaGW):
     val = simpson(h2OmegaGW, np.log(f))
     return val
 
-def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25):
+def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25, **linekwargs):
     """
     Plot the sensitivity curves for current and planned gravitational wave experiments on a OmegaGW vs. frequency plot. Experiments with existing data
     are shown with filled-in sensivity curves.
@@ -193,7 +193,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
         
         if dic[key]["running"]:
             ax.fill_between(f, max(SCurve)*np.ones(f.shape), SCurve, color=dic[key]["col"], alpha=alpha)
-        ax.plot(f, SCurve, color=dic[key]["col"])
+        ax.plot(f, SCurve, color=dic[key]["col"], **linekwargs)
 
     ax.set_yscale("log")
     ax.set_xscale("log")
