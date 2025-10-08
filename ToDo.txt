@@ -1,26 +1,31 @@
-ModeByMode:
-    - ReadMode
-    - Split ModeByMode Solver and SpecFunctions? 
-
-Tensor:
-    - store and load PT
-
+Long term
+---------
 GEF:
-    - how to deal with end of inflation Event?
-    - How to get Nend when loading data (repurcussions for PT)
-    - Better way to track gauge-field indices
+    - Mode Parser: Check model input for consistency with GEF
     - GEFAlgorithm: less unnecessary attempt trackers
-    - Longterm:
-        x TimeStep, UpdateVals etc.: more streamlined
+
+Solver:
+    - TimeStep, UpdateVals etc.: more streamlined
+    - Better way to track gauge-field indices
+    - Event wrappers
+    - small things:
+        * add convergence error flag
+        * add check: thr < convergence error
+    - think of better names for settings
+
+
+MbM:
+    - find out when and why MbM can get stuck
 
 General:
-    - Documentation
-    - New Models
-    - File structure
-        x Config, GEF, Spec, Tensor File
-        x Config knows about settings, GEF, Spec, and Tensor location
+    - 
+    - Meta classes for consistent class creation? -> seems like overkill
 
-SEModesl:
-    - treat modelSettings
-    - treat ModeEoM
-    
+
+
+For release
+-----------
+- Parse models before creation? -Y MetaClasses... puhhh
+- What to do about output? SQL Datenbanken?... Es gibt "eval" in python: str -> function. Reverse?
+- Write arxiv manual
+- write read me

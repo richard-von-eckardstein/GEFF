@@ -1,0 +1,230 @@
+from geff.bgtypes import BGConst, BGSystem
+import pytest
+
+class TestBGConst():
+    @pytest.fixture
+    def v1(self):
+        return 10.
+    
+    @pytest.fixture
+    def v2(self):
+        return 113.2
+    
+    @pytest.fixture
+    def a1(self):
+        return 10.
+
+    def sys(self):
+        x = BGConst("x", 2, 1)
+        U = BGSystem({x}, 0.55, 0.32)
+        return U
+    
+    def inst(self, val):
+        U = self.sys()
+        U.initialise("x")(val)
+        return U.x
+    
+    def test_Class(self):
+        x = BGConst("x", 2, 1)
+        assert x.name == "x"
+        assert x.u_omega == 2
+        assert x.u_mu == 1
+
+    def test_Init(self, v1):
+        x = self.inst(v1)
+        U = self.sys()
+        assert x.units == U.units
+        assert x.conversion == 0.55**2 * 0.32
+
+    def test_InitFroma1(self, a1):
+        x = self.inst(a1)
+        assert (x.value == a1)
+        assert isinstance(x.value, float)
+
+    def test_Units(self, v1):
+        x = self.inst(v1)
+        x.units = True
+        assert x.units
+        assert x.value == v1
+
+        x.units = False
+        assert not(x.units)
+        assert x.value == v1/(0.55**2 * 0.32)
+
+    def test_str(self, v1):
+        x = self.inst(v1)
+        x.units = True
+        assert x.__str__() == f"{x.name} (physical): {v1}"
+
+        x.units = False
+        assert x.__str__() == f"{x.name} (numerical): {v1/(0.55**2 * 0.32)}"
+
+    def test_getitem(self, a1):
+        x = self.inst(a1)
+        with pytest.raises(Exception):
+            x[2]
+
+    def test_len(self, v1, a1):
+        x = self.inst(v1)
+        with pytest.raises(Exception):
+            len(x)
+        
+
+    def test_abs(self, v1):
+        x = self.inst(v1)
+        assert abs(x) == abs(v1)
+
+    def test__neq(self, v1):
+        x = self.inst(v1)
+        assert -x == -v1
+    
+    def test__pos(self, v1):
+        x = self.inst(v1)
+        assert +x == +v1
+
+    def test_add(self, v1, v2):
+        x = self.inst(v1)
+        y = self.inst(v2)
+        assert x + v2 == v1 + v2
+        assert x + y == v1 + v2
+        assert y + x == v1 + v2
+        assert v2 + x == v1 + v2
+
+    def test_sub(self, v1, v2):
+        x = self.inst(v1)
+        y = self.inst(v2)
+        assert x - v2 == v1 - v2
+        assert x - y == v1 - v2
+        assert y - x == v2 - v1
+        assert v2 - x == v2 - v1
+
+    def test_mul(self, v1, v2):
+        x = self.inst(v1)
+        y = self.inst(v2)
+        assert x*v2 == v1*v2
+        assert x*y == v1*v2
+        assert y*x == v2*v1
+        assert v2*x == v2*v1
+
+    def test_floordiv(self, v1, v2):
+        x = self.inst(v1)
+        y = self.inst(v2)
+        assert x//v2 == v1//v2
+        assert x//y == v1//v2
+        assert y//x == v2//v1
+        assert v2//x == v2//v1
+
+    def test_truediv(self, v1, v2):
+        x = self.inst(v1)
+        y = self.inst(v2)
+        assert x/v2 == v1/v2
+        assert x/y == v1/v2
+        assert y/x == v2/v1
+        assert v2/x == v2/v1
+
+    def test_mod(self, v1, v2):
+        x = self.inst(v1)
+        y = self.inst(v2)
+        assert x%5 == v1%5
+        with pytest.raises(Exception):
+            x%y
+
+    def test_pow(self, v1, v2):
+        x = self.inst(v1)
+        y = self.inst(v2)
+        assert x**v2 == v1**v2
+        with pytest.raises(Exception):
+            x**y
+
+    def test_eq(self, v1, v2):
+        x = self.inst(v1)
+        x2 = self.inst(v1)
+        y = self.inst(v2)
+
+        assert (x==v1)
+        assert (x==x2)
+        assert not(x==v2)
+        assert not(x==y)
+
+    def test_ne(self, v1, v2):
+        x = self.inst(v1)
+        x2 = self.inst(v1)
+        y = self.inst(v2)
+
+        assert not(x!=v1)
+        assert not(x!=x2)
+        assert (x!=v2)
+        assert (x!=y)
+
+    def test_less(self, v1):
+        x = self.inst(v1)
+        ym = self.inst(v1-1)
+        yp = self.inst(v1+1)
+
+        assert not(x<v1-1)
+        assert not(x<ym)
+
+        assert not(x<v1)
+        assert not(x<x)
+
+        assert (x<v1+1)
+        assert (x<yp)
+
+    def test_lesseq(self, v1):
+        x = self.inst(v1)
+        ym = self.inst(v1-1)
+        yp = self.inst(v1+1)
+
+        assert not(x<=v1-1)
+        assert not(x<=ym)
+
+        assert (x<=v1)
+        assert (x<=x)
+
+        assert (x<=v1+1)
+        assert (x<=yp)
+
+    def test_greater(self, v1):
+        x = self.inst(v1)
+        ym = self.inst(v1-1)
+        yp = self.inst(v1+1)
+
+        assert (x>v1-1)
+        assert (x>ym)
+
+        assert not(x>v1)
+        assert not(x>x)
+
+        assert not(x>v1+1)
+        assert not(x>yp)
+
+    def test_greatereq(self, v1):
+        x = self.inst(v1)
+        ym = self.inst(v1-1)
+        yp = self.inst(v1+1)
+
+        assert (x>=v1-1)
+        assert (x>=ym)
+
+        assert (x>=v1)
+        assert (x>=x)
+
+        assert not(x>=v1+1)
+        assert not(x>=yp)
+
+    def test_set_value(self, v1, a1):
+        x = self.inst(v1)
+        x.value = a1
+
+        assert x.value == a1
+        assert x._value == a1/x.conversion
+
+        x.units = False
+        x.value = a1
+        assert x.value == a1
+
+
+
+
+        
+        

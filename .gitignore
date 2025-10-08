@@ -5,15 +5,15 @@ OldGEF/
 Notebooks/
 Config/
 .ipynb_checkpoints/
+*.ipynb
 __pycache__
 *.zip
 .vscode/
 GEFF.egg-info/
+debug/*debug*.py
 
-!src/Data/EffDoF.dat
-!src/Data/strains/*.dat
-!src/Data/power-law-integrated_sensitivities/*.dat
-!Debug/DebugData.zip
+!src/GEFF/data/*
+!debug/data
 
 
 
