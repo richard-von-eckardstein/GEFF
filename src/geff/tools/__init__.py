@@ -5,5 +5,5 @@ Currently, the following tools are available:
 1. Compute the tensor power spectrum using `GEFF.tools.pt`.
 2. Compute and analyze the gravitational wave spectrum using `GEFF.tools.gw`.
 """
-from .pt import PT
+from .pt import PowSpecT
 from .gw import omega_gw

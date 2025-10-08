@@ -124,7 +124,7 @@ class BaseGEFSolver:
             raise RuntimeError(f"No GEF solution after {attempt} attempts.")
         else:
             if sol.success:
-                print("Successful GEF solution obtained. Proceeding.")
+                print("Successful GEF solution obtained. Proceeding.\n")
             else:
                 print("Processing unsuccessful solution.\n")
         

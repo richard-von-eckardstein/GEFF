@@ -8,7 +8,7 @@ from typing import Tuple
 
 __doc__ = DOCS["module"]
         
-def omega_gw(k:np.ndarray, PT:np.ndarray, Nend:float, Hend:float, Trh:None|float=None) -> Tuple[np.ndarray, np.ndarray]:
+def omega_gw(k:np.ndarray, PT:np.ndarray, sol, Trh:None|float=None) -> Tuple[np.ndarray, np.ndarray]:
     r"""
     Compute $h^2 \Omega_{\rm GW}(f)$ from a tensor power spectrum.
 
@@ -32,11 +32,18 @@ def omega_gw(k:np.ndarray, PT:np.ndarray, Nend:float, Hend:float, Trh:None|float
     h2OmegaGw : NDArray
         the gravitational-wave spectrum as a function of frequency today
     """
+    og_units = sol.units
+    sol.units = True
 
-    f = k_to_f(k, Nend, Trh)
+    Nend = sol.N[-1]
+    Hend = sol.H[-1]
+
+    print(Nend, Hend, Trh)
+
+    f = k_to_f(k, Nend, Hend, Trh)
     if Trh is None:
         TransferRH=1
-        
+    else:
         frh = 1/(2*np.pi) * (g_s_0/g_s(Trh))**(1/3) * (np.pi**2*g_rho(Trh)/90)**(1/2) * (Trh/M_pl) * T_0*gev_to_hz
         fend = 1/(2*np.pi) * (g_s_0/g_s(Trh))**(1/3) * (np.pi**2*g_rho(Trh)/90)**(1/3) * (Trh/M_pl)**(1/3) * (Hend)**(1/3) * T_0*gev_to_hz
 
@@ -46,7 +53,7 @@ def omega_gw(k:np.ndarray, PT:np.ndarray, Nend:float, Hend:float, Trh:None|float
     TransferMD = 1 + 9/32*(feq/f)**2
 
     h2OmegaGW = h**2*omega_r/24  * PT * (g_rho_freq(f)/g_rho_0) * (g_s_0/g_s_freq(f))**(4/3) * TransferMD * TransferRH
-
+    sol.units = og_units
     return f, h2OmegaGW
 
 def k_to_f(k:np.ndarray, Nend:float, Hend:float, Trh:None|float=None) -> ArrayLike:
@@ -77,7 +84,6 @@ def k_to_f(k:np.ndarray, Nend:float, Hend:float, Trh:None|float=None) -> ArrayLi
     else:
         wrh = 0
         Nrh = np.log( 90*(Hend*M_pl**2)**2 / (np.pi**2*g_rho(Trh)*Trh**4 ) ) / ( 3 * (1 + wrh) )
-
 
     f = k*M_pl*gev_to_hz/(2*np.pi*np.exp(Nend)) * T_0/Trh * (g_s_0/g_s(Trh))**(1/3) * np.exp(-Nrh)
 

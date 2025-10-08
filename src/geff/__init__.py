@@ -491,7 +491,9 @@ G.run()
   mermaid.registerLayoutLoaders(elkLayouts);
 </script>
 """
-from .gef import make_model, BaseGEF
+from .gef import make_model
+from .mbm import GaugeSpec
+from .bgtypes import BGSystem
 
 __version__ = "0.1"
 

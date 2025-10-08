@@ -11,7 +11,7 @@ from types import NoneType
 
 __doc__ = DOCS["module"]
 
-class PT:
+class PowSpecT:
     r"""
     A class used to compute the tensor power spectrum including vacuum and gauge-field induced contributions.
 
@@ -20,7 +20,7 @@ class PT:
 
     Results are internally computed using numerical units, but are returned in physical units.
     """
-    def __init__(self, sys : BGSystem):
+    def __init__(self, insys : BGSystem):
         """
         Initialise the class from a GEF solution.
 
@@ -30,7 +30,7 @@ class PT:
             the GEF solution.
         """
         #Set GEF results to Hubble units.
-        og_units = sys.units
+        sys = BGSystem.from_system(insys, True)
         sys.units = False
         
         #import the background evolution
@@ -41,15 +41,15 @@ class PT:
         self._omega = sys.omega
             
         #Set the range of modes
-        self.maxk = np.maximum(a*H)
+        self.maxk = max(a*H)
         self.mink = 1e4
 
         #Define Useful quantities
 
-        self._t = sys.t
+        self._t = sys.t.value
         self._N = N
         self._H = H
-        self._xi= sys.xi
+        self._xi= sys.xi.value
 
         #define interpolated quantities as needed
         self._af = CubicSpline(self._t, a)
@@ -66,11 +66,9 @@ class PT:
         soleta = solve_ivp(deta, [min(self._t), max(self._t)], np.array([0]), t_eval=self._t)
 
         self._etaf = CubicSpline(self._t, soleta.y[0,:])
-
-        sys.units = og_units
         return
     
-    def compute_pt(self, nmodes : int, mbm_file : str, FastGW : bool=True,
+    def compute_pt(self, nmodes : int, spec : GaugeSpec, FastGW : bool=True,
                     atols : list=[1e-3,1e-20], rtols : list=[1e-4,1e-4], momgrid : int=100
                     ) -> Tuple[np.ndarray,dict]:
         r"""
@@ -105,15 +103,13 @@ class PT:
         k = np.logspace(np.log10(self.mink), np.log10(10*self.maxk), nmodes)
         ks, tstarts = self._find_tinit_bd(k, mode="k")
         
-        spec = GaugeSpec.read_spec(mbm_file)
         Ngrid = spec["N"]
         tgrid = spec["t"]
         pgrid = spec["k"]
 
         GaugeModes = {"+":(spec["Ap"], spec["dAp"]), "-":(spec["Am"], spec["dAm"])}
         
-        inds = np.where(Ngrid < np.maximum(self._N))[0]
-        indend = inds[-1]
+        indend = np.argmin(abs(Ngrid-max(self._N)))
 
         PT = {"tot":[], "vac":[], "ind+,++":[], "ind+,+-":[], "ind+,--":[], "ind-,++":[], "ind-,+-":[], "ind-,--":[]}
 
@@ -386,7 +382,7 @@ class PT:
 
             tstart = []
             for k in ks:
-                ttmp  = self.__t[np.searchsorted(10**(pwr)*np.exp(logkH(self.__t)), k, "right")]
+                ttmp  = self._t[np.searchsorted(10**(pwr)*np.exp(logkH(self._t)), k, "right")]
                 tstart.append(ttmp)
             tstart = np.array(tstart)
 
