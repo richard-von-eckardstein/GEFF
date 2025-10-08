@@ -29,7 +29,7 @@ DOCS = {
     as given in [arXiv:1407.4785](https://arxiv.org/abs/1407.4785) and [arXiv:2011.03323](https://arxiv.org/abs/2011.03323). 
     Here, $f_{\rm reh}$ and $f_{\rm end}$ are, respectively, the frequencies at the end of reheating, and inflation.
 
-    The frequency $f$ can be computed from a comoving momentum $k$ using `k_to_f` which evaluates
+    The frequency $f$ can be computed from a comoving momentum $k$ using `k_to_f`, which evaluates
 
     $$
     f = \frac{k_f}{2 \pi a_0} =\frac{k_f}{2 \pi a_{\rm end}} e^{-N_{reh}} \left( \frac{g_{\*,S}(T_0)}{g_{\*,S}(T_{{\rm reh}})}\right)^{1/3} \frac{T_0}{T_{{\rm reh}}} \, .
@@ -41,16 +41,5 @@ DOCS = {
     N_{\rm reh} = \frac{1}{3(1 + w_{\rm reh})} \ln \left(\frac{90 M_{\rm P} H_{\rm end}^2}{\pi^2 g_*(T_{\rm reh}) T_{\rm reh}^4} \right) \, .
     $$
     and $T_{\rm reh}$ is the temperature of the SM plasma at the end of reheating.
-
-    This module uses data provided by [zenodo:3689582](https://zenodo.org/records/3689582) and [zenodo:8092346](https://zenodo.org/records/8092346)
-    for strain noise power spectra, $\Omega_{\rm noise}(f)$, to compute signal-to-noise ratios for several GW observatories.
-    The relevant function is `compute_SNR`, which evaluates
-
-    $$
-    S/N = \left(n_{{\rm det}} t_{{\rm obs}} \int_{f_{{\rm min}}}^{f_{{\rm max}}} {\rm d} f \, \left( \frac{\Omega_{\rm signal}(f)}{\Omega_{\rm noise}(f)}\right)^2 \right)^{1/2}\, .
-    $$
-
-    Data on power-law integrated sensitivity curves (PLIS) from [zenodo:3689582](https://zenodo.org/records/3689582) can also be loaded using `get_plis`.
-    Use `known_gw_obs` to learn which data is available for which observatories.
     """
 }
