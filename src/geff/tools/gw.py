@@ -36,7 +36,7 @@ def omega_gw(k:np.ndarray, PT:np.ndarray, Nend:float, Hend:float, Trh:None|float
     f = k_to_f(k, Nend, Hend, Trh)
     if Trh is None:
         TransferRH=1
-        
+    else:
         frh = 1/(2*np.pi) * (g_s_0/g_s(Trh))**(1/3) * (np.pi**2*g_rho(Trh)/90)**(1/2) * (Trh/M_pl) * T_0*gev_to_hz
         fend = 1/(2*np.pi) * (g_s_0/g_s(Trh))**(1/3) * (np.pi**2*g_rho(Trh)/90)**(1/3) * (Trh/M_pl)**(1/3) * (Hend)**(1/3) * T_0*gev_to_hz
 
