@@ -1,3 +1,9 @@
+# NANOGrav effective strain noise power spectrum
+# (*) for a cross-correlation search
+#
+# Reference: https://zenodo.org/records/8092346
+# "The NANOGrav 15-Year Data Set: Detector Characterization and Noise Budget", arXiv: 2306.16218
+#
 # Frequencies [Hz],h_c [strain], S_eff [strain^2/Hz], Omega_GW [H0=67.4 km/s/Mpc]
 2.000000000000000331e-10,2.141465183890984695e-13,2.292936566908624178e-16,2.529716252976262299e-09
 2.046743597265042972e-10,2.068949696494875582e-13,2.091396720305424581e-16,2.472956788750634757e-09

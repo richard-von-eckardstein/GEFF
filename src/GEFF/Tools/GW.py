@@ -8,7 +8,7 @@ import random
 from GEFF.Utility import g_rho, g_rho_freq, g_rho_0, g_s, g_s_freq, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h
 
 from scipy.interpolate import CubicSpline
-from scipy.integrate import simps
+from scipy.integrate import simpson
 
 from numpy.typing import ArrayLike
 from typing import Tuple
@@ -105,15 +105,18 @@ class OmegaGW:
             TransferRH = 1/(1. - 0.22*(f/frh)**1.5 + 0.65*(f/frh)**2)
             TransferRH = np.where(np.log(f/fend) < 0, TransferRH, np.zeros(f.shape))
 
-        OmegaGW = h**2*omega_r/24  * PT * (g_rho_freq(f)/g_rho_0) * (g_s_0/g_s_freq(f))**(4/3) * TransferRH
+        feq = 2.1e-17
+        TransferMD = 1 + 9/32*(feq/f)**2
+
+        h2OmegaGW =  h**2*omega_r/24*PT*(g_rho_freq(f)/g_rho_0) * (g_s_0/g_s_freq(f))**(4/3)*TransferMD*TransferRH
         
-        return OmegaGW, f
+        return h2OmegaGW, f
 
 basepath = os.path.dirname(os.path.abspath(__file__))
 
 def IntegrateGW(f, h2OmegaGW):
     h2OmegaGW = np.where(np.log(f/1e-12) > 0, h2OmegaGW, 0)
-    val = simps(h2OmegaGW, np.log(f))
+    val = simpson(h2OmegaGW, np.log(f))
     return val
 
 def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25):
@@ -142,12 +145,12 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
     """
     #the path to the sensitivity curve data
     print(basepath)
-    path = os.path.join(basepath, "../Data/power-law-integrated_sensitivities/")
+    path = os.path.join(basepath, "../Data/PLIS/")
     arr = os.listdir(path)
     
     #Obtain List of experiments and running experiments
     exp = [a.replace("plis_","").replace(".dat", "") for a in arr ]
-    RunningExp = ["IPTA", "NANOGrav", "PPTA", "EPTA", "HLVO2", "HLVO3"]
+    RunningExp = ["NANOGrav", "PPTA", "EPTA", "HLVO2", "HLVO3"]
 
     #Parse Input Names
     if names!=[]:
@@ -166,10 +169,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
 
     arr = []
     for name in names:
-        if name=="NANOGrav":
-            arr.append("NANOGrav/sensitivity_curves_NG15yr_fullPTA.txt")
-        else:
-            arr.append("plis_" + name + ".dat")   
+        arr.append("plis_" + name + ".dat")   
 
     #Parse Input Colors
     if cols==[]:
@@ -185,14 +185,9 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
 
     for key in dic.keys():
         
-        if key=="NANOGrav":
-            tab = pd.read_table(path+dic[key]["file"], comment="#", sep=",").values.T
-            f = tab[0,:]
-            SCurve = h**2*tab[3,:]
-        else:
-            tab = pd.read_table(path+dic[key]["file"], comment="#").values.T
-            f = 10**tab[0,:]
-            SCurve = 10**tab[1,:]
+        tab = pd.read_table(path+dic[key]["file"], comment="#", header=None).values.T
+        f = 10**tab[0,:]
+        SCurve = 10**tab[1,:]
         f = np.array([f[0]] + list(f) + [f[-1]])
         SCurve = np.array([1.] + list(SCurve) + [1.])
         
@@ -204,7 +199,7 @@ def PlotPLIS(ax : plt.Axes, names : list=[], cols : list=[], alpha : float=0.25)
     ax.set_xscale("log")
     return ax
 
-def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
+def ComputeSNR(fSignal, h2OmegaSignal, experiment, tobs=1.):
     path = os.path.join(basepath, "../Data/strains/")
     arr = os.listdir(path)
 
@@ -214,9 +209,19 @@ def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
 
     file = path+filename
     try:
-        tab = pd.read_table(file, comment="#").values.T
-        fNoise = 10**tab[0,:]
-        OmegaNoise = 10**tab[1,:]
+        if experiment != "NANOGrav":
+            tab = pd.read_table(file, comment="#").values.T
+            fNoise = 10**tab[0,:]
+            h2OmegaNoise = 10**tab[1,:]
+        else:
+            tab = pd.read_table(file, comment="#", sep=",").values.T
+            fmin = 1/(16.03*365.2425*24*3600)
+            fmax = 30*fmin
+            fNoise = tab[0,:]
+            minind = np.where(fNoise >= fmin)[0][0]
+            maxind = np.where(fNoise <= fmax)[0][-1]
+            fNoise = fNoise[minind:maxind]
+            h2OmegaNoise = h**2*tab[3,minind:maxind]
 
         content = open(file).readlines()
         if "auto-correlation" in content[1]:
@@ -237,8 +242,8 @@ def ComputeSNR(fSignal, OmegaSignal, experiment, tobs=1.):
         SNR = 0.
     else:
         f = fSignal[overlap]
-        OmegaNoise = np.exp(CubicSpline(np.log(fNoise), np.log(OmegaNoise))(np.log(f)))
-        SNR = (ndet*(tobs*365.2425*3600*24)*simps((OmegaSignal[overlap]/OmegaNoise)**2, f))**(1/2)
+        h2OmegaNoise = np.exp(CubicSpline(np.log(fNoise), np.log(h2OmegaNoise))(np.log(f)))
+        SNR = (ndet*(tobs*365.2425*3600*24)*simpson((h2OmegaSignal[overlap]/h2OmegaNoise)**2, f))**(1/2)
 
     return SNR
 
