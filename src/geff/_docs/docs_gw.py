@@ -29,7 +29,7 @@ DOCS = {
     as given in [arXiv:1407.4785](https://arxiv.org/abs/1407.4785) and [arXiv:2011.03323](https://arxiv.org/abs/2011.03323). 
     Here, $f_{\rm reh}$ and $f_{\rm end}$ are, respectively, the frequencies at the end of reheating, and inflation.
 
-    The frequency $f$ can be computed from a comoving momentum $k$ using `k_to_f` which evaluates
+    The frequency $f$ can be computed from a comoving momentum $k$ using `k_to_f`, which evaluates
 
     $$
     f = \frac{k_f}{2 \pi a_0} =\frac{k_f}{2 \pi a_{\rm end}} e^{-N_{reh}} \left( \frac{g_{\*,S}(T_0)}{g_{\*,S}(T_{{\rm reh}})}\right)^{1/3} \frac{T_0}{T_{{\rm reh}}} \, .
