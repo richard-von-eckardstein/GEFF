@@ -36,15 +36,15 @@ The model tracks the following events:
 """
 import numpy as np
 
-from GEFF.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, GF
-from GEFF.solver import TerminalEvent, ErrorEvent, GEFSolver
-from GEFF.mbm import ModeSolver
+from geff.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, GF
+from geff.solver import TerminalEvent, ErrorEvent, GEFSolver
+from geff.mbm import ModeSolver
 
-from GEFF.utility.eom import friedmann, gauge_field_ode, dlnkh, klein_gordon, check_accelerated_expansion
-from GEFF.utility.mode import bd_classic, mode_equation_classic
-from GEFF.utility.boundary import boundary_approx
-from GEFF.utility.general import heaviside
-from GEFF._docs import generate_docs, docs_models
+from geff.utility.eom import friedmann, gauge_field_ode, dlnkh, klein_gordon, check_accelerated_expansion
+from geff.utility.mode import bd_classic, mode_equation_classic
+from geff.utility.boundary import boundary_approx
+from geff.utility.general import heaviside
+from geff._docs import generate_docs, docs_models
 
 
 name : str = "PAI"

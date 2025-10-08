@@ -8,7 +8,7 @@ import numpy as np
 from scipy.integrate import solve_ivp, quad
 from scipy.interpolate import CubicSpline
 from scipy.optimize import fsolve
-from GEFF.tools.timer import Timer
+from geff.tools.timer import Timer
 import math
 from mpmath import whitw, whitm, gamma, mp
 

@@ -18,7 +18,7 @@ DOCS = {
 
     It accounts for the evolution of $\Omega_{\rm GW}(f)$ from the end of inflation until today.
     Here, $T_f$ is the temperature corresponding to the frequency $f$.
-    For $g_{\*}$, $g_{\*,S}$, $f_{\rm eq}$, $\Omega_r$, and $T_0$, we use the corresponding functions in `GEFF.utility.cosmo`.
+    For $g_{\*}$, $g_{\*,S}$, $f_{\rm eq}$, $\Omega_r$, and $T_0$, we use the corresponding functions in `gef.utility.cosmo`.
     The term $|\mathcal{T}_{\rm reh}(f)|^2$ accounts for the transition through reheating. For instantaneous reheating, $|\mathcal{T}_{\rm reh}(f)|^2 = 1$.
     Otherwise, we assume that reheating proceeds via coherent oscillations of the inflaton field, such that
 
@@ -41,16 +41,5 @@ DOCS = {
     N_{\rm reh} = \frac{1}{3(1 + w_{\rm reh})} \ln \left(\frac{90 M_{\rm P} H_{\rm end}^2}{\pi^2 g_*(T_{\rm reh}) T_{\rm reh}^4} \right) \, .
     $$
     and $T_{\rm reh}$ is the temperature of the SM plasma at the end of reheating.
-
-    This module uses data provided by [zenodo:3689582](https://zenodo.org/records/3689582) and [zenodo:8092346](https://zenodo.org/records/8092346)
-    for strain noise power spectra, $\Omega_{\rm noise}(f)$, to compute signal-to-noise ratios for several GW observatories.
-    The relevant function is `compute_SNR`, which evaluates
-
-    $$
-    S/N = \left(n_{{\rm det}} t_{{\rm obs}} \int_{f_{{\rm min}}}^{f_{{\rm max}}} {\rm d} f \, \left( \frac{\Omega_{\rm signal}(f)}{\Omega_{\rm noise}(f)}\right)^2 \right)^{1/2}\, .
-    $$
-
-    Data on power-law integrated sensitivity curves (PLIS) from [zenodo:3689582](https://zenodo.org/records/3689582) can also be loaded using `get_plis`.
-    Use `known_gw_obs` to learn which data is available for which observatories.
     """
 }

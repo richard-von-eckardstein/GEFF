@@ -1,4 +1,4 @@
-from GEFF.bgtypes import BGVar, BGConst, BGFunc, BGSystem, Val, Func
+from geff.bgtypes import BGVar, BGConst, BGFunc, BGSystem, Val, Func
 import pytest
 
 class TestBGSystem():

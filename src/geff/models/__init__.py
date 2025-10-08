@@ -6,7 +6,7 @@ Currently, the following models are implemented:
 2. **'SE noscale'**: fermionic axion inflation (without accounting for fermion $k$-dependence)
 3. **'SE-kh'**: fermionic axion inflation (accounting for fermion $k$-dependence using $k_h$)
 
-Execute these models by calling `GEFF.gef.GEF` with its name and settings.
+Execute these models by calling `.gef.make_model` with its name and settings.
 """
 import importlib
 import os

@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 import os
 
-from GEFF._docs.docs_gw import DOCS
-from GEFF.utility.cosmo import g_rho, g_rho_freq, g_rho_0, g_s, g_s_freq, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h, feq
-import GEFF
+from geff._docs.docs_gw import DOCS
+from geff.utility.cosmo import g_rho, g_rho_freq, g_rho_0, g_s, g_s_freq, g_s_0, T_0, M_pl, gev_to_hz, omega_r, h, feq
+import geff
 
 from scipy.interpolate import CubicSpline
 from scipy.integrate import simpson
@@ -15,7 +15,7 @@ from tabulate import tabulate
 
 __doc__ = DOCS["module"]
 
-basepath = os.path.join(os.path.dirname(os.path.abspath(GEFF.__file__)), "data/")
+basepath = os.path.join(os.path.dirname(os.path.abspath(geff.__file__)), "data/")
         
 def omega_gw(k:np.ndarray, PT:np.ndarray, Nend:float, Hend:float, Trh:None|float=None) -> Tuple[np.ndarray, np.ndarray]:
     r"""

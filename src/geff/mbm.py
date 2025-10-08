@@ -4,7 +4,7 @@ import pandas as pd
 from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.integrate import solve_ivp
 from scipy.integrate import quad, simpson
-from .bgtypes import Variable, Constant, Func, BGSystem
+from .bgtypes import Val, Variable, Constant, Func, BGSystem
 from .utility.mode  import mode_equation_classic, bd_classic
 from typing import Tuple, Callable, ClassVar
 from types import NoneType
@@ -635,7 +635,7 @@ class BaseModeSolver:
 
         Starting from the modes stored in `GaugeSpec`, the function re-evaluates the evolution starting from $t_{\rm start}$.
         Additional gauge-field modes are evolved starting from Bunch&ndash;Davies to account for new modes crossing the horizon
-          at times beyond the original range covered by the input spectrum.
+        at times beyond the original range covered by the input spectrum.
 
         Parameters
         ----------
@@ -920,7 +920,7 @@ class BaseModeSolver:
         return ks, tstart
         
     
-def ModeSolver(new_mode_eq : Callable, ode_keys : list[str], new_bd_init : Callable, init_keys : list[str], new_cutoff : str="kh", default_atol : float=1e-3):
+def ModeSolver(new_mode_eq : Callable, ode_keys : dict[Val], new_bd_init : Callable, init_keys : dict[Val], new_cutoff : str="kh", default_atol : float=1e-3):
     class CustomModeSolver(BaseModeSolver):
         """
         A subclass of `BaseModeSolver` new mode equation and initial condition adapted to a new GEF model

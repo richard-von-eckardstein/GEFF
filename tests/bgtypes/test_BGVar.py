@@ -1,4 +1,4 @@
-from GEFF.bgtypes import BGVar, BGSystem
+from geff.bgtypes import BGVar, BGSystem
 import pytest
 import numpy as np
 

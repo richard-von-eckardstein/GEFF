@@ -1,4 +1,4 @@
-from GEFF import make_model, BaseGEF
+from geff import make_model, BaseGEF
 import numpy as np
 
 import os

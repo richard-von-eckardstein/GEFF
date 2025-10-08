@@ -71,7 +71,7 @@ As the first part of our tour, we explore the basic usage of the GEFF code.
 We start by sampling a first flavor of our choice; the model "classic", which corresponds to PAI:
 
 ```python
-from GEFF import GEF
+from geff import GEF
 
 # Create the GEF model of your choice
 ClassicGEF = GEFModel("classic")
@@ -174,7 +174,7 @@ spec.save_spec(mbmpath)
 
 Obtaining the inflationary dynamics is nice, but it is not all the GEFF can do. For example, let's use our results to compute the corresponding gravitational-wave spectrum:
 ```python
-from GEFF.tools import PT, omega_gw
+from geff.tools import PT, omega_gw
 
 # Use the GEF's knowledge of the background expansion
 # to compute the vacuum and induced power spectrum for 100 momentum modes k:
@@ -194,7 +194,7 @@ FermionGEF = GEFModel("SE_kh", settings={"picture":"electric"})
 This model comes in three varieties ("pictures") corresponding to the effective treatment of fermions in the model.
 We specified the particular variety py passing a `settings` dictionary upon creating the model.
 
-For more details on the available models, see `GEFF.models`.
+For more details on the available models, see `geff.models`.
 
 <a name="algorithm">
 # On the factory floor
@@ -243,7 +243,7 @@ If the two disagree, the GEF will attempt to self-correct using $A_\lambda(t,k)$
 Note that, if you use `run(nmodes=None)`, the dotted lines in the diagram can be ignored; the background solution is immediately returned without
 computing the gauge-field spectrum.
 
-For more details on the `GEFSolver`, see `GEFF.solver`, while for the `ModeSolver` see `GEFF.mbm`.
+For more details on the `GEFSolver`, see `geff.solver`, while for the `ModeSolver` see `geff.mbm`.
 
 <a name="model_creation">
 # Create your own flavor
@@ -306,10 +306,10 @@ To properly account for the gauge-fields, we also need to add in the following t
 
 All these variables and function nned to be defined in our model file. This is done as follows:
 ```python
-from GEFF.bgtypes import BGConst, BGFunc
+from geff.bgtypes import BGConst, BGFunc
 
 # We make use of the fact that a lot of these variables are pre-defined:
-from GEFF.bgtypes import t, N, a, E, B, G, kh, GF
+from geff.bgtypes import t, N, a, E, B, G, kh, GF
 
 # We also need to define some new objects:
 H = BGConst("H", qu_omega=1, qu_mu=0) # Hubble rate (scales like inverse time)
@@ -395,9 +395,9 @@ def update_values(t, y, sys):
 For `timestep`, we can make use of some pre-defined functions in the `.utility` module.
 
 ```python
-from GEFF.utility.eom import gauge_field_ode
-from GEFF.utility.boundary import boundary_approx
-from GEFF.utility.general import heaviside
+from geff.utility.eom import gauge_field_ode
+from geff.utility.boundary import boundary_approx
+from geff.utility.general import heaviside
 
 def timestep(t, y, sys):
     dydt = np.zeros_like(y)
@@ -436,7 +436,7 @@ solver = GEFSolver(initial_conditions, update_values, compute_timestep, quantiti
 
 We also should define the `ModeSolver`. In this toy model, we can just use a pre-defined class. For more complex situations, use `.mbm.ModeSolver`.
 ```python
-from GEFF.mbm import BaseModeSolver
+from geff.mbm import BaseModeSolver
 
 MbM = BaseModeSolver
 ```
@@ -471,7 +471,7 @@ We are finally done! We can put everything we defined above in a file, let's cal
 If all went well, you can now use your own GEF flavor just like the pre-defined ones:
 ```python
 import numpy as np
-from GEFF import GEF
+from geff import GEF
 import tutorial
 
 TutorialGEF = GEFModel(tutorial)
@@ -491,7 +491,9 @@ G.run()
   mermaid.registerLayoutLoaders(elkLayouts);
 </script>
 """
-from .gef import make_model, BaseGEF
+from .gef import make_model
+from .bgtypes import BGSystem
+from .mbm import GaugeSpec
 
 __version__ = "0.1"
 

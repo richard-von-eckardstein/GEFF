@@ -11,11 +11,12 @@ __pycache__
 *.dat
 .vscode/
 GEFF.egg-info/
+geff.egg-info/
 Debug/*.py
 
-!src/GEFF/data/*
-!src/GEFF/data/plis/*
-!src/GEFF/data/strains/*
+!src/geff/data/*
+!src/geff/data/plis/*
+!src/geff/data/strains/*
 
 !Debug/DebugData.zip
 

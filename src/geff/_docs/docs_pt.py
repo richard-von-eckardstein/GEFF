@@ -18,7 +18,7 @@ DOCS ={
         $$\mathcal{D}_k {u_0} = \ddot{u}_0 + 3 H \dot{u}_0 + \frac{k^2}{a^2} {u_0} = 0$$
         with the retarded Green function $G_k(t',t)$ defined for the operator $\mathcal{D}_k$.
 
-        The gauge-field mode functions $A_\lambda(t,k)$ are defined as in the `GEFF.mode_by_mode` module.
+        The gauge-field mode functions $A_\lambda(t,k)$ are defined as in the `geff.mode_by_mode` module.
 
         For details on the numerical computation, see the Appendix B of [2508.00798](https://arxiv.org/abs/2508.00798).
         """

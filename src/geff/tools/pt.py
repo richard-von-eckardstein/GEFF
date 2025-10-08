@@ -2,16 +2,16 @@ import numpy as np
 from scipy.interpolate import CubicSpline, PchipInterpolator
 from scipy.integrate import solve_ivp, trapezoid
 
-from GEFF._docs.docs_pt import DOCS
-from GEFF.mbm import GaugeSpec
-from GEFF.bgtypes import BGSystem, Constant
+from geff._docs.docs_pt import DOCS
+from geff.mbm import GaugeSpec
+from geff.bgtypes import BGSystem, Constant
 
 from typing import Tuple
 from types import NoneType
 
 __doc__ = DOCS["module"]
 
-class PT:
+class PowSpecT:
     r"""
     A class used to compute the tensor power spectrum including vacuum and gauge-field induced contributions.
 

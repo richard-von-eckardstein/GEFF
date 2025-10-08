@@ -35,7 +35,7 @@ DOCS = {
     This class inherits from `dict` and needs the following keys:  
     't', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'
 
-    All quantities are represented in numerical units (see `GEFF.bgtypes.BGSystem`).
+    All quantities are represented in numerical units (see `.bgtypes.BGSystem`).
 
     The spectrum can be evaluated at certain times $t$ or for certain momenta $k$ by using `tslice` and `kslice`
     Furthermore, the spectrum contained in the object can be integrated to compute gauge-field expectation values.
@@ -173,45 +173,43 @@ DOCS = {
     "ModeSolver":r"""
     Create a subclass of `BaseModeSolver` with custom mode equation and initial conditions.
 
-    In case your GEF model does not follow the pre-defined gauge-field mode equation `BaseModeSolver.mode_equation`,
-    or initial conditions, `BaseModeSolver.initialise_in_bd` this method  defines a new subclass with
-     these methods replaced by `new_mode_eq` and `new_bd_init`.
+    In case your GEF model does not match up with the configuration `BaseModeSolver`, this method 
+     allows you to replace the methods `mode_equation` and `initialise_in_bd` by `new_mode_eq` and `new_bd_init`.
     
     The method `new_mode_eq` needs to obey the following rules:
-    1. The call signature is `f(t,y,k,**kwargs)`
-    2. The arguments `t` / `k` expect floats representing time / momentum
+    1. The call signature is `f(t,y,k,**kwargs)`.
+    2. The arguments `t` / `k` expect floats representing time / momentum.
     3. The argument `y` expects a `numpy.ndarrray` of shape (8,) with indices
         -  0 & 2 / 4 & 6: real & imaginary part of $\sqrt{2k} A_\lambda(t,k)$ for $\lambda = 1 \, / -1$
         -  1 & 3 / 5 & 7: real & imaginary part of $\sqrt{2/k}\, a \dot{A}_\lambda(t,k)$ for $\lambda = 1 \, / -1$
     4. The kwargs are functions of the argument `t`.
-    5. The return is the time derivative of `y`
+    5. The return is the time derivative of `y`.
 
     The method `new_bd_init` needs to obey the following rules:
-    1. The call signature is `f(t,k,**kwargs)`
-    2. The arguments `t` / `k` expect floats representing time / momentum
+    1. The call signature is `f(t,k,**kwargs)`.
+    2. The arguments `t` / `k` expect floats representing time / momentum.
     3. The kwargs are functions of the argument `t`.
     4. The return is a `numpy.ndarrray` of shape (8,)  with indices
         -  0 & 2 / 4 & 6: real & imaginary part of $\sqrt{2k} A_\lambda(t_{\rm init},k)$ for $\lambda = 1 \, / -1$
         -  1 & 3 / 5 & 7: real & imaginary part of $\sqrt{2/k}\, a \dot{A}_\lambda(t_{\rm init},k)$ for $\lambda = 1 \, / -1$
     
-    The lists `ode_keys` and `init_keys` are handled as follows:
-    - `ode_keys` and `init_keys` need to contain the keys associated to the respective kwargs of `new_mode_eq` and `new_bd_init`.
-    - These keys correspond to names of `GEFF.bgtypes.Val` objects belonging to a `GEFF.bgtypes.BGSystem` passed to the class upon initialisation.
-        The respective `Val` objects are interpolated to obtain functions of time. 
-        These functions are then passed to to the corresponding keyword arguments of `new_mode_eq`  and `new_bd_init`.
-    - `ode_keys` and `init_keys` are added to `BaseModeSolver.necessary_keys` of the new subclass.
+    The dictionaries `ode_keys` and `init_keys` should be configured as follows:
+    - the keys of these dictionaries are the names of kwargs for `new_mode_eq` and `new_bd_init`.
+    - The items of these dictionaries are `.bgtypes.Val` objects. The class created by `ModeSolver` will look for these variables in the `BGSystem` passed on
+        initialization, interpolate them as a function of time, and pass them to `mode_equation` and `initialize_in_bd`.
+    - `ode_keys` and `init_keys` are added to `necessary_keys` of the new subclass.
 
-    The `BaseModeSolver.cutoff` and `BaseModeSolver.atol` attributes can also be adjusted.
+    The `cutoff` and `atol` attributes can also be adjusted.
 
     Parameters
     ----------
     new_mode_eq : Callable
         a new mode equation
-    ode_keys : list of str
+    ode_keys : list of Val
         the non-standard keywords of `new_mode_eq`
     new_bd_init : Callable
         a new mode bd initial condition
-    init_keys : list of str
+    init_keys : list of Val
         the non-standard keywords of `new_bd_init`
     new_cutoff : str
         the new `cutoff` attribute of the subclass
@@ -227,7 +225,7 @@ DOCS = {
     -------
     ```python
         import numpy as np
-        from GEFF.bgtypes import BGSystem, BGVar, t, N, kh
+        from geff.bgtypes import BGSystem, BGVar, t, N, kh, a
 
         # Define a new mode equation:
         def custom_mode_eq(t, y, k, a, X, Y):
@@ -252,27 +250,27 @@ DOCS = {
             y = alpha(t)*np.array([...]) # alpha is a function of t.
             return y
 
-        # the kwargs of custom_mode_eq are 'a', 'X' and 'Y':
-        custom_ode_keys = ['a', 'X', 'Y']
-
-        # the kwarg of custom_bd_init is 'alpha':
-        custom_init_keys = ['alpha']
-
-        # Define the custom mode solver using the class factory:
-        CustomModeSolver = ModeSolver(custom_mode_eq, custom_ode_keys,
-                                         custom_bd_init, custom_init_keys)
-
         # To initialise CustomModeSolver we need a BGSystem. 
         # Its Variables need to have the right names however:
-        # The default: 't', 'N', 'kh' were loaded from GEFF.bgtypes
+        # The default: 't', 'N', 'a', 'kh' were loaded from geff.bgtypes
 
-        # Because of custom_mode_eq we also need 'a', 'X', 'Y'
-        a = BGVar("a", 0, 0)
+        # Because of custom_mode_eq we also need  'X', 'Y'
         X = BGVar("X", 2, 0)
         Y = BGVar("Y", 2, 0)
 
         # For custom_bd_init we need 'alpha'
         alpha = BGVar("alpha", 0, 0)
+
+        # tell the new solver what to pass as 'a', 'X' and 'Y':
+        custom_ode_kwargs = {'a':a, 'X':X, 'Y':Y}
+
+        # tell the new solver what to pass as 'alpha':
+        custom_init_kwargs = {'alpha':alpha}
+
+
+        # Define the custom mode solver using the class factory:
+        CustomModeSolver = ModeSolver(custom_mode_eq, custom_ode_keys,
+                                         custom_bd_init, custom_init_keys)
 
         # When in doubt, consult necessary_keys:
         print(CustomModeSolver.necessary_keys)

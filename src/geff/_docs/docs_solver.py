@@ -15,12 +15,13 @@ DOCS = {
     "module":"""
     This module defines the internal ODE solver used by the GEF.
 
-    The `BaseGEFSolver` is the the primary class supplied by this module. It defines an algorithm by which the equations of motion for a GEF model are solved.
-    This makes use of the `GEFF.bgtypes.BGSystem` module to simplify conversions between numerical and physical units.
+    <p>The `BaseGEFSolver` is the the primary class supplied by this module. It defines an algorithm by which the equations of motion for a GEF model are solved.
+    This makes use of the `geff.bgtypes.BGSystem` module to simplify conversions between numerical and physical units.<p>
 
-    While the `BaseGEFSolver`is solving the ODE's it can track one or multiple `Event` objects. These events correspond to certain conditions, for example, the end of inflation.
+    <p>While the `BaseGEFSolver`is solving the ODE's it can track one or multiple `Event` objects.
+    These events correspond to certain conditions, for example, the end of inflation.
     Occurrences of these events can be designed to influence the solver. For example, an 'end of inflation' `Event` may check if
-     the solver has reached the end of inflation, and terminate it if it has.
+    the solver has reached the end of inflation, and terminate it if it has.<p>
 
     The `BaseGEFSolver` class can be used to configure customized solvers using the class factory `GEFSolver` to adapt it to a specific GEF model.
     """,
@@ -31,8 +32,7 @@ DOCS = {
     The main purpose of the class is to provide the `compute_GEF_solution` method to `run`. 
     Internally, the method uses `solve_eom`, which wraps `scipy.integrate.solve_ivp`.
     
-    All specifications on the GEF model are encoded in the attributes `known_variables` and `known_events`, as well as
-    the methods `vals_to_yini`, `update_vals` and `timestep`. 
+    All specifications on the GEF model are encoded in the attributes `known_variables` and `known_events`, as well as the methods `vals_to_yini`, `update_vals` and `timestep`. 
     For illustration, purposes, these methods are configured such that the GEFSolver solves the
     EoMs for de Sitter expansion:
     $$\frac{{\rm d} \log a}{{\rm d} t} = H_0$$
@@ -68,7 +68,7 @@ DOCS = {
 
     In addition, a new list of `Event` objects can be passed to the subclass using `new_events`
 
-    For an example on how to define a new solver, see `GEFF.models.classic`.
+    For an example on how to define a new solver, see `geff.models.pai`.
 
     Parameters
     ----------

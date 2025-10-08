@@ -1,4 +1,4 @@
-from GEFF.bgtypes import BGConst, BGSystem
+from geff.bgtypes import BGConst, BGSystem
 import pytest
 
 class TestBGConst():
