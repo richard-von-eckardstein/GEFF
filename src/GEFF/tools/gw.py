@@ -14,9 +14,9 @@ def omega_gw(k:np.ndarray, PT:np.ndarray, Nend:float, Hend:float, Trh:None|float
 
     Parameters
     ----------
-    k : NDarray
+    k : NDArray
         momenta in Planck units
-    PT : NDarray
+    PT : NDArray
         the tensor power spectrum at the end of inflation as a function of momentum
     Nend : float
         the number of e-folds at the end of inflation
@@ -27,9 +27,9 @@ def omega_gw(k:np.ndarray, PT:np.ndarray, Nend:float, Hend:float, Trh:None|float
 
     Returns
     -------
-    f : NDarray
+    f : NDArray
         frequencies today (in Hz)
-    h2OmegaGw : NDarray
+    h2OmegaGw : NDArray
         the gravitational-wave spectrum as a function of frequency today
     """
 
@@ -55,7 +55,7 @@ def k_to_f(k:np.ndarray, Nend:float, Hend:float, Trh:None|float=None) -> ArrayLi
 
     Parameters
     ----------
-    k : NDarray
+    k : NDArray
         momenta for pt, in Planck units
     Nend : float
         the number of e-folds at the end of inflation
@@ -66,7 +66,7 @@ def k_to_f(k:np.ndarray, Nend:float, Hend:float, Trh:None|float=None) -> ArrayLi
 
     Return
     ------
-    f : NDarray
+    f : NDArray
         frequencies today (in Hz)
     """
 
