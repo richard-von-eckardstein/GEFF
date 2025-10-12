@@ -1,4 +1,4 @@
-from geff.bgtypes import BGVar, BGSystem
+from geff.bgtypes import define_var, BGSystem
 import pytest
 import numpy as np
 
@@ -20,7 +20,7 @@ class TestBGVar():
         return np.array([3., 89.2, 15.123])
 
     def sys(self):
-        x = BGVar("x", 2, 1)
+        x = define_var("x", 2, 1)
         U = BGSystem({x}, 0.55, 0.32)
         return U
     
@@ -30,7 +30,7 @@ class TestBGVar():
         return U.x
     
     def test_Class(self):
-        x = BGVar("x", 2, 1)
+        x = define_var("x", 2, 1)
         assert x.name == "x"
         assert x.dtype == np.float64
         assert x.u_omega == 2

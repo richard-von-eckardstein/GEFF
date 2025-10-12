@@ -1,21 +1,21 @@
-from geff.bgtypes import BGVar, BGConst, BGFunc, BGSystem, Val, Func
+from geff.bgtypes import define_var, define_const, define_func, BGSystem, Val, Func
 import pytest
 
 class TestBGSystem():
     @pytest.fixture
     def sample_bgval(self):
-        x = BGVar("x", 2, 1)
+        x = define_var("x", 2, 1)
         return x
     
     @pytest.fixture
     def sample_bgfunc(self, sample_bgval):
-        f = BGFunc("f", [sample_bgval], 2, 1)
+        f = define_func("f", [sample_bgval], 2, 1)
         return f
     
     def init(self):
-        x = BGVar("x", 2, 1)
-        c = BGConst("c", 0, 2)
-        f = BGFunc("f", [x], 2, 1)
+        x = define_var("x", 2, 1)
+        c = define_const("c", 0, 2)
+        f = define_func("f", [x], 2, 1)
         sys = BGSystem({x, c, f}, 0.55, 0.32)
         return sys
     

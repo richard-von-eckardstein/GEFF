@@ -1,4 +1,4 @@
-from geff.bgtypes import BGConst, BGSystem
+from geff.bgtypes import define_const, BGSystem
 import pytest
 
 class TestBGConst():
@@ -15,7 +15,7 @@ class TestBGConst():
         return 10.
 
     def sys(self):
-        x = BGConst("x", 2, 1)
+        x = define_const("x", 2, 1)
         U = BGSystem({x}, 0.55, 0.32)
         return U
     
@@ -25,7 +25,7 @@ class TestBGConst():
         return U.x
     
     def test_Class(self):
-        x = BGConst("x", 2, 1)
+        x = define_const("x", 2, 1)
         assert x.name == "x"
         assert x.u_omega == 2
         assert x.u_mu == 1

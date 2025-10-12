@@ -1,4 +1,4 @@
-from geff.bgtypes import BGVar, BGFunc, BGSystem
+from geff.bgtypes import define_var, define_func, BGSystem
 import pytest
 import numpy as np
 
@@ -20,10 +20,10 @@ class TestBGFunc():
         return 90.12
 
     def sys(self):
-        x = BGVar("x", 1, 1)
-        y = BGVar("y", 1, 0)
-        f1 = BGFunc("f1", [x], 3, 1)
-        f2 = BGFunc("f2", [x, y], 1, 3)
+        x = define_var("x", 1, 1)
+        y = define_var("y", 1, 0)
+        f1 = define_func("f1", [x], 3, 1)
+        f2 = define_func("f2", [x, y], 1, 3)
         U = BGSystem({x, y, f1, f2}, 0.55, 0.32 )
         return U
     
@@ -41,8 +41,8 @@ class TestBGFunc():
     
     def test_class(self):
         #single-variable function
-        x = BGVar("x", 2, 0)
-        f = BGFunc("f", [x], 2, 2)
+        x = define_var("x", 2, 0)
+        f = define_func("f", [x], 2, 2)
         assert f.name == "f"
         assert f.dtype == np.float64
         assert f.u_omega == 2
@@ -51,9 +51,9 @@ class TestBGFunc():
             assert arg in [x]
 
         #multivariate function
-        x = BGVar("x", 1, 1)
-        y = BGVar("y", 1, 0)
-        f = BGFunc("f", [x, y], 3, 1)
+        x = define_var("x", 1, 1)
+        y = define_var("y", 1, 0)
+        f = define_func("f", [x, y], 3, 1)
         assert f.name == "f"
         assert f.dtype == np.float64
         assert f.u_omega == 3
