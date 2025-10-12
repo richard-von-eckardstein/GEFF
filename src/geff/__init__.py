@@ -20,14 +20,29 @@ If you are interested in axion inflation, the package comes with everything you 
 But we don't want to hold you back! The package provides a flexible framework to create your **own GEF flavor**, with all tools at your disposable. 
 It is indeed a true GEF *factory* !
 
+You can install this package using pip
+
+```bash
+pip install geff
+```
+
+or using the `geff.yml` file found at the (GitHub repository) for this package,
+
+```bash
+conda env create -f geff.yml
+``` 
+
+If you use this package in your work, please cite (...).
+
 # The refreshing taste of GEF
 
 The GEF is a numerical technique to determine the dynamics and backreaction of gauge-fields during inflation
 by directly evolving the time-dependent quantum expectation values of the gauge field, 
 e.g., $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, $\langle {\bf E} \cdot {\bf B} \rangle$ etc.
 If this is the first time you encounter the GEF, here are some useful articles on the topic:
-* ...
-* ...
+* [2109.01651](https://arxiv.org/abs/2109.01651)
+* [2310.09186](https://arxiv.org/abs/2310.09186)
+* [2408.16538](https://arxiv.org/abs/2408.16538)
 
 The strategy behind the GEF is to take Maxwell's equations in an expanding spacetime,
 
@@ -50,14 +65,14 @@ $$\frac{\rm d}{{\rm d} t} \mathcal{F}_{E}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm 
 $$\frac{\rm d}{{\rm d} t} \mathcal{F}_{G}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_{G}^{(n)} - \frac{k_{\rm UV}}{a}\left(\mathcal{F}_{E}^{(n+1)} - \mathcal{F}_{B}^{(n+1)}\right) - \frac{a^4}{k_{\rm UV}^{n+4}} \langle {\bf J} \cdot \operatorname{rot}^n {\bf B} \rangle= S_{\mathcal{G}}^{(n)}\, , $$
 $$\frac{\rm d}{{\rm d} t} \mathcal{F}_{B}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_{B}^{(n)} - 2\frac{k_{\rm UV}}{a}\mathcal{F}_{G}^{(n+1)}  =  S_{\mathcal{B}}^{(n)}\, .$$
 
-Although these are infinitely many ODE's, one can typically determine an analytical closing condition, such that they may be truncated at some order $n_{\rm tr}$.
+Although these are infinitely many coupled ODE's, one can typically determine an analytical closing condition, such that they may be truncated at some order $n_{\rm tr}$.
 
-These ODEs for $\mathcal{F}_{X}^{(n)}$ can now be simply solved alongside those of the inflationary background.
+The ODEs for the $\mathcal{F}_{X}^{(n)}$ can now be simply solved alongside those of the inflationary background.
 This way, one can handle gauge-field backreaction onto the background dynamics of inflation.
 
 The GEFF package is designed to help the user in the process of solving these equations in the following way
  - pre-defined and ready-to-use [GEF flavors](#basics)
- - tailored [algorithm](#algorithm) to solve the background dynamics
+ - tailored [algorithm](#algorithm) to solve the inflationary background dynamics
  - options to [implement your own GEF flavor](#model_creation)
 
 <a name="basics">
@@ -68,16 +83,17 @@ As the first part of our tour, we explore the basic usage of the GEFF code.
 
 ## Choosing your flavor
 
-We start by sampling a first flavor of our choice; the model "classic", which corresponds to PAI:
+We start by sampling a first flavor of our choice; the model "pai":
 
 ```python
-from GEFF import GEF
+from geff import compile_model
 
-# Create the GEF model of your choice
-ClassicGEF = GEFModel("classic")
+# Create the GEF model of our choice
+paiGEF = compile_model("pai")
 ``` 
-To use `ClassicGEF`, we need to initialize it by passing initial conditions for our background evolution. 
-The model expects information on the inflaton--vector coupling $\beta / M_{\rm P}$, 
+The object `paiGEF` is the compiled version of the model found under `.models.pai`. It defines an ODE solver 
+which needs to be initialized with information on the setup we want to study:
+The "pai" model expects information on the inflaton--vector coupling $\beta / M_{\rm P}$, 
 initial conditions for the inflaton field, $\varphi(0)$, $\dot\varphi(0)$, and the shape of the inflaton potential, $V(\varphi)$.
 
 In this example, we configure the model to start on the slow-roll attractor of a chaotic inflation potential:
@@ -86,7 +102,7 @@ $$ \varphi(0) = 15.55 M_{\rm P}, \qquad \dot{\varphi}(0) = -\sqrt{\frac{2}{3}} m
 
 where we set $m = 6.16 \times 10^{-6} M_{\rm P}$. We set the coupling to $\beta = 15$.
 
-The necessary information is passed to `ClassicGEF` as keyword arguments:
+The necessary information is passed to `paiGEF` as keyword arguments:
 ```python
 import numpy as np
 
@@ -99,9 +115,9 @@ dphi = -np.sqrt(2/3)*m
 def V(x): return 0.5*m**2*x**2
 def dV(x): return m**2*x
 
-G = ClassicGEF(beta=beta, phi=phi, dphi=dphi, V=V, dV=dV)
+mod = paiGEF(beta=beta, phi=phi, dphi=dphi, V=V, dV=dV)
 ```
-If you want to know what input is expected by the GEF model, use the `print_kwargs` method of `ClassicGEF`.
+If you want to know what input is expected by the GEF model, use the `print_input` method of `paiGEF`.
 
 > **A note on units**:
 > The pre-defined GEF flavors in the GEFF package work in Planck units $M_{\rm P}=1$. 
@@ -116,33 +132,40 @@ If you want to know what input is expected by the GEF model, use the `print_kwar
 
 Now, that our model is initialized, we can start determine the inflationary background evolution starting from the initial conditions:
 ```python
-sol, spec = G.run()
+sol, spec, info = mod.run()
 ```
-The output `sol` contains the solution obtained by the GEF model and some useful statistics, but is only a byproduct. All the
-information about our dynamical system have already been moved to the object `G`. 
+The `run` method returned three objects. The evolution of the background dynamics is contained in `sol`,
+the evolution on the gauge-field mode functions, $A_\lambda(t, k)$, are computed and returned as the
+object `spec`, while `info` is just a byproduct that contains full information on the ODE solution in `sol`.
+For basic applications, all information we actually want is in `sol` and `spec`.
 
-For example, you can make a basic plot showing the evolution of the energy densities during inflation as a function of $e$-folds
+Let us focus on `sol`. It is a `BGSystem` object which we can use to access the time evolution of several important inflationary quantities defined by our "pai" model.
+For example, you can use it to make a basic plot showing the evolution of the energy densities during inflation as a function of $e$-folds
+
 ```python
 import matplotlib.pyplot as plt
+
 # Plot the evolution of the inflaton amplitude as a function of e-folds:
-plt.plot(G.N, G.phi**2/(6*G.H**2))
-plt.plot(G.N, (G.E + G.B)/(6*G.H**2))
-plt.plot(G.N, G.V(G.phi)/(3*G.H**2))
+plt.plot(sol.N, sol.dphi**2/(6*sol.H**2)) # inflaton kinetic energy density
+plt.plot(sol.N, (sol.E + sol.B)/(6*sol.H**2)) # electromagnetic energy density
+plt.plot(sol.N, sol.V(sol.phi)/(3*sol.H**2)) # inflaton potential energy density
 
 plt.yscale("log")
 plt.ylim()
 
 plt.show()
 ``` 
-How did we know the GEF model has the attributes `N`,`phi`, etc.? You can find out using `G.value_names()`.
-To print a full description of all available variables, use `G.print_known_quantities()`. 
-If you need a brief description of the variable `X`, use `G.X.get_description()`.
+
+How did we know that `sol` owns the attributes `N`,`phi`, etc.? You can find out using `sol.value_names()`.
+To print a full description of all available variables defined for a given GEF model like `paiGEF`, use its `print_known_quantities` method. 
+The information can also be found in the `.models` module. 
+If you need a brief description of any variable `X`, use `X.get_description()`.
 
 > **A note on variables:**
 > The variables encoded in a GEF model use a custom class called `Variable`. They work like a `numpy` array. 
 > Additionally, constants are realized using the class `Constant`, and work like a `float`.
 > Dimensionful functions like the inflaton potential use the `Func` class, and can be used like a regular function.
-> These classes are defined to take care of unit conversions. If you are curious, have a look at `.bgtypes`.
+> These classes are defined to take care of unit conversions and are collectively attatched to a `BGSystem`. If you are curious, have a look at `.bgtypes`.
 
 We did not only get back a `sol` object, but also `spec`. This object contains the gauge-field mode functions $A_\lambda(t,k)$.
 The code computes these mode functions after having solved the dynamics of the background system ($H(t)$, $\varphi(t)$ etc.),
@@ -150,7 +173,7 @@ and uses them for estimating the convergence of the background solution.
 We briefly discuss this algorithm in [the next section](#algorithm).
 
 The object `spec` is an instance of the `GaugeSpec` class, which defines useful methods for handling time-dependent gauge-field spectra.
-For details, see `mbm.GaugeSpec`.
+For details, see `.mbm.GaugeSpec`.
 
 > **A note on gauge-field spectra**
 > If you are only interested in the background evolution and not in the gauge-field spectrum, set `nmodes=None` in `run()`.
@@ -160,41 +183,61 @@ Next, let us store our GEF and mode solutions in a file:
 ```python
 # some dummy paths for illustration
 gefpath = "some_gef_file.dat"
-mbmpath = "some_mbm_file.dat" 
-G.save_GEFdata(gefpath)
+mbmpath = "some_mbm_file.dat"
+
+sol.save_variables(gefpath)
 spec.save_spec(mbmpath)
 ```
 
+The data can be restored from these files using
+```python
+from geff import GaugeSpec
+
+sol = mod.load_GEFdata(gefpath)
+spec = GaugeSpec.read_spec(mbmpath)
+```
+
 > **A note on storage:**
-> All quantities are stored as dimensionless variables, $\bar{X}$, by the GEF code.
-> We therefore recommend you use the GEF class to also load the data, `G.load_GEFdata()`.
-> This ensures you are using the same reference scale to restore dimensions.
+> The `save_variables` method does not store information on constants or functions, so, to retrieve
+> the full information on our GEF run, we need to use an appropriately configured instance of
+> `paiGEF`. In the example above, this is achieved by using `mod` from before.
 
 ## A rich palette
 
 Obtaining the inflationary dynamics is nice, but it is not all the GEFF can do. For example, let's use our results to compute the corresponding gravitational-wave spectrum:
 ```python
-from GEFF.tools import PT, omega_gw
+from geff.tools import PowSpecT, omega_gw
 
-# Use the GEF's knowledge of the background expansion
-# to compute the vacuum and induced power spectrum for 100 momentum modes k:
-ks, pt_dic =  PT(G).compute_pt(100, mbmpath)
+# Use sol to initialize the PowSpecT class
+pt_fai = PowSpecT(sol)
 
-# from the power spectrum, we can then compute the gravitational-wave spectrum:
-f, h2omega_gw = omega_gw(ks, pt_dic["tot"], Nend=G.N[-1], Hend=G.H[-1])
+# Compute the vacuum and induced power spectrum for 100 momentum modes k using spec:
+ks, pt_spec = pt_fai.compute_pt(100, spec)
+
+# from the power spectrum, we can then deduce the gravitational-wave spectrum:
+f, gwspec = omega_gw(ks, pt_spec["tot"], Nend=sol.N[-1], Hend=sol.H[-1])
 ``` 
-We can just use  `G` to extract the relevant information on the background solution.
+We can just use  `sol` to extract the relevant information on the background solution.
 It's that easy!
 
-To finish this first part of our tour, let us sample a second GEF flavor, "SE_kh":
+To finish this first part of our tour, let us sample a second GEF flavor, "fai_kh":
 ```python
-FermionGEF = GEFModel("SE_kh", settings={"picture":"electric"})
+# initialize the model
+faiGEF = GEFModel("fai_kh", {"picture":"electric"})
+
+# chose initial conditions
+model = faiGEF(beta=...)
+
+# solve the ODEs as before
+sol, spec, info = model.run(...)
+
+...
 ...
 ```
 This model comes in three varieties ("pictures") corresponding to the effective treatment of fermions in the model.
 We specified the particular variety py passing a `settings` dictionary upon creating the model.
 
-For more details on the available models, see `GEFF.models`.
+For more details on the available models, see `geff.models`.
 
 <a name="algorithm">
 # On the factory floor
@@ -234,8 +277,8 @@ graph TB
     end
 ```
 
-As we have seen in the [first section](#basics), the `run` method is executed as part of a `GEFModel`.
-Each `GEFModel` consists of two components, the `GEFSolver` and the `ModeSolver`. The former determines the time-dependent inflationary background, 
+As we have seen in the [first section](#basics), the `run` method is executed as part of a GEF Model.
+Each GEF Model consists of two components, the `GEFSolver` and the `ModeSolver`. The former determines the time-dependent inflationary background, 
 the latter computes the mode functions $A_\lambda(t,k)$.
 The two results can then be compared to eachother, to assess the convergence of the background dynamics.
 If the two disagree, the GEF will attempt to self-correct using $A_\lambda(t,k)$.
@@ -243,7 +286,7 @@ If the two disagree, the GEF will attempt to self-correct using $A_\lambda(t,k)$
 Note that, if you use `run(nmodes=None)`, the dotted lines in the diagram can be ignored; the background solution is immediately returned without
 computing the gauge-field spectrum.
 
-For more details on the `GEFSolver`, see `GEFF.solver`, while for the `ModeSolver` see `GEFF.mbm`.
+For more details on the `GEFSolver`, see `geff.solver`, while for the `ModeSolver` see `geff.mbm`.
 
 <a name="model_creation">
 # Create your own flavor
