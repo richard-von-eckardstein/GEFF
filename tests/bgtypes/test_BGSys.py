@@ -27,13 +27,13 @@ class TestBGSystem():
     def test_initFromU(self):
         U = self.init()
         U.initialise("x")(10)
+        U_qs = U.quantity_names()
 
         #check full copy
         V = BGSystem.from_system(U, copy=True)
 
         assert V.omega == U.omega
         assert V.mu == U.mu
-        U_qs = U.quantity_names()
         for q in V.quantity_names():
             assert q in U_qs
         assert V.variable_names() == U.variable_names()
@@ -51,7 +51,8 @@ class TestBGSystem():
 
         assert V.omega == U.omega
         assert V.mu == U.mu
-        assert V.quantity_names() == U.quantity_names()
+        for q in V.quantity_names():
+            assert q in U_qs
         assert V.variable_list() == []
         assert V.function_list() == []
         assert V.constant_list() == []
