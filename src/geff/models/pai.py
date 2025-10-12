@@ -32,7 +32,7 @@ The model expects the following input:
 
 The model tracks the following events:
 * end of inflation - terminate solver when $\ddot{a} < 0$
-* negative energy - return an error when $\langle {\bf E}^2 \rangle$ or  $\langle {\bf B}^2 \rangle$ are negative 
+* negative norms - return an error when $\langle {\bf E}^2 \rangle$ or  $\langle {\bf B}^2 \rangle$ are negative 
 """
 import numpy as np
 
@@ -180,14 +180,7 @@ def condition_NegativeNorms(t, y, sys):
 NegativeNorms : ErrorEvent = ErrorEvent("Negative norms", condition_NegativeNorms, -1, "Negative value for E^2 or B^2.")
 """Defines the 'Negative norms' event."""
 
-#Event 2: ensure that E^2 and B^2 are positive
-def condition_HubbleSquared(t, y, sys):
-    return friedmann(0.5*y[2]**2, sys.V(y[1]),  0.5*(y[4]+y[5])*(sys.omega/sys.mu)**2*np.exp(4*(y[3]-y[0])))
-    
-NegativeEnergy : ErrorEvent = ErrorEvent("Negative energy", condition_NegativeNorms, -1, "Negative value for H^2.")
-"""Defines the 'Negative energy' event."""
-
-events = [EndOfInflation, NegativeNorms, NegativeEnergy]
+events = [EndOfInflation, NegativeNorms]
 
 #gather all information in the solver
 solver = GEFSolver(initial_conditions, update_values, compute_timestep, quantities, events)

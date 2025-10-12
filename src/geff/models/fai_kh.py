@@ -36,7 +36,7 @@ The model expects the following input:
 
 The model tracks the following events:
 * end of inflation - terminate solver when $\ddot{a} < 0$
-* negative energy - return an error when $\langle {\bf E}^2 \rangle$ or  $\langle {\bf B}^2 \rangle$ are negative 
+* negative norms - return an error when $\langle {\bf E}^2 \rangle$ or  $\langle {\bf B}^2 \rangle$ are negative 
 """
 import numpy as np
 
@@ -46,7 +46,7 @@ from geff.mbm import ModeSolver
 
 from geff.utility.eom import (klein_gordon, friedmann, dlnkh, drhoChi, gauge_field_ode_schwinger,
                                         conductivities_collinear, conductivities_mixed, check_accelerated_expansion)
-from geff.utility.boundary import boundary_fai
+from geff.utility.boundary import boundary_pai
 from geff.utility.general import heaviside
 from geff.utility.mode  import bd_classic, mode_equation_SE_scale
 from geff._docs import generate_docs, docs_models
@@ -54,7 +54,7 @@ from geff._docs import generate_docs, docs_models
 name = "FAI kh"
 """The models name."""
 
-settings = {"pic":"mixed"}
+settings = {"picture":"mixed"}
 """The model settings.
 
 Possible settings are "mixed", "electric", "magnetic".
@@ -65,16 +65,16 @@ Determines if conductivities are computed assuming collinear E&M fields
 
 # parse settings
 def define_conductivity():
-    if settings["pic"]=="mixed":
+    if settings["picture"]=="mixed":
         conductivity = conductivities_mixed
-    elif settings["pic"]=="electric":
+    elif settings["picture"]=="electric":
         def conductivity(a, H, E, B, G, omega):
             return conductivities_collinear(a, H, E, B, G, -1, omega)
-    elif settings["pic"]=="magnetic":
+    elif settings["picture"]=="magnetic":
         def conductivity(a, H, E, B, G, omega):
             return conductivities_collinear(a, H, E, B, G, 1, omega)
     else:
-        raise KeyError(f"{settings['pic']} is an unknown choice for the setting'pic'")
+        raise KeyError(f"{settings['picture']} is an unknown choice for the setting'picture'")
     return np.vectorize(conductivity)
 
 def interpret_settings():
@@ -195,7 +195,7 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     #compute boundary terms and then the gauge-field bilinear ODEs
     Fcol = y[5:].shape[0]//3
     F = y[5:].reshape(Fcol,3)
-    W = boundary_fai(float(sys.xi.value))
+    W = boundary_pai(float(sys.xi.value))
     dFdt = gauge_field_ode_schwinger( F, sys.a, sys.kh, 2*sys.H*sys.xieff,
                     sys.sigmaE, 1.0, W, dlnkhdt )
     #reshape to fit dydt
@@ -234,16 +234,14 @@ def consequence_EndOfInflation(sys, occurance):
 EndOfInflation = TerminalEvent("End of inflation", condition_EndOfInflation, -1, consequence_EndOfInflation)
 """Defines the 'End of inflation' event."""
 
-#Event 2: ensure energy densities that are positive definite do not become negative
-def condition_NegativeEnergies(t, y, sys):
-    
+#Event 2: ensure that E^2 and B^2 are positive
+def condition_NegativeNorms(t, y, sys):
     return min(y[5], y[6])
     
-NegativeEnergies = ErrorEvent("Negative energies", condition_NegativeEnergies, -1)#
-"""Defines the 'Negative energy' event."""
+NegativeNorms : ErrorEvent = ErrorEvent("Negative norms", condition_NegativeNorms, -1, "Negative value for E^2 or B^2.")
+"""Defines the 'Negative norms' event."""
 
-
-events = [EndOfInflation, NegativeEnergies]
+events = [EndOfInflation, NegativeNorms]
 
 
 #gather all information in the solver

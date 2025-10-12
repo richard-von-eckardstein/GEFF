@@ -32,12 +32,12 @@ def get_data(model, setting={}):
         GEFPath = os.path.join(basepath, f"data/GEF+{model}_b25+m6e-6.dat")
 
     elif "fai" in model:
-        if setting["pic"]=="mixed":
+        if setting["picture"]=="mixed":
             GEFPath = os.path.join(basepath, f"data/GEF+{model}+mix_b25+m6e-6.dat")
-        elif setting["pic"]=="electric":
+        elif setting["picture"]=="electric":
             GEFPath = os.path.join(basepath, f"data/GEF+{model}+elc_b25+m6e-6.dat")
 
-        elif setting["pic"]=="magnetic":
+        elif setting["picture"]=="magnetic":
             GEFPath = os.path.join(basepath, f"data/GEF+{model}+mag_b25+m6e-6.dat")
 
     return sys.load_GEFdata(GEFPath)

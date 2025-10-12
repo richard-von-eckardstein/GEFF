@@ -401,7 +401,7 @@ class BaseGEFSolver:
     
     
     def _assess_event_occurrences(self, t_events, y_events, vals):
-        commands = {"primary":[], "secondary":[]}
+        
         event_dict = {}
 
         active_events = [event for event in self.known_events.values() if event.active]
@@ -421,20 +421,27 @@ class BaseGEFSolver:
                 else:
                     tstr = f"{t_events[i][0]:.1f}"
                 print(f"{event.name} at t={tstr}")
-                occurrences[event.name] = True
+            occurrences[event.name] = occurrence
+
+        error_events = [event for event in active_events if event.type=="error"]
         
-        # Treat occurrences and npn-occurrences of ErrorEvents and TerminalEvents
-        for i, event in enumerate(active_events):
-            if event.type == "error" and event.name in occurrences.keys():
-                print(event.message)
+        
+        # Treat occurrences of ErrorEvents 
+        for event in error_events:
+            if occurrences[event.name]:
+                print(f"Error: {event.message}")
                 return event_dict, "error", event.name
-            
-            elif event.type=="terminal":
-                #Asses the events consequences based on its occurrence or non-occurrence
-                primary, secondary = event.event_consequence(vals, occurrence)
                 
-                for key, item in {"primary":(primary, event.name), "secondary":secondary}.items(): 
-                    commands[key].append(item)
+        # if not ErrorEvents occurred, treat TerminalEvents
+        terminal_events = [event for event in active_events if event.type=="terminal"]
+        commands = {"primary":[], "secondary":[]}
+        
+        for event in terminal_events:
+            #Asses the events consequences based on its occurrence or non-occurrence
+            primary, secondary = event.event_consequence(vals, occurrences[event.name])
+                
+            for key, item in {"primary":(primary, event.name), "secondary":secondary}.items(): 
+                commands[key].append(item)
 
         # If no error has occurred, handle secondary commands
         for command in commands["secondary"]:

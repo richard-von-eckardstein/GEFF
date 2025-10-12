@@ -68,8 +68,8 @@ class BaseGEF:
         # test if ODE solver works
         try:
             self.GEFSolver(initial_data)
-        except:
-            raise ModelError("Initializing GEF solver returned an error.")
+        except Exception:
+            raise ModelError("Initializing the GEFSolver returned an error.")
 
 
     @classmethod
@@ -219,9 +219,9 @@ class BaseGEF:
                 print(rf" - {attr} : {getattr(sol, attr)}")
         events = sol.events
         if np.array([(len(event)==0) for event in events.values()]).all():
-            print("No events occurred during the run")
+            print("No events occurred during the final run.")
         else:
-            print("The following events occurred during the run:")
+            print("The following events occurred during the final run:")
             for event, time in events.items():
                 if len(time) > 0:
                     if len(time) > 1:

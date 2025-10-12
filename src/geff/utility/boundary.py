@@ -23,7 +23,7 @@ def boundary_pai(xi) -> np.ndarray:
     Compute boundary terms in the absence of Schwinger pair production.
     """
     if abs(xi) >= 3:
-        return boundary_approx_pai()
+        return boundary_approx_pai(xi)
     else:
         return boundary_exact(xi, 0)
     
