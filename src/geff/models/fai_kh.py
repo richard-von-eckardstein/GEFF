@@ -40,13 +40,13 @@ The model tracks the following events:
 """
 import numpy as np
 
-from geff.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, GF, BGVar
+from geff.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, GF, define_var
 from geff.solver import TerminalEvent, ErrorEvent, GEFSolver
 from geff.mbm import ModeSolver
 
 from geff.utility.eom import (klein_gordon, friedmann, dlnkh, drhoChi, gauge_field_ode_schwinger,
                                         conductivities_collinear, conductivities_mixed, check_accelerated_expansion)
-from geff.utility.boundary import boundary_approx
+from geff.utility.boundary import boundary_fai
 from geff.utility.general import heaviside
 from geff.utility.mode  import bd_classic, mode_equation_SE_scale
 from geff._docs import generate_docs, docs_models
@@ -83,11 +83,11 @@ def interpret_settings():
     return
 
 #Define additional variables
-sigmaE=BGVar("sigmaE", 1, 0, "electric damping")
-sigmaB=BGVar("sigmaB", 1, 0, "magnetic damping")
-xieff=BGVar("xieff", 0, 0, "effective instability parameter")
-rhoChi=BGVar("rhoChi", 4, 0, "fermion energy density")
-kS=BGVar("kS", 1, 0, "fermion momentum scale")#Fermion energy density 
+sigmaE=define_var("sigmaE", 1, 0, "electric damping")
+sigmaB=define_var("sigmaB", 1, 0, "magnetic damping")
+xieff=define_var("xieff", 0, 0, "effective instability parameter")
+rhoChi=define_var("rhoChi", 4, 0, "fermion energy density")
+kS=define_var("kS", 1, 0, "fermion momentum scale")#Fermion energy density 
 
 #Assign quantities to a dictionary, classifying them by their role:
 quantities={
@@ -195,7 +195,7 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     #compute boundary terms and then the gauge-field bilinear ODEs
     Fcol = y[5:].shape[0]//3
     F = y[5:].reshape(Fcol,3)
-    W = boundary_approx(float(sys.xi.value))
+    W = boundary_fai(float(sys.xi.value))
     dFdt = gauge_field_ode_schwinger( F, sys.a, sys.kh, 2*sys.H*sys.xieff,
                     sys.sigmaE, 1.0, W, dlnkhdt )
     #reshape to fit dydt

@@ -41,13 +41,13 @@ The model tracks the following events:
 """
 import numpy as np
 
-from geff.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, GF, BGVar
+from geff.bgtypes import t, N, a, H, phi, dphi, ddphi, V, dV, E, B, G, xi, kh, beta, GF, define_var
 from geff.solver import TerminalEvent, ErrorEvent, GEFSolver
 from geff.mbm import ModeSolver
 
 from geff.utility.eom import (klein_gordon, friedmann, dlnkh_schwinger, ddelta, drhoChi, gauge_field_ode_schwinger,
                                         conductivities_collinear, conductivities_mixed, check_accelerated_expansion)
-from geff.utility.boundary import boundary_approx_schwinger
+from geff.utility.boundary import boundary_approx_fai
 from geff.utility.general import heaviside
 from geff.utility.mode import mode_equation_SE_no_scale, damped_bd
 from geff._docs import generate_docs, docs_models
@@ -84,12 +84,12 @@ def interpret_settings():
     return
 
 #Define all additional variables
-sigmaE=BGVar("sigmaE", 1, 0, "electric damping")
-sigmaB=BGVar("sigmaB", 1, 0, "magnetic damping")
-delta=BGVar("delta", 0, 0, "cumulative electric damping") 
-xieff=BGVar("xieff", 0, 0, "effective instabilty parameter") 
-s=BGVar("s", 0, 0, "electric damping parameter")
-rhoChi=BGVar("rhoChi", 4, 0, "fermion energy density")
+sigmaE=define_var("sigmaE", 1, 0, "electric damping")
+sigmaB=define_var("sigmaB", 1, 0, "magnetic damping")
+delta=define_var("delta", 0, 0, "cumulative electric damping") 
+xieff=define_var("xieff", 0, 0, "effective instabilty parameter") 
+s=define_var("s", 0, 0, "electric damping parameter")
+rhoChi=define_var("rhoChi", 4, 0, "fermion energy density")
 
 #Assign quantities to a dictionary, classifying them by their role:
 quantities={
@@ -202,7 +202,7 @@ def compute_timestep(t, y, sys, atol=1e-20, rtol=1e-6):
     #compute boundary terms and then the gauge-field bilinear ODEs
     Fcol = y[6:].shape[0]//3
     F = y[6:].reshape(Fcol,3)
-    W = boundary_approx_schwinger(sys.xieff.value, sys.s.value)
+    W = boundary_approx_fai(sys.xieff.value, sys.s.value)
     dFdt = gauge_field_ode_schwinger( F, sys.a, sys.kh, 2*sys.H*sys.xieff,
                                             sys.sigmaE, sys.delta,
                                                 W, dlnkhdt )
