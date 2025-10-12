@@ -124,7 +124,7 @@ class PowSpecT:
         for i, k in enumerate(ks):
             tstart = tstarts[i]
 
-            if k > 5*(self._af(tgrid[indend])*self._Hf(tgrid[indend])):
+            if k > 10**(5/2)*self.maxk:
                 for key in PT.keys():
                     PT[key].append(0)
             else:

@@ -66,7 +66,7 @@ class BaseGEF:
         self.initial_data = initial_data
 
     @classmethod
-    def print_kwargs(cls):
+    def print_input(cls):
         """
         Print the input required to initialize the class.
         """
@@ -77,9 +77,9 @@ class BaseGEF:
         return
     
     @classmethod
-    def print_known_quantities(cls):
+    def pring_ingredients(cls):
         """
-        Print a list of known variables for this model
+        Print a list of known variables, functions and constants for this model
         """
         print("This GEF model knows the following variables:\n")
         for key, item in cls.GEFSolver.known_variables.items():
@@ -330,7 +330,7 @@ class BaseGEF:
 
         return newsys
 
-def make_model(modelname:str, settings:dict={}):
+def compile_model(modelname:str, settings:dict={}):
     """
     Define a custom subclass of BaseGEF adapted to a new GEF model.
 

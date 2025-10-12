@@ -1,4 +1,4 @@
-from geff import make_model, BaseGEF
+from geff import compile_model, BaseGEF
 import numpy as np
 
 import os
@@ -20,7 +20,7 @@ def get_model(model, setting={}) -> BaseGEF:
             indic.update({"delta":1})
         indic.update({"rhoChi":0.})
 
-    model = make_model(model, setting)(**indic)
+    model = compile_model(model, setting)(**indic)
 
     return model
 

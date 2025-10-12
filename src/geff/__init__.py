@@ -47,7 +47,7 @@ For completeness, we have also given the expression for $\mathcal{F}_{X}^{(n)}$ 
 The ODE for the $\mathcal{F}_{X}^{(n)}$'s are then given by
 
 $$\frac{\rm d}{{\rm d} t} \mathcal{F}_{E}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_{E}^{(n)}  + 2\frac{k_{\rm UV}}{a}\mathcal{F}_{G}^{(n+1)} + 2 \frac{a^4}{k_{\rm UV}^{n+4}} \langle {\bf J} \cdot \operatorname{rot}^n {\bf E} \rangle =  S_{\mathcal{E}}^{(n)}\, , $$
-$$\frac{\rm d}{{\rm d} t} \mathcal{F}_{G}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_{G}^{(n)} - \frac{k_{\rm UV}}{a}\left(\mathcal{F}_{E}^{(n+1)} - \mathcal{F}_{B}^{(n+1)}\right) + \frac{a^4}{k_{\rm UV}^{n+4}} \langle {\bf J} \cdot \operatorname{rot}^n {\bf B} \rangle= S_{\mathcal{G}}^{(n)}\, , $$
+$$\frac{\rm d}{{\rm d} t} \mathcal{F}_{G}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_{G}^{(n)} - \frac{k_{\rm UV}}{a}\left(\mathcal{F}_{E}^{(n+1)} - \mathcal{F}_{B}^{(n+1)}\right) - \frac{a^4}{k_{\rm UV}^{n+4}} \langle {\bf J} \cdot \operatorname{rot}^n {\bf B} \rangle= S_{\mathcal{G}}^{(n)}\, , $$
 $$\frac{\rm d}{{\rm d} t} \mathcal{F}_{B}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_{B}^{(n)} - 2\frac{k_{\rm UV}}{a}\mathcal{F}_{G}^{(n+1)}  =  S_{\mathcal{B}}^{(n)}\, .$$
 
 Although these are infinitely many ODE's, one can typically determine an analytical closing condition, such that they may be truncated at some order $n_{\rm tr}$.
@@ -255,11 +255,11 @@ To help you in this process, we show how to implement an example toy model.
 
 First, we need to work out the mathematical formulation of our model.
 
-Let us consider the case of Abelian gauge-field production in de Sitter space by a current of the type ${\bf J} = \xi(t) {\bf B}$.
+Let us consider the case of Abelian gauge-field production in de Sitter space by a current of the type ${\bf J} = 2 H(t) \xi(t) {\bf B}$.
 The ODE tower for the gauge-field bilinears are then given by:
-$$\frac{\rm d}{{\rm d} t} \mathcal{F}_{E}^{(n)} + \left[(4+n)\frac{{\rm d} \ln k_{\rm h}}{{\rm d} t} + 2 \frac{\dot{f}}{f}\right] \mathcal{F}_{E}^{(n)}  + 2\frac{k_{\rm h}}{a}\mathcal{F}_{G}^{(n+1)}  =  S_{\mathcal{E}}^{(n)}\, , $$
-$$\frac{\rm d}{{\rm d} t} \mathcal{F}_{G}^{(n)} + \left[(4+n)\frac{{\rm d} \ln k_{\rm h}}{{\rm d} t} +\frac{\dot{f}}{f}\right]  \mathcal{F}_{G}^{(n)} - \frac{k_{\rm h}}{a}\left(\mathcal{F}_{E}^{(n+1)} - \mathcal{F}_{B}^{(n+1)}\right)= S_{\mathcal{G}}^{(n)}\, , $$
-$$\frac{\rm d}{{\rm d} t} \mathcal{F}_{B}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm h}}{{\rm d} t} \mathcal{F}_{B}^{(n)} - 2\frac{k_{\rm h}}{a}\mathcal{F}_{G}^{(n+1)}  =  S_{\mathcal{B}}^{(n)}\, .$$
+$$\frac{\rm d}{{\rm d} t} \mathcal{F}_\mathcal{E}^{(n)} + (4+n)\frac{{\rm d} \ln k_\mathrm{h}}{{\rm d} t} \mathcal{F}_\mathcal{E}^{(n)}  + 2\frac{k_\mathrm{h}}{a}\mathcal{F}_\mathcal{G}^{(n+1)} - 4 H \xi \mathcal{F}_\mathcal{G}^{(n)}=  S_{\mathcal{E}}^{(n)}\, , $$
+$$\frac{{\rm d}}{{\rm d} t} \mathcal{F}_\mathcal{G}^{(n)} + (4+n)\frac{{\rm d} \ln k_\mathrm{h}}{{\rm d} t} \mathcal{F}_\mathcal{G}^{(n)} - \frac{k_\mathrm{h}}{a}\left(\mathcal{F}_\mathcal{E}^{(n+1)} - \mathcal{F}_\mathcal{B}^{(n+1)}\right) - 2 H \xi \mathcal{F}_\mathcal{B}^{(n)}= S_{\mathcal{G}}^{(n)}\, , $$
+$$\frac{{\rm d}}{{\rm d} t} \mathcal{F}_\mathcal{B}^{(n)} + (4+n)\frac{{\rm d} \ln k_\mathrm{h}}{{\rm d} t} \mathcal{F}_\mathcal{B}^{(n)} - 2\frac{k_\mathrm{h}}{a}\mathcal{F}_\mathcal{G}^{(n+1)}  =  S_{\mathcal{B}}^{(n)}\, .$$
 
 One can determine that a sensible regularization scale for this model is given by $k_{\rm h}(t) = 2aH \underset{s \leq t}{\max}(|\xi(s)|)$. 
 
@@ -491,7 +491,7 @@ G.run()
   mermaid.registerLayoutLoaders(elkLayouts);
 </script>
 """
-from .gef import make_model
+from .gef import compile_model
 from .mbm import GaugeSpec
 from .bgtypes import BGSystem
 
