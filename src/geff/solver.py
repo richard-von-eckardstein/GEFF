@@ -56,6 +56,8 @@ class BaseGEFSolver:
         #initial conditions on initialisation
         self.set_initial_conditions_to_default()
 
+        self._test_ode()
+
     @classmethod
     def toggle_event(self, event_name : str, toggle : bool):
         """
@@ -302,7 +304,7 @@ class BaseGEFSolver:
     
     def solve_eom(self, t0 : float, yini : np.ndarray, vals : BGSystem):
         """
-        Attempt to solve the GEF EoM's using `scipy.integrate`
+        Attempt to solve the GEF EoM's using `scipy.integrate.solve_ivp`.
 
         The solver attempts to obtain a GEF solution. This solution is then checked for any `ErrorEvent` occurrences.
         In this case, the solver marks the solution as unsuccessful and returns it for further processing.
@@ -356,7 +358,7 @@ class BaseGEFSolver:
             except KeyboardInterrupt:
                 raise KeyboardInterrupt(f"Interrupted solver at t={float(vals.t.value):.2f}, N={float(vals.N.value):.2f}.")
             except Exception as e:
-                print(f"While solving the GEF ODE, an error occured at t={float(vals.t.value):.2f}, N={float(vals.N.value):.2f}):")
+                print(f"While solving the GEF ODE, an error occurred at t={float(vals.t.value):.2f}, N={float(vals.N.value):.2f}):")
                 print(e)
                 raise TruncationError
             
@@ -404,6 +406,8 @@ class BaseGEFSolver:
 
         active_events = [event for event in self.known_events.values() if event.active]
 
+        # record which events have occurred
+        occurrences = {}
         for i, event in enumerate(active_events):
 
             #Check if the event occured
@@ -417,9 +421,13 @@ class BaseGEFSolver:
                 else:
                     tstr = f"{t_events[i][0]:.1f}"
                 print(f"{event.name} at t={tstr}")
-
-            if event.type == "error" and occurrence:
-                commands["primary"].append( ("error", event.name) )
+                occurrences[event.name] = True
+        
+        # Treat occurrences and npn-occurrences of ErrorEvents and TerminalEvents
+        for i, event in enumerate(active_events):
+            if event.type == "error" and event.name in occurrences.keys():
+                print(event.message)
+                return event_dict, "error", event.name
             
             elif event.type=="terminal":
                 #Asses the events consequences based on its occurrence or non-occurrence
@@ -428,8 +436,7 @@ class BaseGEFSolver:
                 for key, item in {"primary":(primary, event.name), "secondary":secondary}.items(): 
                     commands[key].append(item)
 
-
-        #Handle secondary commands
+        # If no error has occurred, handle secondary commands
         for command in commands["secondary"]:
             for key, item in command.items():
                 if key =="timestep":
@@ -443,15 +450,15 @@ class BaseGEFSolver:
                 else:
                     print(f"Unknown setting '{key}', ignoring input.")
         
-        #Check command priority (in case of multiple final events occuring). error > finish > repeat > proceed
-        for primary_command in ["error", "finish", "repeat", "proceed"]:
+        #Check command priority (in case of multiple terminal events). finish > repeat > proceed
+        for primary_command in ["finish", "repeat", "proceed"]:
             for item in commands["primary"]:
                 command = item[0]
                 trigger = item[1]
                 if command == primary_command:
                     return event_dict, command, trigger 
 
-        #if no primarycommand was passed, return "finish"
+        #if no primarycommand was passed, return "finish" (no TerminalEvent or ErrorEvents)
         return event_dict, "finish", None
     
     def _finalise_solution(self, sols, event_dict, trigger_event):
@@ -531,7 +538,16 @@ class BaseGEFSolver:
         self.ntr+=val
         print(f"Increasing 'ntr' by {val} to {self.ntr}.")
         return
-    
+
+    def _test_ode(self):
+        try:
+            t, yini, vals = self.initial_conditions()
+        except Exception:
+            raise ODECompilationError("Error while computing initial conditions.")
+        try:
+            self.ode(t, yini, vals)
+        except Exception:
+            raise ODECompilationError("Error while trying to compute a single ODE timestep.")
     
     
 def GEFSolver(new_init : Callable, new_update_vals : Callable, new_timestep : Callable, new_variables : dict, new_events : list['Event'] = []):
@@ -673,12 +689,16 @@ class ErrorEvent(Event):
 
     When the solver terminates with an `ErrorEvent`, `BaseGEFSolver.solve_eom` returns the solution as unsuccessful.
     """
-    def __init__(self, name : str, func : Callable, direction : int):
-        """Initialise the parent class."""
+    def __init__(self, name : str, func : Callable, direction : int, message : str):
+        """Initialise the parent class.
+        
+        The additional parameter `message` is printed on an event occurrence
+        """
         super().__init__(name, "error", func, True, direction)
+        self.message = message
 
 class ObserverEvent(Event):
-    """An `Event` which does not terminate the solver and is only recorded."""
+    """An `Event` which does not terminate the solve, but only records its occurences."""
     def __init__(self, name : str, func : Callable, direction : int):
         """Initialise the parent class."""
         super().__init__(name, "observer", func, False, direction)
@@ -686,6 +706,12 @@ class ObserverEvent(Event):
 class TruncationError(Exception):
     """
     Exception indicating that a GEF solution was unsuccessful.
+    """
+    pass
+
+class ODECompilationError(Exception):
+    """
+    Exception indicating that an error occured while testing the ODE of a model.
     """
     pass
 
