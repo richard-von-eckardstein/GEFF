@@ -18,6 +18,25 @@ from functools import lru_cache
 #set accuracy of mpmath
 mp.dps = 8
 
+def boundary_pai(xi) -> np.ndarray:
+    """
+    Compute boundary terms in the absence of Schwinger pair production.
+    """
+    if abs(xi) >= 3:
+        return boundary_approx_pai()
+    else:
+        return boundary_exact(xi, 0)
+    
+def boundary_fai(xi, s) ->  np.ndarray:
+    """
+    Compute boundary terms including Schwinger pair production.
+    """
+    if abs(xi) >= 4:
+        return boundary_approx_fai(xi, s)
+    else:
+        return boundary_exact(xi, s)
+
+
 
 @lru_cache(maxsize=int(1e6))
 def whittaker_w(xi, s):
@@ -61,9 +80,9 @@ def boundary_exact(xi : float, s : float) -> np.ndarray:
 
     return Fterm
 
-def boundary_approx(xi : float) -> np.ndarray:
+def boundary_approx_pai(xi : float) -> np.ndarray:
     r"""
-    Use approximate formulas to compute boundary terms for the case $s=0$ when $\xi > 3$.
+    Use approximate formulas to compute boundary terms for $|\xi| > 3$ and $s=0$.
 
     The approximations are taken from the Appendix B in [2109.01651](https://arxiv.org/abs/2109.01651).
 
@@ -133,13 +152,13 @@ def boundary_approx(xi : float) -> np.ndarray:
         t3 = 21543/(2**(21)*xi**4)
         t4 = -6003491/(2**31*xi**6)
         Fterm[2, 1-sgnsort] = -np.sqrt(2)/(32*xi)*(t1 + t2 + t3 + t4) 
+        return Fterm
     else:
-        Fterm = boundary_exact(xi, 0)
-    return Fterm
+        raise ValueError("abs(xi) needs to be larger than three for this approximation.")
 
-def boundary_approx_schwinger(xi :float, s : float) -> np.ndarray:
+def boundary_approx_fai(xi :float, s : float) -> np.ndarray:
     r"""
-    Use approximate formulas to compute boundary terms for the case $s=0$ when $\xi > 4$.
+    Use approximate formulas to compute boundary terms for  $|\xi| > 4$ and arbitrary $s$.
 
     The approximations are taken from the Appendix B in [2109.01651](https://arxiv.org/abs/2109.01651).
 
@@ -190,6 +209,7 @@ def boundary_approx_schwinger(xi :float, s : float) -> np.ndarray:
         Fterm[2, sgnsort] = t1 + t2*rpsi + t3*rpsi**2 + t4*rpsi**3
 
         Fterm[2, 1-sgnsort] = -((3*xi -r)/xi + 8*s)/(16*np.sqrt(xi*r))
+        return Fterm
     else:
-        Fterm = boundary_exact(xi, s)
-    return Fterm
+        raise ValueError("abs(xi) needs to be larger than four for this approximation.")
+

@@ -1,5 +1,5 @@
 """
-This module defines often encountered functions and constants for the `GEFF` code.
+This module defines often encountered functions and constants for the `geff`.
 
 For detailed documentation, see the different submodules.
 """
