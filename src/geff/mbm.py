@@ -562,13 +562,13 @@ class BaseModeSolver:
                 func = CubicSpline(self._t, value)
             elif isinstance(obj, Func):
                 arg_vals = []
-                for arg in Func.args:
+                for arg in obj.args:
                     arg_vals.append(getattr(sys, arg.name))
                 value = obj(*arg_vals)
                 func =  CubicSpline(self._t, value)
             elif isinstance(obj, Constant):
                 value = getattr(sys, key).value
-                def func(t): return value
+                func =  CubicSpline(self._t, value*np.ones_like(self._t))
             else:
                 raise ValueError(f"'{key}' should refer to either a 'Val' or 'Func' subclass.")
                 

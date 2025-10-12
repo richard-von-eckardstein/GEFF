@@ -287,7 +287,7 @@ class BGSystem:
             the 'u_mu' parameter of the new object.
         """
 
-        self.quantities[name] = BGVar(name, qu_omega, qu_mu)
+        self.quantities[name] = define_var(name, qu_omega, qu_mu)
         return
     
     def add_constant(self, name : str, qu_omega : int, qu_mu : int):
@@ -304,7 +304,7 @@ class BGSystem:
             the 'u_mu' parameter of the new object.
         """
 
-        self.quantities[name] = BGConst(name, qu_omega, qu_mu)
+        self.quantities[name] = define_const(name, qu_omega, qu_mu)
         return
     
     def add_function(self, name : str, args : list['Val'], qu_omega : int, qu_mu : int):
@@ -323,7 +323,7 @@ class BGSystem:
             the 'u_mu' parameter of the new object.
         """
 
-        self.quantities[name] = BGFunc(name, args, qu_omega, qu_mu)
+        self.quantities[name] = define_func(name, args, qu_omega, qu_mu)
         return
     
     def save_variables(self, path : str):
@@ -742,7 +742,7 @@ class GaugeField:
         """Return a string describing the object."""
         return f"{cls.name} - associated with: {[a.name for a in cls.zeros]}, UV cutoff: {cls.cutoff.name}"
     
-def BGVar(qname : str, qu_omega : int, qu_mu : int, qdescription:str="", qdtype : np.dtype=np.float64):
+def define_var(qname : str, qu_omega : int, qu_mu : int, qdescription:str="", qdtype : np.dtype=np.float64):
     """
     Creates a subclass of `Variable` with custom name, and scaling.
 
@@ -775,7 +775,7 @@ def BGVar(qname : str, qu_omega : int, qu_mu : int, qdescription:str="", qdtype 
         raise TypeError("BGVal's data-type must be a subtype of 'numpy.floating'.")
 
     class CustomVar(Variable):
-        __doc__ = docs_bgtypes.DOCS["BGVar.CustomVar"]
+        __doc__ = docs_bgtypes.DOCS["define_var.CustomVar"]
         name=qname
         u_omega = qu_omega
         u_mu = qu_mu
@@ -788,7 +788,7 @@ def BGVar(qname : str, qu_omega : int, qu_mu : int, qdescription:str="", qdtype 
 
     return CustomVar
 
-def BGConst(qname : str, qu_omega : int, qu_mu : int, qdescription:str=""):
+def define_const(qname : str, qu_omega : int, qu_mu : int, qdescription:str=""):
     """
     Creates a subclass of `Constant` with custom name, and scaling.
 
@@ -810,7 +810,7 @@ def BGConst(qname : str, qu_omega : int, qu_mu : int, qdescription:str=""):
     """
 
     class CustomConst(Constant):
-        __doc__ = docs_bgtypes.DOCS["BGConst.CustomConst"]
+        __doc__ = docs_bgtypes.DOCS["define_const.CustomConst"]
         name=qname
         u_omega = qu_omega
         u_mu = qu_mu
@@ -824,7 +824,7 @@ def BGConst(qname : str, qu_omega : int, qu_mu : int, qdescription:str=""):
 
 
 
-def BGFunc(qname : str, func_args : list[Val], qu_omega : int, qu_mu : int, qdescription:str="", qdtype : np.dtype=np.float64):
+def define_func(qname : str, func_args : list[Val], qu_omega : int, qu_mu : int, qdescription:str="", qdtype : np.dtype=np.float64):
     """
     Creates a subclass of `Func` with custom name, scaling, and argument signature.
 
@@ -853,10 +853,10 @@ def BGFunc(qname : str, func_args : list[Val], qu_omega : int, qu_mu : int, qdes
     """
 
     if not( np.issubdtype(qdtype, np.floating) ):
-        raise TypeError("BGFunc's data-type must be a subtype of 'np.floating'.")
+        raise TypeError("define_func's data-type must be a subtype of 'np.floating'.")
     
     class CustomFunc(Func):
-        __doc__ = docs_bgtypes.DOCS["BGFunc.CustomFunc"]
+        __doc__ = docs_bgtypes.DOCS["define_func.CustomFunc"]
         name=qname
         u_omega = qu_omega
         u_mu = qu_mu
@@ -871,7 +871,7 @@ def BGFunc(qname : str, func_args : list[Val], qu_omega : int, qu_mu : int, qdes
 
     return CustomFunc
 
-def BGGauge(qname : str, qzeros : list[Variable], qcutoff : Variable):
+def define_gauge(qname : str, qzeros : list[Variable], qcutoff : Variable):
     """
     A class factory creating custom  `GaugeField` classes with new name, zero variables, and cutoff scale.
 
@@ -903,31 +903,31 @@ generate_docs(docs_bgtypes.DOCS)
     
 #Some usful pre-defined quantities
 #Space--time variables:
-t=BGVar("t", -1, 0, "cosmic time")
-N=BGVar("N", 0, 0, "e-folds")
-a=BGVar("a", 0, 0, "scale factor")
-H=BGVar("H", 1, 0, "Hubble rate")
+t=define_var("t", -1, 0, "cosmic time")
+N=define_var("N", 0, 0, "e-folds")
+a=define_var("a", 0, 0, "scale factor")
+H=define_var("H", 1, 0, "Hubble rate")
 
 #Inflaton  variables:
-phi=BGVar("phi", 0, 1, "inflaton expectation value")
-dphi=BGVar("dphi", 1, 1, "inflaton velocity")
-ddphi=BGVar("ddphi", 2, 1, "inflaton acceleration")
+phi=define_var("phi", 0, 1, "inflaton expectation value")
+dphi=define_var("dphi", 1, 1, "inflaton velocity")
+ddphi=define_var("ddphi", 2, 1, "inflaton acceleration")
 
 #Inflaton potential
-V=BGFunc("V", [phi], 2, 2, "scalar potential")
-dV=BGFunc("dV", [phi], 2, 2, "scalar-potential derivative")
+V=define_func("V", [phi], 2, 2, "scalar potential")
+dV=define_func("dV", [phi], 2, 2, "scalar-potential derivative")
 
 #Gauge-field variables:
-E=BGVar("E", 4, 0, "electric-field expectation value, E^2")
-B=BGVar("B", 4, 0, "magnetic-field expectation value, B^2")
-G=BGVar("G", 4, 0, "Chern-Pontryagin expectation value, -E.B")
+E=define_var("E", 4, 0, "electric-field expectation value, E^2")
+B=define_var("B", 4, 0, "magnetic-field expectation value, B^2")
+G=define_var("G", 4, 0, "Chern-Pontryagin expectation value, -E.B")
 
 #Auxiliary quantities:
-xi=BGVar("xi", 0, 0, "instability parameter")
-kh=BGVar("kh", 1, 0, "instability scale")
+xi=define_var("xi", 0, 0, "instability parameter")
+kh=define_var("kh", 1, 0, "instability scale")
 
 #constants
-beta=BGConst("beta", 0, -1, "inflaton--gauge-field coupling beta/Mp")
+beta=define_const("beta", 0, -1, "inflaton--gauge-field coupling beta/Mp")
 
 #basic gauge-field
-GF = BGGauge("GF", [E, B, G], kh)
+GF = define_gauge("GF", [E, B, G], kh)
