@@ -2,6 +2,7 @@ from ._docs import generate_docs, docs_bgtypes
 import numpy as np
 from typing import Callable, ClassVar
 import pandas as pd
+from copy import deepcopy
 
 class BGSystem:
     def __init__(self, quantity_set : set, omega : float, mu : float):

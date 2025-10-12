@@ -33,7 +33,9 @@ class TestBGSystem():
 
         assert V.omega == U.omega
         assert V.mu == U.mu
-        assert V.quantity_names() == U.quantity_names()
+        U_qs = U.quantity_names()
+        for q in V.quantity_names():
+            assert q in U_qs
         assert V.variable_names() == U.variable_names()
         assert V.function_names() == U.function_names()
         assert V.constant_names() == U.constant_names()

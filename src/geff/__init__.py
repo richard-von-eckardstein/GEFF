@@ -3,7 +3,7 @@ Welcome to our visitors tour of the **Gradient Expansion Formalism Factory**!
 
 # GEFF: Established in 2025
 
-This python package is designed to tackle gauge-field production during cosmic inflation
+This python package is designed to handle gauge-field production during cosmic inflation
 using the *gradient expansion formalism* (GEF).
 
 If you are interested in axion inflation, the package comes with everything you need:
