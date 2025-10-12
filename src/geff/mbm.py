@@ -377,7 +377,7 @@ class GaugeSpec(dict):
         errs = []
 
         for i, spl in enumerate(Fref):
-            err =  np.minimum(1e3, abs( 1 - FMbM[:,i,0]/(spl+1e-20) )) #avoid divide by zero
+            err =  np.minimum(1e3, abs( 1 - (FMbM[:,i,0]+1e-20)/(spl+1e-20) )) #avoid divide by zeros
             errs.append(np.where(np.isnan(err), 10.0, err))
 
         return errs
