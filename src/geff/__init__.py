@@ -28,7 +28,7 @@ You can install this package using pip
 pip install cosmo-geff
 ```
 
-or using the `geff.yml` file found at the [GitHub repository](https://github.com/riroro13/GEFF) for this package,
+or using the `geff.yml` file found at the [GitHub repository](https://github.com/richard-von-eckardstein/GEFF) for this package,
 
 ```bash
 conda env create -f geff.yml
