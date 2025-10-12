@@ -19,5 +19,3 @@ conda env create -f geff.yml
 ```
 
 For more information on the GEFF, please see our [documentation](https://riroro13.github.io/GEFF/geff.html).
-
-If you use this package in your work, please cite (...).
