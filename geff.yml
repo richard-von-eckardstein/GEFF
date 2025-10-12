@@ -1,4 +1,4 @@
-name: develope-geff
+name: geff
 channels:
   - conda-forge
   - defaults
