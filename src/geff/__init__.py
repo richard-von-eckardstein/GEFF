@@ -505,7 +505,7 @@ MbM = BaseModeSolver
 First, we need to declare, what input our GEF model expects from the user.
 There are two constants, $H$ and $\xi$, and the user should tell us their value:
 ```python
-model_input = [H, xi, dxi]
+model_input = [H, xi]
 ``` 
 Our model does not require other input; $\mathcal{F}_{\mathcal{X}}^{(n)}$ is initially set to zero, and $k_h(0)$ is determined from $\xi$ and $H$. 
 
