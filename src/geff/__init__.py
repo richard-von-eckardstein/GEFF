@@ -34,8 +34,6 @@ or using the `geff.yml` file found at the [GitHub repository](https://github.com
 conda env create -f geff.yml
 ``` 
 
-If you use this package in your work, please cite (...).
-
 ---
 
 # The refreshing taste of GEF

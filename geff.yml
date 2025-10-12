@@ -11,4 +11,4 @@ dependencies:
   - mpmath>=1.3
   - pip
   - pip:
-      - git+ssh://git@github.com/riroro13/GEFF-develope.git
+      - cosmo-geff
