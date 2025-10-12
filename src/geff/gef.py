@@ -165,6 +165,8 @@ class BaseGEF:
         t_reinit = 0.
         attempt=0
 
+        print()
+
         while not(done) and attempt<mbm_attempts:
             attempt +=1
             #This can be taken care of internally. The GEF should not need to get sol objects...

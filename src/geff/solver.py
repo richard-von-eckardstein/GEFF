@@ -339,7 +339,7 @@ class BaseGEFSolver:
 
         event_dict, event_funcs = self._setup_events()
 
-        print(f"The solver aims at reaching t={self.tend} with ntr={self.ntr}.")
+        print(f"The GEFSolver aims at reaching t={self.tend} with ntr={self.ntr}.")
         while not(done) and attempts < 10:
 
             try:
