@@ -23,7 +23,7 @@ class BaseGEF:
         Parameters
         ----------
         kwargs 
-            To access a list of kwargs for this model use `print_kwargs`.
+            To access a list of kwargs for this model use `print_input`.
 
         Raises
         ------
@@ -64,6 +64,13 @@ class BaseGEF:
                     initial_data.initialise(obj.name)(lambda *x: 0)    
 
         self.initial_data = initial_data
+
+        # test if ODE solver works
+        try:
+            self.GEFSolver(initial_data)
+        except:
+            raise ModelError("Initializing GEF solver returned an error.")
+
 
     @classmethod
     def print_input(cls):
@@ -370,5 +377,11 @@ def compile_model(modelname:str, settings:dict={}):
     CustomGEF.__module__ = __name__
 
     return CustomGEF
+
+class ModelError(Exception):
+    """
+    Exception for errors when compiling a GEF model.
+    """
+    pass
 
 generate_docs(docs_gef.DOCS)
