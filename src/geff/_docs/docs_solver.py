@@ -13,10 +13,10 @@ CustomGEFSolver_docs = """
 
 DOCS = {
     "module":"""
-    This module defines the internal ODE solver used by the GEF.
+    This module defines the main class for an ODE solver used by GEF models.
 
     The `BaseGEFSolver` is the the primary class supplied by this module. It defines an algorithm by which the equations of motion for a GEF model are solved.
-    This makes use of the `GEFF.bgtypes.BGSystem` module to simplify conversions between numerical and physical units.
+    This makes use of the `geff.bgtypes.BGSystem` module to simplify conversions between numerical and physical units.
 
     While the `BaseGEFSolver`is solving the ODE's it can track one or multiple `Event` objects. These events correspond to certain conditions, for example, the end of inflation.
     Occurrences of these events can be designed to influence the solver. For example, an 'end of inflation' `Event` may check if

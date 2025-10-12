@@ -1,8 +1,8 @@
 DOCS = {
     "module":r"""
-    This module contains several functions intended for computing and analyzing gravitational-wave spectra.
+    This module is intended to compute a gravitational-wave spectrum from a tensor power spectrum.
 
-    The gravitational wave spectrum, $h^2\Omega_{\rm GW}$ can be computed using `omega_gw`, which evaluates the formula
+    The gravitational-wave spectrum, $h^2\Omega_{\rm GW}$ is computed using `omega_gw`, which evaluates the formula
 
     $$\Omega_{\rm GW}(f) \equiv  \frac{1}{3 H_0^2 M_{\rm P}^2}\frac{{\rm d} \rho_{\rm GW} (f)}{{\rm d} \ln{f}} = 
                                     \frac{\pi^2}{3 H_0^2} f^2 |\mathcal{T}_{\rm GW}(f)|^2 \mathcal{P}_T(k_f), k_f) 
@@ -18,7 +18,7 @@ DOCS = {
 
     It accounts for the evolution of $\Omega_{\rm GW}(f)$ from the end of inflation until today.
     Here, $T_f$ is the temperature corresponding to the frequency $f$.
-    For $g_{\*}$, $g_{\*,S}$, $f_{\rm eq}$, $\Omega_r$, and $T_0$, we use the corresponding functions in `GEFF.utility.cosmo`.
+    For $g_{\*}$, $g_{\*,S}$, $f_{\rm eq}$, $\Omega_r$, and $T_0$, we use the corresponding functions in `geff.utility.cosmo`.
     The term $|\mathcal{T}_{\rm reh}(f)|^2$ accounts for the transition through reheating. For instantaneous reheating, $|\mathcal{T}_{\rm reh}(f)|^2 = 1$.
     Otherwise, we assume that reheating proceeds via coherent oscillations of the inflaton field, such that
 

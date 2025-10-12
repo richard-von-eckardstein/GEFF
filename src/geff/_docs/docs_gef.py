@@ -1,18 +1,15 @@
 DOCS = {
     "module":"""
-    This module defines the main `BaseGEF` class and its class factory `GEF`.
+    This module defines the `BaseGEF` class and its class factory `compile_model`.
     """,
     "BaseGEF":"""
-    This class is the primary interface of a GEF model.
+    This class defines the basic properties of a GEF model.
 
-    The class contains a `GEFSolver` and a `ModeSolver` that are used to solve GEF equations in `run`.
+    Each GEF model contains a `GEFSolver` and a `ModeSolver` that are used to solve GEF equations with the `run` method.
 
-    The class also stores the evolution of the GEF-model variables as obtained from `run` or `load_GEFdata`.
-    You can access these variables like a `.bgtypes.BGSystem`. E.g., you can access the $e$-folds variable through the attribute `N`.
+    Instances of a GEF model can also be used to load data using `load_GEFdata`.
+     Loading data this way creates a `BGSystem` which also knows the appropriate units, constants and functions for this model.
 
-    As a child of `BGSystem`, the GEFF can be passed to other tools initialized by `BGSystem`'s. For example, to compute the tensor power spectrum from your GEF solution,
-    you can pass it to `.tools.pt.PT`.
-
-    The `BaseGEF` contains the model `.models.classic`. To define a custom GEF model, use the class factory `GEF`.
+    The `BaseGEF` is a compiled version of `.models.pai`. To compile other models, use the class factory `compile_model`.
     """
 }

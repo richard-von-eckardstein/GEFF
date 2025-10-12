@@ -15,7 +15,7 @@ DOCS = {
 
     The base class in particular is set to solve the mode equation of pure axion inflation,
     $$P_\lambda(t,k) = H \, \qquad Q_\lambda(t,k) = \left(\frac{k}{a}\right)^2  - 2\lambda \left(\frac{k}{a}\right) \xi H \, ,$$
-    with Hubble rate $H$, scale factor $a$ and instability scale $\xi$.
+    with Hubble rate $H$, scale factor $a$ and instability parameter $\xi$.
 
     To create a mode solver with custom values for $P(t,k)$ and $Q(t,k)$, use the class factory `ModeSolver`.
 
@@ -227,7 +227,7 @@ DOCS = {
     -------
     ```python
         import numpy as np
-        from GEFF.bgtypes import BGSystem, BGVar, t, N, kh
+        from GEFF.bgtypes import BGSystem, define_var, t, N, kh
 
         # Define a new mode equation:
         def custom_mode_eq(t, y, k, a, X, Y):
@@ -267,12 +267,12 @@ DOCS = {
         # The default: 't', 'N', 'kh' were loaded from GEFF.bgtypes
 
         # Because of custom_mode_eq we also need 'a', 'X', 'Y'
-        a = BGVar("a", 0, 0)
-        X = BGVar("X", 2, 0)
-        Y = BGVar("Y", 2, 0)
+        a = define_var("a", 0, 0)
+        X = define_var("X", 2, 0)
+        Y = define_var("Y", 2, 0)
 
         # For custom_bd_init we need 'alpha'
-        alpha = BGVar("alpha", 0, 0)
+        alpha = define_var("alpha", 0, 0)
 
         # When in doubt, consult necessary_keys:
         print(CustomModeSolver.necessary_keys)

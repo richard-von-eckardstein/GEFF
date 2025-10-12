@@ -20,7 +20,7 @@ variable_docs = """
 variable_addendum = r"""
     A typical `Variable` is the scalar field velocity, $\dot\varphi = \omega\mu \dot\bar{\varphi}$    
 
-    To define a custom `Variable` object use the class factory `BGVar`.
+    To define a custom `Variable` object use the class factory `define_var`.
     """
 
 
@@ -37,7 +37,7 @@ constant_docs = """
 constant_addendum = r"""
     A typical `Constant` is the inflaton--gauge-field coupling, $\beta/M_{\rm P} \sim \beta/(\bar M_{\rm P} \mu)$    
 
-    To define a custom `Constant` object use the class factory `BGConst`.
+    To define a custom `Constant` object use the class factory `define_const`.
     """
 
 
@@ -62,7 +62,7 @@ func_docs = """
 func_addendum = r"""
     A typical object is the scalar potential, $V(\varphi) = \omega^2 \mu^2 \bar{V}(\bar{\varphi} \mu) $
 
-    To define a custom `Func` object, use the class factory `BGFunc`.
+    To define a custom `Func` object, use the class factory `define_func`.
     """
 
 bgfunc_addendum = """
@@ -116,9 +116,9 @@ DOCS = {
     Each `Quantity` object is defined by a scaling with $\omega$ and $\mu$. For example, the `Quantity` $X$ scales as $X = \omega^a \mu^b \bar{X}$, where $\bar{X}$ is the re-scaled quantity used for numerical computations.
     A `BGSystem` is a collection of `Quantity` objects, which defines a common unit system by setting the value of $\omega$ and $\mu$.
 
-    The user may define variables that evolve with cosmic time using the `BGVar` class factory, which creates subclasses of `Variable`. Examples of a `Variable` are the Hubble rate, scalar field amplitude etc.
-    In the same manner, the user can define constants of cosmic time using the `BGConst` class factory, which creates subclasses of `Constant`. Examples of a `Constant` are, e.g., coupling strengths.
-    Some quantities are functions of variables, for example, a scalar potential. These are defined by the factory `BGFunc`, which creates subclasses of `Func`.
+    The user may define variables that evolve with cosmic time using the `define_var` class factory, which creates subclasses of `Variable`. Examples of a `Variable` are the Hubble rate, scalar field amplitude etc.
+    In the same manner, the user can define constants of cosmic time using the `define_const` class factory, which creates subclasses of `Constant`. Examples of a `Constant` are, e.g., coupling strengths.
+    Some quantities are functions of variables, for example, a scalar potential. These are defined by the factory `define_func`, which creates subclasses of `Func`.
 
     The following examples illustrates the basic use of these classes:
 
@@ -126,11 +126,11 @@ DOCS = {
     --------
     1. Defining a `BGSystem`
     ```python
-    from GEFF.bgtypes import BGSystem, BGVar
+    from GEFF.bgtypes import BGSystem, define_var
 
     # define two variables corresponding to physical time and Hubble rate.
-    time = BGVar("t", qu_omega=-1, qu_mu=0)
-    Hubble = BGVar("H", qu_omega=1, qu_mu=0)
+    time = define_var("t", qu_omega=-1, qu_mu=0)
+    Hubble = define_var("H", qu_omega=1, qu_mu=0)
 
     # Create a BGSystem with 'time' and 'Hubble'
     # We set the reference frequency to 1e-5*Mpl
@@ -176,7 +176,7 @@ DOCS = {
     3. Operations between `Variable`'s
 
     ```python
-    # We add a new BGVal to U, the magnetic-field expectation value
+    # We add a new Variable to U, the magnetic-field expectation value
     U.add_variable("B0", 4, 0)
     U.initialise("B0")(1e-10)
 
@@ -300,11 +300,11 @@ DOCS = {
     "Variable":variable_docs,
     "Constant":constant_docs,
     
-    "BGVar.CustomVar":variable_docs+bgvar_addendum,
-    "BGConst.CustomConst":variable_docs+bgvar_addendum,
+    "define_var.CustomVar":variable_docs+bgvar_addendum,
+    "define_const.CustomConst":variable_docs+bgvar_addendum,
 
     "Func":func_docs+ func_addendum,
-    "BGFunc.CustomFunc":val_docs+bgfunc_addendum,
+    "define_func.CustomFunc":val_docs+bgfunc_addendum,
 
     "GaugeField":gaugefield_docs,
 }
