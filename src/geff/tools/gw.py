@@ -56,7 +56,7 @@ def k_to_f(k:np.ndarray, Nend:float, Hend:float, Trh:None|float=None) -> ArrayLi
     Parameters
     ----------
     k : NDarray
-        momenta for pt, in Planck units
+        momenta in Planck units
     Nend : float
         the number of e-folds at the end of inflation
     Hend : float

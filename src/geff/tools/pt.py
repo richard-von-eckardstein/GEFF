@@ -519,29 +519,5 @@ class PowSpecT:
 
         return PTind
     
-    def compute_pt_analytic(self) -> Tuple[np.ndarray,dict]:
-        """
-        Compute the analytical estimates for $\mathcal{P}_{T,\lambda}$.
-
-        Returns
-        -------
-        PT : dict
-            a dictionary containing the analyitcal estimates
-        """
-        H = self._omega*self._H
-        xi = abs(self._xi)
-        pre = (H/np.pi)**2 # * (self._H)**(self._nT)
-        if np.sign(self._xi[0]) > 0:                
-            indP = pre * 8.6e-7 * H**2 * np.exp(4*np.pi*xi)/xi**6
-            indM = pre * 1.8e-9 * H**2 * np.exp(4*np.pi*xi)/xi**6
-        else:
-            indP = pre * 1.8e-9 * H**2 * np.exp(4*np.pi*xi)/xi**6
-            indM = pre * 8.6e-7 * H**2 * np.exp(4*np.pi*xi)/xi**6
-        
-        #Factors of two to match my convention
-        PTanalytic = {"tot":(2*pre + indP + indM), "vac":2*pre, "ind+":2*indP, "ind-":2*indM}
-        k = H*np.exp(self._N)
-        return k, PTanalytic
-    
 
 
