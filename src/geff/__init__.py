@@ -25,10 +25,10 @@ It is indeed a true GEF *factory* !
 You can install this package using pip
 
 ```bash
-pip install geff
+pip install cosmo-geff
 ```
 
-or using the `geff.yml` file found at the (GitHub repository) for this package,
+or using the `geff.yml` file found at the [https://github.com/riroro13/GEFF](GitHub repository) for this package,
 
 ```bash
 conda env create -f geff.yml

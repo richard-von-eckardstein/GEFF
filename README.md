@@ -9,7 +9,7 @@ of inflationary models featuring gauge-field production, which can be solved usi
 To install this pacakge use
 
 ```bash
-pip install geff
+pip install cosmo-geff
 ```
 
 or use the `geff.yml` file to create a conda environment,

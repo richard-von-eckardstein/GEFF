@@ -3,13 +3,13 @@ requires = ["setuptools>=62.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "GEFF"
+name = "cosmo-geff"
 version = "0.1.0"
 description = "The GEFF allows simulating gauge-field production during inflation using the gradient expansion formalism."
 readme = "README.md"
 
 authors = [
-  { name = "Richard von Eckardstein", email = "richard.voneckardstein@hotmail.com" }
+  { name = "Richard von Eckardstein", email = "richard.voneckardstein@uni-muenster.de" }
 ]
 
 license = { file = "LICENSE" }
