@@ -40,7 +40,7 @@ conda env create -f geff.yml
 
 The GEF is a numerical technique to determine the dynamics and backreaction of gauge-fields during inflation
 by directly evolving the time-dependent quantum expectation values of the gauge field, 
-e.g., $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, $\langle {\bf E} \cdot {\bf B} \rangle$ etc.
+e.g., $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, $\langle {\bf E} \cdot {\bf B} \rangle$, etc.
 If this is the first time you encounter the GEF, here are some useful articles on the topic:
 * [2109.01651](https://arxiv.org/abs/2109.01651)
 * [2310.09186](https://arxiv.org/abs/2310.09186)
@@ -97,7 +97,7 @@ paiGEF = compile_model("pai")
 ``` 
 The object `paiGEF` is the compiled version of the model found under `.models.pai`. It defines an ODE solver 
 which needs to be initialized with information on the setup we want to study:
-The "pai" model expects information on the inflaton--vector coupling $\beta / M_{\rm P}$, 
+The "pai" model expects information on the inflaton&ndash;vector coupling, $\beta / M_{\rm P}$, 
 initial conditions for the inflaton field, $\varphi(0)$, $\dot\varphi(0)$, and the shape of the inflaton potential, $V(\varphi)$.
 
 In this example, we configure the model to start on the slow-roll attractor of a chaotic inflation potential:
@@ -208,7 +208,7 @@ spec = GaugeSpec.read_spec(mbmpath)
 
 ## A rich palette
 
-Obtaining the inflationary dynamics is nice, but it is not all the GEFF can do. For example, let's use our results to compute the corresponding gravitational-wave spectrum:
+Obtaining the inflationary dynamics is nice but it is not all the GEFF can do. For example, let's use our results to compute the corresponding gravitational-wave spectrum:
 ```python
 from geff.tools import PowSpecT, omega_gw
 
@@ -227,7 +227,7 @@ It's that easy!
 To finish this first part of our tour, let us sample a second GEF flavor, "fai_kh":
 ```python
 # initialize the model
-faiGEF = GEFModel("fai_kh", {"picture":"electric"})
+faiGEF = compile_modell("fai_kh", {"picture":"electric"})
 
 # chose initial conditions
 mod = faiGEF(beta=...)
@@ -260,7 +260,7 @@ config:
         tertiaryColor: '#FAFAFA'
 ---
 graph TB
-    subgraph A["`**GEFModel**`"]
+    subgraph A["`**GEF Model**`"]
         direction TB
         St((initial data <br>from model))--> GS
         subgraph GS["`**GEFSolver**`"]
@@ -300,8 +300,8 @@ For more details on the `GEFSolver`, see `geff.solver`, while for the `ModeSolve
 Having explored the potential of the GEFF code, you may be inclined to create your own GEF flavor.
 To help you in this process, we show how to implement an example toy model.
 
-> **Warning**: Before jumping into this section, we advise that you first familiarize yourself with the GEF method.
-> Also, this tutorial works best, if you have a basic knowledge of the classes defined in `.bgtypes`.
+> **Warning**: Before jumping into this section, we advise that you familiarize yourself with the GEF.
+> Also, this tutorial works best, if you have a basic understanding of the classes defined in `.bgtypes`.
 
 ## The first step is the hardest
 
@@ -332,14 +332,14 @@ name = "tutorial"
 > **A note on settings**: Following the model's name, you can also define a `settings` dictionary.
 > This dictionary should contain some key&ndash;value pair defining its name and the default setting.
 > The `settings` should be accompanied by a function called `interpret_settings`. This method will be called on model creation,
-> so you can use it to define how user input settings are handled. See, e.g., `.models.SE_kh` for how this is done in practice.
+> so you can use it to define how user input settings are handled. See, e.g., `.models.fai_kh` for how this is done in practice.
 
-Next, we need to define define and categorize the variables which appear in our model. This is taken care of by the functions `define_var`, `define_const`,  and `define_func`.
-The `.bgtypes` module also contains some pre-defined variables, which are often encountered in GEF models.
+Next, we need to define define and categorize the variables which appear in our model. This is taken care of by the functions `define_var`, `define_const`,  and `define_func` in `.bgtypes`.
+This module also contains some pre-defined variables, which are often encountered in GEF models.
 
 There are three variables which every GEF model needs to define:
 * $t$ - *cosmic time* : all ODE's are solved in terms of $t$ starting from $t=0$.
-* $N$ - *$e$-folds* : needed by most internal methods. It should be defined such that $N(t=0)=0$.
+* $N$ - *$e$-folds* : needed by most internal methods. The code expects that $N(t=0)=0$.
 * $H$ - *Hubble rate* : needed by most internal methods.
 
 Beyond these staples, some extra variables appear in our ODE's:
@@ -348,9 +348,9 @@ Beyond these staples, some extra variables appear in our ODE's:
 * $\xi$ -  *the instability parameter*
 
 To properly account for the gauge field, we also need to add in the following three variables:
-* $\mathcal{E}^{(0)} = \langle {\bf E}^2 \rangle$ - *called `E` by the GEF*
-* $\mathcal{B}^{(0)} = \langle {\bf B}^2 \rangle$ - *called `B` by the GEF*
-* $\mathcal{G}^{(0)} = -\langle {\bf E} \cdot {\bf B} \rangle$ - *called `G` by the GEF*
+* $\mathcal{E}^{(0)} \equiv \langle {\bf E}^2 \rangle$ - *called `E` by the GEF*
+* $\mathcal{B}^{(0)} \equiv \langle {\bf B}^2 \rangle$ - *called `B` by the GEF*
+* $\mathcal{G}^{(0)} \equiv -\langle {\bf E} \cdot {\bf B} \rangle$ - *called `G` by the GEF*
 
 > **Note on gauge field bilinears** The time evolution of the variables $\mathcal{F}_\mathcal{X}^{(n)}$ will not be saved by the GEFF code,
 > since we are typically only interest in the quantities with $n=0$. The output `info` returned by the `run` method contains the full information on $\mathcal{F}_\mathcal{X}^{(n)}$,
@@ -374,7 +374,7 @@ Similarly, $\xi$ is just a number, and we set `qu_omega=0` and `qu_mu=0`.
 This information needs to be passed to properly allow for unit conversions in the code.
 More information on units and scaling is given in `.bgtypes`.
 
-All the variables we have defined serve a specific purpose in our GEF model. To inform the GEFF of this, we need to classify each of them in one of these categories:
+All the variables we have defined serve a specific purpose in our GEF model. To inform the code of this, we need to classify each of them in one of these categories:
 * **time**: a time variable (needs to be `t`)
 * **dynamical**: variables whose time-evolution is determined from a differential equation.
 * **gauge**: the gauge-field variable `GF` representing $\mathcal{F}_\mathcal{X}^{(n)}$.
@@ -432,6 +432,9 @@ def update_values(t, y, sys):
     # evolution of spacetime
     sys.t.value = t
     sys.N.value = sys.t*sys.H #perfect de Sitter
+
+    # watch out, you can use sys.X as an array,
+    # but to pass to other functions, its better to use sys.X.value
     sys.a.value = np.exp(sys.N.value)
 
     # define how kh is computed from xi:
@@ -498,6 +501,9 @@ from geff.mbm import BaseModeSolver
 MbM = BaseModeSolver
 ```
 
+> **Note on naming**: The names `solver` and `MbM` are not arbitrary. The `compile_model` function will look for objects with exactly these names.
+> Please stick to the naming convention we give here to ensure your model works as intended.
+
 ## The finishing touch
 
  The last thing we need to do is define how our new GEF model is initialized.
@@ -527,9 +533,12 @@ If all went well, you can now use your own GEF flavor just like the pre-defined 
 ```python
 import numpy as np
 from geff import compile_model
+
 # Here, we assume you have saved your model as "tutorial.py"
 import tutorial
 
+# Pre-defined models can be initialized by strings, 
+# for your own model, intialize by passing the module itself to compile_model
 TutorialGEF = compile_model(tutorial)
 
 H = 5e-6
@@ -538,6 +547,7 @@ xi = 5
 mod = TutorialGEF(H=H, xi=xi)
 
 sol, spec, info = mod.run()
+
 ...
 ```
 <script type="module">
@@ -550,5 +560,5 @@ from .gef import compile_model
 from .mbm import GaugeSpec
 from .bgtypes import BGSystem
 
-__version__ = "0.1"
+__version__ = "0.1.0"
 
