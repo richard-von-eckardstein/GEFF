@@ -35,9 +35,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/riroro13/GEFF"
-Repository = "https://github.com/riroro13/GEFF"
-Changelog = "https://github.com/riroro13/GEFF/blob/main/CHANGELOG.md"
+Homepage = "https://richard-von-eckardstein.github.io/GEFF/geff.html"
+Repository = "https://github.com/richard-von-eckardstein/GEFF"
+Changelog = "https://github.com/richard-von-eckardstein/GEFF/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 include-package-data = true

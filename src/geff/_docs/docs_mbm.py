@@ -35,7 +35,7 @@ DOCS = {
     This class inherits from `dict` and needs the following keys:  
     't', 'N', 'k', 'Ap', 'dAp', 'Am', 'dAm'
 
-    All quantities are represented in numerical units (see `GEFF.bgtypes.BGSystem`).
+    All quantities are represented in numerical units (see `geff.bgtypes.BGSystem`).
 
     The spectrum can be evaluated at certain times $t$ or for certain momenta $k$ by using `tslice` and `kslice`
     Furthermore, the spectrum contained in the object can be integrated to compute gauge-field expectation values.
@@ -196,8 +196,8 @@ DOCS = {
     
     The lists `ode_keys` and `init_keys` are handled as follows:
     - `ode_keys` and `init_keys` need to contain the keys associated to the respective kwargs of `new_mode_eq` and `new_bd_init`.
-    - These keys correspond to names of `GEFF.bgtypes.Val` objects belonging to a `GEFF.bgtypes.BGSystem` passed to the class upon initialisation.
-        The respective `Val` objects are interpolated to obtain functions of time. 
+    - These keys correspond to names of `geff.bgtypes.Variable` objects belonging to a `geff.bgtypes.BGSystem` passed to the class upon initialisation.
+        The respective `Variable` objects are interpolated to obtain functions of time. 
         These functions are then passed to to the corresponding keyword arguments of `new_mode_eq`  and `new_bd_init`.
     - `ode_keys` and `init_keys` are added to `BaseModeSolver.necessary_keys` of the new subclass.
 
@@ -227,7 +227,7 @@ DOCS = {
     -------
     ```python
         import numpy as np
-        from GEFF.bgtypes import BGSystem, define_var, t, N, kh
+        from geff.bgtypes import BGSystem, define_var, t, N, kh
 
         # Define a new mode equation:
         def custom_mode_eq(t, y, k, a, X, Y):
@@ -264,7 +264,7 @@ DOCS = {
 
         # To initialise CustomModeSolver we need a BGSystem. 
         # Its Variables need to have the right names however:
-        # The default: 't', 'N', 'kh' were loaded from GEFF.bgtypes
+        # The default: 't', 'N', 'kh' were loaded from geff.bgtypes
 
         # Because of custom_mode_eq we also need 'a', 'X', 'Y'
         a = define_var("a", 0, 0)

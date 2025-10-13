@@ -18,4 +18,4 @@ or use the `geff.yml` file to create a conda environment,
 conda env create -f geff.yml
 ```
 
-For more information on the GEFF, please see our [documentation](https://riroro13.github.io/GEFF/geff.html).
+For more information on the GEFF, please see our [documentation](https://richard-von-eckardstein.github.io/GEFF/geff.html).
