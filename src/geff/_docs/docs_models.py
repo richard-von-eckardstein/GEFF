@@ -80,7 +80,7 @@ DOCS = {
     """,
 
     "condition_NegativeEnergies":r"""
-    Determine if either $\langle {\bf E}^2 \rangle$ or $\langle {\bf B}^2 \rangle$ is negative.
+    Determine if either $\langle \boldsymbol{E}^2 \rangle$ or $\langle \boldsymbol{B}^2 \rangle$ is negative.
 
     Parameters
     ----------

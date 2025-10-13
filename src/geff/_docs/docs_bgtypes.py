@@ -70,20 +70,21 @@ bgfunc_addendum = """
     """
 
 gaugefield_docs = r"""
+    $\newcommand{\bm}[1]{\boldsymbol{#1}}$
     A low level class defining some basic properties of gauge-field bilinear towers.
 
     A gauge-field bilinear tower is defined as a collection of the following three objects,
 
-    $$ \mathcal{F}_\mathcal{E}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{{\rm UV}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2\, ,$$
-    $$ \mathcal{F}_\mathcal{G}^{(n)} = -\frac{a^4}{2 k_{{\rm UV}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf B} + {\bf B} \cdot \operatorname{rot}^n {\bf E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)} \frac{{\rm d} k}{k} \frac{a k^{n+4}}{2 \pi^2 k_{{\rm UV}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)] \, ,$$
-    $$ \mathcal{F}_\mathcal{B}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm UV}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2 \, ,$$
+    $$ \mathcal{F}_\mathcal{E}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle \bm{E} \cdot \operatorname{rot}^n \bm{E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{{\rm UV}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2\, ,$$
+    $$ \mathcal{F}_\mathcal{G}^{(n)} = -\frac{a^4}{2 k_{{\rm UV}}^{n+4}}\langle \bm{E} \cdot \operatorname{rot}^n \bm{B} + \bm{B} \cdot \operatorname{rot}^n \bm{E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)} \frac{{\rm d} k}{k} \frac{a k^{n+4}}{2 \pi^2 k_{{\rm UV}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)] \, ,$$
+    $$ \mathcal{F}_\mathcal{B}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle \bm{E} \cdot \operatorname{rot}^n \bm{E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm UV}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2 \, ,$$
 
-    here $k_{\rm UV}$ is a UV cutoff scale, ${\bf E}$ and ${\bf B}$ are electric and magnetic field operators,
+    here $k_{\rm UV}$ is a UV cutoff scale, $\bm{E}$ and $\bm{B}$ are electric and magnetic field operators,
       and $A_\lambda(t,k)$ is a gauge-field mode function. The integer $n$ varies between $0$ and a maximum value, $n_{\rm tr}$.
 
     The `GaugeField` class collects important information about the collection $\mathcal{F}_\mathcal{X}^{(n)}$.
     The `GEFF` code needs to know, which `Variable` sets the UV cutoff scale, and
-    which `Variable`s correspond to the zero-order quantities, $\langle {\bf E}^2\rangle$, $\langle {\bf B}^2\rangle$, and $-\langle {\bf E} \cdot {\bf B}\rangle$.
+    which `Variable`s correspond to the zero-order quantities, $\langle \bm{E}^2\rangle$, $\langle \bm{B}^2\rangle$, and $-\langle \bm{E} \cdot \bm{B}\rangle$.
 
     Note that a `GaugeField` is never part of a `BGSystem`, as the number of variables depends on $n_{\rm tr}$, which is not fixed a priori.
     In fact, terms with $n>1$ are often only auxiliary and not used by the `GEFF` after the differential equations have been solved.

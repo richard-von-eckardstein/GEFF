@@ -1,4 +1,6 @@
 r"""
+$\newcommand{\bm}[1]{\boldsymbol{#1}}$
+
 Welcome to our visitors tour of the **Gradient Expansion Formalism Factory**!
 
 ---
@@ -40,7 +42,7 @@ conda env create -f geff.yml
 
 The GEF is a numerical technique to determine the dynamics and backreaction of gauge-fields during inflation
 by directly evolving the time-dependent quantum expectation values of the gauge field, 
-e.g., $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, $\langle {\bf E} \cdot {\bf B} \rangle$, etc.
+e.g., $\langle \bm{E}^2 \rangle$, $\langle \bm{B}^2 \rangle$, $\langle \bm{E} \cdot \bm{B} \rangle$, etc.
 If this is the first time you encounter the GEF, here are some useful articles on the topic:
 * [2109.01651](https://arxiv.org/abs/2109.01651)
 * [2310.09186](https://arxiv.org/abs/2310.09186)
@@ -48,23 +50,23 @@ If this is the first time you encounter the GEF, here are some useful articles o
 
 The strategy behind the GEF is to take Maxwell's equations in an expanding spacetime,
 
-<a name="max">$$\operatorname{div} {\bf E} = 0\, , \qquad \operatorname{div} {\bf B} = 0\, ,$$</a>
-$$\dot{{\bf E}} + 2 H {\bf E} - \frac{1}{a}\operatorname{rot} {\bf B} + {\bf J} = 0 \, ,$$
-$$\dot{{\bf B}}  + 2 H {\bf B} + \frac{1}{a}\operatorname{rot} {\bf E} = 0 \,$$
+<a name="max">$$\operatorname{div} \bm{E} = 0\, , \qquad \operatorname{div} \bm{B} = 0\, ,$$</a>
+$$\dot{\bm{E}} + 2 H \bm{E} - \frac{1}{a}\operatorname{rot} \bm{B} + \bm{J} = 0 \, ,$$
+$$\dot{\bm{B}}  + 2 H \bm{B} + \frac{1}{a}\operatorname{rot} \bm{E} = 0 \,$$
 
 and use them to formulate a tower of ODEs for the quantities
 
-$$ \mathcal{F}_\mathcal{E}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{{\rm UV}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2\, ,$$
-$$ \mathcal{F}_\mathcal{G}^{(n)} = -\frac{a^4}{2 k_{{\rm UV}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf B} + {\bf B} \cdot \operatorname{rot}^n {\bf E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)} \frac{{\rm d} k}{k} \frac{a k^{n+4}}{2 \pi^2 k_{{\rm UV}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)] \, ,$$
-$$ \mathcal{F}_\mathcal{B}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle {\bf B} \cdot \operatorname{rot}^n {\bf B}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm UV}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2 \, ,$$
+$$ \mathcal{F}_\mathcal{E}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle \bm{E} \cdot \operatorname{rot}^n \bm{E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{a^2 k^{n+3}}{2 \pi^2 k_{{\rm UV}}^{n+4}}  \sum_{\lambda}\lambda^n |\dot{A}_\lambda(t,k)|^2\, ,$$
+$$ \mathcal{F}_\mathcal{G}^{(n)} = -\frac{a^4}{2 k_{{\rm UV}}^{n+4}}\langle \bm{E} \cdot \operatorname{rot}^n \bm{B} + \bm{B} \cdot \operatorname{rot}^n \bm{E}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)} \frac{{\rm d} k}{k} \frac{a k^{n+4}}{2 \pi^2 k_{{\rm UV}}^{n+4}}\sum_{\lambda}\lambda^{n+1} \operatorname{Re}[\dot{A}_\lambda(t,k)A_\lambda^*(t,k)] \, ,$$
+$$ \mathcal{F}_\mathcal{B}^{(n)} = \frac{a^4}{k_{{\rm UV}}^{n+4}}\langle \bm{B} \cdot \operatorname{rot}^n \bm{B}\rangle = \int\limits_{0}^{k_{{\rm UV}}(t)}\frac{{\rm d} k}{k} \frac{k^{n+5}}{2 \pi^{2}k_{{\rm UV}}^{n+4}} \sum_{\lambda}\lambda^n |A_\lambda(t,k)|^2 \, ,$$
 
 where, $k_{\rm UV}$ is a suitably chosen UV regulator which can vary with time. 
 For completeness, we have also given the expression for $\mathcal{F}_\mathcal{X}^{(n)}$ in terms of the mode functions $A_\lambda(t,k)$.
 
 The ODE for the $\mathcal{F}_\mathcal{X}^{(n)}$'s are then given by
 
-$$\frac{\rm d}{{\rm d} t} \mathcal{F}_\mathcal{E}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_\mathcal{E}^{(n)}  + 2\frac{k_{\rm UV}}{a}\mathcal{F}_\mathcal{G}^{(n+1)} + 2 \frac{a^4}{k_{\rm UV}^{n+4}} \langle {\bf J} \cdot \operatorname{rot}^n {\bf E} \rangle =  S_{\mathcal{E}}^{(n)}\, , $$
-$$\frac{\rm d}{{\rm d} t} \mathcal{F}_\mathcal{G}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_\mathcal{G}^{(n)} - \frac{k_{\rm UV}}{a}\left(\mathcal{F}_\mathcal{E}^{(n+1)} - \mathcal{F}_\mathcal{B}^{(n+1)}\right) - \frac{a^4}{k_{\rm UV}^{n+4}} \langle {\bf J} \cdot \operatorname{rot}^n {\bf B} \rangle= S_{\mathcal{G}}^{(n)}\, , $$
+$$\frac{\rm d}{{\rm d} t} \mathcal{F}_\mathcal{E}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_\mathcal{E}^{(n)}  + 2\frac{k_{\rm UV}}{a}\mathcal{F}_\mathcal{G}^{(n+1)} + 2 \frac{a^4}{k_{\rm UV}^{n+4}} \langle \bm{J} \cdot \operatorname{rot}^n \bm{E} \rangle =  S_{\mathcal{E}}^{(n)}\, , $$
+$$\frac{\rm d}{{\rm d} t} \mathcal{F}_\mathcal{G}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_\mathcal{G}^{(n)} - \frac{k_{\rm UV}}{a}\left(\mathcal{F}_\mathcal{E}^{(n+1)} - \mathcal{F}_\mathcal{B}^{(n+1)}\right) - \frac{a^4}{k_{\rm UV}^{n+4}} \langle \bm{J} \cdot \operatorname{rot}^n \bm{B} \rangle= S_{\mathcal{G}}^{(n)}\, , $$
 $$\frac{\rm d}{{\rm d} t} \mathcal{F}_\mathcal{B}^{(n)} + (4+n)\frac{{\rm d} \ln k_{\rm UV}}{{\rm d} t} \mathcal{F}_\mathcal{B}^{(n)} - 2\frac{k_{\rm UV}}{a}\mathcal{F}_\mathcal{G}^{(n+1)}  =  S_{\mathcal{B}}^{(n)}\, .$$
 
 Although these are infinitely many coupled ODE's, one can typically determine an analytical closing condition, such that they may be truncated at some order $n_{\rm tr}$.
@@ -307,7 +309,7 @@ To help you in this process, we show how to implement an example toy model.
 
 First, we need to work out the mathematical formulation of our model.
 
-Let us consider the case of Abelian gauge-field production in de Sitter space ($H={\rm const.}$) by a current of the type ${\bf J} = 2 H \xi {\bf B}$, 
+Let us consider the case of Abelian gauge-field production in de Sitter space ($H={\rm const.}$) by a current of the type $\bm{J} = 2 H \xi \bm{B}$, 
 where $\xi$ is a constant, which we refer to as instability parameter.The ODE tower for the gauge-field bilinears are then given by:
 
 $$\frac{\rm d}{{\rm d} t} \mathcal{F}_\mathcal{E}^{(n)} + (4+n)\frac{{\rm d} \ln k_\mathrm{h}}{{\rm d} t} \mathcal{F}_\mathcal{E}^{(n)}  + 2\frac{k_\mathrm{h}}{a}\mathcal{F}_\mathcal{G}^{(n+1)} - 4 H \xi \mathcal{F}_\mathcal{G}^{(n)}=  S_{\mathcal{E}}^{(n)}\, , $$
@@ -348,9 +350,9 @@ Beyond these staples, some extra variables appear in our ODE's:
 * $\xi$ -  *the instability parameter*
 
 To properly account for the gauge field, we also need to add in the following three variables:
-* $\mathcal{E}^{(0)} \equiv \langle {\bf E}^2 \rangle$ - *called `E` by the GEF*
-* $\mathcal{B}^{(0)} \equiv \langle {\bf B}^2 \rangle$ - *called `B` by the GEF*
-* $\mathcal{G}^{(0)} \equiv -\langle {\bf E} \cdot {\bf B} \rangle$ - *called `G` by the GEF*
+* $\mathcal{E}^{(0)} \equiv \langle \bm{E}^2 \rangle$ - *called `E` by the GEF*
+* $\mathcal{B}^{(0)} \equiv \langle \bm{B}^2 \rangle$ - *called `B` by the GEF*
+* $\mathcal{G}^{(0)} \equiv -\langle \bm{E} \cdot \bm{B} \rangle$ - *called `G` by the GEF*
 
 > **Note on gauge field bilinears** The time evolution of the variables $\mathcal{F}_\mathcal{X}^{(n)}$ will not be saved by the GEFF code,
 > since we are typically only interest in the quantities with $n=0$. The output `info` returned by the `run` method contains the full information on $\mathcal{F}_\mathcal{X}^{(n)}$,

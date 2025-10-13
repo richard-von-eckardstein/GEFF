@@ -1,5 +1,6 @@
 r"""
-Defines the GEF model "classic" corresponding to pure axion inflation.
+$\newcommand{\bm}[1]{\boldsymbol{#1}}$
+Defines the GEF model "pai" corresponding to pure axion inflation.
 
 For more details on this model, see e.g., [arXiv:2109.01651](https://arxiv.org/abs/2109.01651).
 
@@ -15,7 +16,7 @@ The model knows the following variables:
     * `a` - *scale factor, $a$* 
     * `H` - *Hubble rate, $H$* 
     * `ddphi` - *inflaton acceleration, $\ddot{\varphi}$*
-    * `E`, `B`, `G` - *gauge-field expectation values, $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, -$\langle {\bf E} \cdot {\bf B} \rangle$*
+    * `E`, `B`, `G` - *gauge-field expectation values, $\langle \bm{E}^2 \rangle$, $\langle \bm{B}^2 \rangle$, -$\langle \bm{E} \cdot \bm{B} \rangle$*
     * `xi` - *instability parameter, $\xi$* 
 * constants: 
     * `beta` - *coupling strength, $\beta$*
@@ -32,7 +33,7 @@ The model expects the following input:
 
 The model tracks the following events:
 * end of inflation - terminate solver when $\ddot{a} < 0$
-* negative norms - return an error when $\langle {\bf E}^2 \rangle$ or  $\langle {\bf B}^2 \rangle$ are negative 
+* negative norms - return an error when $\langle \bm{E}^2 \rangle$ or  $\langle \bm{B}^2 \rangle$ are negative 
 """
 import numpy as np
 

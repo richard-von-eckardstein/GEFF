@@ -49,7 +49,7 @@ def klein_gordon(dphi : float, dV : float, H : float, friction : float) -> float
     H : float
         the Hubble rate, $H$
     friction : float
-        friction term, (e.g., $\beta/M_{\rm P} \langle {\bf E}\cdot {\bf B} \rangle$)
+        friction term, (e.g., $\beta/M_{\rm P} \langle \boldsymbol{E}\cdot \boldsymbol{B} \rangle$)
 
     Returns
     -------
@@ -105,9 +105,9 @@ def gauge_field_ode(F : np.ndarray, a : float, kh : float, sclrCpl : float,
     r"""
     Calculate the derivative of
     
-    $$\mathcal{F}_\mathcal{E}^{(n)} =  \frac{a^4}{k_{\mathrm{h}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf E}\rangle \,  ,$$
-    $$\mathcal{F}_\mathcal{B}^{(n)} =  \frac{a^4}{k_{\mathrm{h}}^{n+4}}\langle {\bf B} \cdot \operatorname{rot}^n {\bf B}\rangle \, , $$
-    $$\mathcal{F}_\mathcal{G}^{(n)} =  -\frac{a^4}{2 k_{\mathrm{h}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf B} + {\bf B} \cdot \operatorname{rot}^n {\bf E}\rangle \, . $$
+    $$\mathcal{F}_\mathcal{E}^{(n)} =  \frac{a^4}{k_{\mathrm{h}}^{n+4}}\langle \boldsymbol{E} \cdot \operatorname{rot}^n \boldsymbol{E}\rangle \,  ,$$
+    $$\mathcal{F}_\mathcal{B}^{(n)} =  \frac{a^4}{k_{\mathrm{h}}^{n+4}}\langle \boldsymbol{B} \cdot \operatorname{rot}^n \boldsymbol{B}\rangle \, , $$
+    $$\mathcal{F}_\mathcal{G}^{(n)} =  -\frac{a^4}{2 k_{\mathrm{h}}^{n+4}}\langle \boldsymbol{E} \cdot \operatorname{rot}^n \boldsymbol{B} + \boldsymbol{B} \cdot \operatorname{rot}^n \boldsymbol{E}\rangle \, . $$
     
 
     Parameters
@@ -255,9 +255,9 @@ def drhoChi(rhoChi : float, E : float, G : float,
     rhoChi : float
         the fermion energy density, $\rho_{\chi}$
     E : float
-        the electric field expecation value, $\langle {\bf E}^2 \rangle$
+        the electric field expecation value, $\langle \boldsymbol{E}^2 \rangle$
     G : float
-        the expectation value of $-\langle {\bf E} \cdot {\bf B} \rangle$
+        the expectation value of $-\langle \boldsymbol{E} \cdot \boldsymbol{B} \rangle$
     sigmaE : float
         electric conductivity, $\sigma_{\rm E}$
     sigmaB : float
@@ -278,9 +278,9 @@ def gauge_field_ode_schwinger(F : np.ndarray, a : float, kh : float, sclrCpl : f
     r"""
     Calculate the derivative of
     
-    $$\mathcal{F}_\mathcal{E}^{(n)} =  \frac{a^4}{k_{\mathrm{h}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf E}\rangle \,  ,$$
-    $$\mathcal{F}_\mathcal{B}^{(n)} =  \frac{a^4}{k_{\mathrm{h}}^{n+4}}\langle {\bf B} \cdot \operatorname{rot}^n {\bf B}\rangle \, , $$
-    $$\mathcal{F}_\mathcal{G}^{(n)} =  -\frac{a^4}{2 k_{\mathrm{h}}^{n+4}}\langle {\bf E} \cdot \operatorname{rot}^n {\bf B} + {\bf B} \cdot \operatorname{rot}^n {\bf E}\rangle \, , $$
+    $$\mathcal{F}_\mathcal{E}^{(n)} =  \frac{a^4}{k_{\mathrm{h}}^{n+4}}\langle \boldsymbol{E} \cdot \operatorname{rot}^n \boldsymbol{E}\rangle \,  ,$$
+    $$\mathcal{F}_\mathcal{B}^{(n)} =  \frac{a^4}{k_{\mathrm{h}}^{n+4}}\langle \boldsymbol{B} \cdot \operatorname{rot}^n \boldsymbol{B}\rangle \, , $$
+    $$\mathcal{F}_\mathcal{G}^{(n)} =  -\frac{a^4}{2 k_{\mathrm{h}}^{n+4}}\langle \boldsymbol{E} \cdot \operatorname{rot}^n \boldsymbol{B} + \boldsymbol{B} \cdot \operatorname{rot}^n \boldsymbol{E}\rangle \, , $$
 
     in the presence of Schwinger conductivities.
 
@@ -365,11 +365,11 @@ def conductivities_collinear(a  : float, H  : float,
     H : float
         the Hubble rate, $H$
     E : float
-        the electric field expecation value, $\langle {\bf E}^2 \rangle$
+        the electric field expecation value, $\langle \boldsymbol{E}^2 \rangle$
     E : float
-        the magnetic field expecation value, $\langle {\bf B}^2 \rangle$
+        the magnetic field expecation value, $\langle \boldsymbol{B}^2 \rangle$
     G : float
-        the expectation value of $-\langle {\bf E} \cdot {\bf B} \rangle$
+        the expectation value of $-\langle \boldsymbol{E} \cdot \boldsymbol{B} \rangle$
     picture : int
         an integer specifying electric (=-1) or magnetic pictures (=1) 
     omega : float
@@ -417,11 +417,11 @@ def conductivities_mixed(a  : float, H  : float,
     H : float
         the Hubble rate, $H$
     E : float
-        the electric field expecation value, $\langle {\bf E}^2 \rangle$
+        the electric field expecation value, $\langle \boldsymbol{E}^2 \rangle$
     E : float
-        the magnetic field expecation value, $\langle {\bf B}^2 \rangle$
+        the magnetic field expecation value, $\langle \boldsymbol{B}^2 \rangle$
     G : float
-        the expectation value of $-\langle {\bf E} \cdot {\bf B} \rangle$
+        the expectation value of $-\langle \boldsymbol{E} \cdot \boldsymbol{B} \rangle$
     omega : float
         the reference frequency to convert from numerical to physical units
 

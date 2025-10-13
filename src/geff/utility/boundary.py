@@ -1,5 +1,5 @@
 r"""
-This module facilitates computing boundary terms which appear when computing the evolution of gauge-field bilinears like $\langle {\bf E}^2 \rangle$
+This module facilitates computing boundary terms which appear when computing the evolution of gauge-field bilinears like $\langle \boldsymbol{E}^2 \rangle$
 due to the time dependence of the UV-regulator scale $k_{\rm h}$.
 
 All functions in this module return the same quantities, namely

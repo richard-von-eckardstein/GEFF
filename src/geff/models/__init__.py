@@ -2,9 +2,9 @@
 This module contains pre-defined GEF models.
 
 Currently, the following models are implemented:
-1. **'classic'**: pure axion inflation
-2. **'SE noscale'**: fermionic axion inflation (without accounting for fermion $k$-dependence)
-3. **'SE-kh'**: fermionic axion inflation (accounting for fermion $k$-dependence using $k_h$)
+1. **'pai'**: pure axion inflation
+2. **'fai_basic'**: fermionic axion inflation (without accounting for fermion $k$-dependence)
+3. **'fai_kh'**: fermionic axion inflation (accounting for fermion $k$-dependence using $k_h$)
 
 Execute these models by calling `GEFF.gef.GEF` with its name and settings.
 """

@@ -1,5 +1,6 @@
 r"""
-Defines the GEF model "SE-kh" corresponding to fermionic axion inflation with a heuristic scale dependence model through the instability scale $k_{\rm h}$.
+$\newcommand{\bm}[1]{\boldsymbol{#1}}$
+Defines the GEF model "fai_kh" corresponding to fermionic axion inflation with a heuristic scale dependence model through the instability scale $k_{\rm h}$.
 
 For more details on this model, see e.g., [2408.16538](https://arxiv.org/abs/2408.16538).
 
@@ -16,7 +17,7 @@ The model knows the following variables:
     * `a` - *scale factor, $a$* 
     * `H` - *Hubble rate, $H$* 
     * `ddphi` - *inflaton acceleration, $\ddot{\varphi}$*
-    * `E`, `B`, `G` - *gauge-field expectation values, $\langle {\bf E}^2 \rangle$, $\langle {\bf B}^2 \rangle$, -$\langle {\bf E} \cdot {\bf B} \rangle$*
+    * `E`, `B`, `G` - *gauge-field expectation values, $\langle \bm{E}^2 \rangle$, $\langle \bm{B}^2 \rangle$, -$\langle \bm{E} \cdot \bm{B} \rangle$*
     * `xi` - *instability parameter, $\xi$* 
     * `sigmaE`, `sigmaB` - *electric and magnetic conductivities, $\sigma_{\rm E}$, $\sigma_{\rm B}$*
     * `xieff` - *effective instability parameter, $\xi_{\rm eff}$*
@@ -36,7 +37,7 @@ The model expects the following input:
 
 The model tracks the following events:
 * end of inflation - terminate solver when $\ddot{a} < 0$
-* negative norms - return an error when $\langle {\bf E}^2 \rangle$ or  $\langle {\bf B}^2 \rangle$ are negative 
+* negative norms - return an error when $\langle \bm{E}^2 \rangle$ or  $\langle \bm{B}^2 \rangle$ are negative 
 """
 import numpy as np
 
