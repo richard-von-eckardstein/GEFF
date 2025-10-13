@@ -229,7 +229,7 @@ It's that easy!
 To finish this first part of our tour, let us sample a second GEF flavor, "fai_kh":
 ```python
 # initialize the model
-faiGEF = compile_modell("fai_kh", {"picture":"electric"})
+faiGEF = compile_model("fai_kh", {"picture":"electric"})
 
 # chose initial conditions
 mod = faiGEF(beta=...)
