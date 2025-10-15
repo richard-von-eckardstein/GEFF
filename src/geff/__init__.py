@@ -573,14 +573,14 @@ von Eckardstein, R. (2025). GEFF: The Gradient Expansion Formalism Factory. Zeno
 von Eckardstein, R. (2025). GEFF: The Gradient Expansion Formalism Factory - A tool for inﬂationary gauge-ﬁeld production. arXiv. https://arxiv.org/abs/2510.12644
 
 @misc{vonEckardstein:2025jug,
-    author = "von Eckardstein, Richard",
-    title = "{GEFF: The Gradient Expansion Formalism Factory - A tool for inflationary gauge-field production}",
-    eprint = "2510.12644",
-    archivePrefix = "arXiv",
-    primaryClass = "astro-ph.CO",
-    reportNumber = "MS-TP-25-37",
-    month = "10",
-    year = "2025"
+    author        = {von Eckardstein, Richard},
+    title         = {GEFF: The Gradient Expansion Formalism Factory - A tool for inflationary gauge-field production},
+    eprint        = {2510.12644},
+    archivePrefix = {arXiv},
+    primaryClass  = {astro-ph.CO},
+    reportNumber  = {MS-TP-25-37},
+    month         = oct,
+    year          = 2025
 }
 ```
 <script type="module">
