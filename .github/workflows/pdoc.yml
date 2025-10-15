@@ -22,7 +22,7 @@ jobs:
 
       - run: pip install cosmo-geff pdoc
 
-      - run: pdoc src/geff -o docs/ -d numpy --no-include-undocumented --footer-text "GEFF v0.1.0" --math --mermaid
+      - run: pdoc src/geff -o docs/ -d numpy --no-include-undocumented --footer-text "GEFF v0.1.1" --math --mermaid
 
       - uses: actions/upload-pages-artifact@v4
         with:
