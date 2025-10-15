@@ -593,5 +593,5 @@ from .gef import compile_model
 from .mbm import GaugeSpec
 from .bgtypes import BGSystem
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
